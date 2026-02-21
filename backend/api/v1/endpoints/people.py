@@ -3,7 +3,8 @@ People management endpoints - Manage recognized faces
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, delete
+from sqlalchemy import select, func, and_, delete, update
+from sqlalchemy.exc import IntegrityError
 from typing import List
 import uuid
 
@@ -162,13 +163,39 @@ async def update_person(
             detail="Person not found"
         )
     
-    # Update name
-    person.name = person_data.name
-    
-    await db.commit()
-    await db.refresh(person)
-    
-    return person
+    # Update name — si ya existe una persona con ese nombre, hacer merge
+    # (reasignar las memorias al existente y eliminar el duplicado)
+    try:
+        person.name = person_data.name
+        await db.commit()
+        await db.refresh(person)
+        return person
+    except IntegrityError:
+        await db.rollback()
+        # Busca la persona existente con ese nombre
+        existing_result = await db.execute(
+            select(Person).where(
+                and_(
+                    Person.user_id == user.id,
+                    Person.name == person_data.name
+                )
+            )
+        )
+        existing_person = existing_result.scalar_one_or_none()
+        if not existing_person:
+            raise HTTPException(status_code=500, detail="Error al actualizar nombre")
+
+        # Reasigna las memorias de la persona duplicada a la existente
+        await db.execute(
+            update(MemoryPerson)
+            .where(MemoryPerson.person_id == person_id)
+            .values(person_id=existing_person.id)
+        )
+        # Elimina la persona duplicada
+        await db.execute(delete(Person).where(Person.id == person_id))
+        await db.commit()
+        await db.refresh(existing_person)
+        return existing_person
 
 
 @router.delete(
