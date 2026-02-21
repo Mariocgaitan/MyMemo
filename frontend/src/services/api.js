@@ -1,10 +1,8 @@
 import axios from 'axios';
 
-// In development with HTTPS, use relative URLs to leverage Vite's proxy
-// In production, use the full API URL
-const API_BASE_URL = import.meta.env.DEV 
-  ? '' // Empty string means relative URLs, will use Vite's proxy
-  : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+// Siempre usar URLs relativas — en dev el proxy de Vite redirige a localhost:8000,
+// en producción nginx hace el proxy de /api/* al backend container.
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
