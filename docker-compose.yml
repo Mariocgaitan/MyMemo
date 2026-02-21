@@ -1,0 +1,93 @@
+services:
+  # PostgreSQL with PostGIS and pgvector
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: lifelogs_db
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all
+    environment:
+      POSTGRES_USER: lifelogs_user
+      POSTGRES_PASSWORD: lifelogs_pass
+      POSTGRES_DB: lifelogs_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deployment/init-extensions.sql:/docker-entrypoint-initdb.d/99-init-extensions.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifelogs_user -d lifelogs_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery task queue
+  redis:
+    image: redis:7-alpine
+    container_name: lifelogs_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: mymemo-backend
+    container_name: lifelogs_backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://lifelogs_user:lifelogs_pass@db:5432/lifelogs_db
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,http://192.168.1.68:5173,http://192.168.1.68:5174,http://127.0.0.1:5173,http://127.0.0.1:5174
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Celery Worker for AI processing
+  celery_worker:
+    image: mymemo-backend
+    container_name: lifelogs_celery
+    command: celery -A tasks.celery_app worker --loglevel=info --pool=threads --concurrency=4
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://lifelogs_user:lifelogs_pass@db:5432/lifelogs_db
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - redis
+      - db
+
+  # React Frontend (Development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: lifelogs_frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

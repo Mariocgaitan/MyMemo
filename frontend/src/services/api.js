@@ -1,0 +1,196 @@
+import axios from 'axios';
+
+// In development with HTTPS, use relative URLs to leverage Vite's proxy
+// In production, use the full API URL
+const API_BASE_URL = import.meta.env.DEV 
+  ? '' // Empty string means relative URLs, will use Vite's proxy
+  : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request interceptor (for auth tokens in the future)
+api.interceptors.request.use(
+  (config) => {
+    // TODO: Add auth token when implemented
+    // const token = localStorage.getItem('token');
+    // if (token) {
+    //   config.headers.Authorization = `Bearer ${token}`;
+    // }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor (for error handling)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // TODO: Handle unauthorized (redirect to login)
+      console.error('Unauthorized access');
+    }
+    return Promise.reject(error);
+  }
+);
+
+// ========== Memory Endpoints ==========
+
+export const memoryAPI = {
+  // Get all memories with optional filters
+  getAll: async (params = {}) => {
+    const response = await api.get('/api/v1/memories', { params });
+    return response.data;
+  },
+
+  // Get single memory by ID
+  getById: async (id) => {
+    const response = await api.get(`/api/v1/memories/${id}`);
+    return response.data;
+  },
+
+  // Create new memory
+  create: async (data) => {
+    const response = await api.post('/api/v1/memories', data);
+    return response.data;
+  },
+
+  // Update memory
+  update: async (id, data) => {
+    const response = await api.patch(`/api/v1/memories/${id}`, data);
+    return response.data;
+  },
+
+  // Delete memory
+  delete: async (id) => {
+    const response = await api.delete(`/api/v1/memories/${id}`);
+    return response.data;
+  },
+
+  // Get processing jobs for a memory
+  getJobs: async (id) => {
+    const response = await api.get(`/api/v1/memories/${id}/jobs`);
+    return response.data;
+  },
+};
+
+// ========== People Endpoints ==========
+
+export const peopleAPI = {
+  // Get all people
+  getAll: async (params = {}) => {
+    const response = await api.get('/api/v1/people', { params });
+    return response.data;
+  },
+
+  // Get single person
+  getById: async (id) => {
+    const response = await api.get(`/api/v1/people/${id}`);
+    return response.data;
+  },
+
+  // Get memories with a specific person
+  getMemories: async (id, params = {}) => {
+    const response = await api.get(`/api/v1/people/${id}/memories`, { params });
+    return response.data;
+  },
+
+  // Rename person
+  rename: async (id, name) => {
+    const response = await api.patch(`/api/v1/people/${id}`, { name });
+    return response.data;
+  },
+
+  // Delete person
+  delete: async (id) => {
+    const response = await api.delete(`/api/v1/people/${id}`);
+    return response.data;
+  },
+
+  // Merge two people
+  merge: async (sourceId, targetId) => {
+    const response = await api.post(`/api/v1/people/${sourceId}/merge/${targetId}`);
+    return response.data;
+  },
+};
+
+// ========== Search Endpoints ==========
+
+export const searchAPI = {
+  // Text search
+  text: async (query, params = {}) => {
+    const response = await api.get('/api/v1/search/text', { 
+      params: { q: query, ...params } 
+    });
+    return response.data;
+  },
+
+  // Nearby search
+  nearby: async (lat, lng, radiusKm = 5, params = {}) => {
+    const response = await api.get('/api/v1/search/nearby', {
+      params: { lat, lng, radius_km: radiusKm, ...params }
+    });
+    return response.data;
+  },
+
+  // Date range search
+  dateRange: async (start, end, params = {}) => {
+    const response = await api.get('/api/v1/search/date-range', {
+      params: { start, end, ...params }
+    });
+    return response.data;
+  },
+
+  // Tags search
+  tags: async (tags, params = {}) => {
+    const tagsStr = Array.isArray(tags) ? tags.join(',') : tags;
+    const response = await api.get('/api/v1/search/tags', {
+      params: { tags: tagsStr, ...params }
+    });
+    return response.data;
+  },
+};
+
+// ========== Usage Endpoints ==========
+
+export const usageAPI = {
+  // Get usage summary
+  summary: async () => {
+    const response = await api.get('/api/v1/usage/summary');
+    return response.data;
+  },
+
+  // Get detailed metrics
+  metrics: async (params = {}) => {
+    const response = await api.get('/api/v1/usage/metrics', { params });
+    return response.data;
+  },
+
+  // Get usage by type
+  byType: async () => {
+    const response = await api.get('/api/v1/usage/by-type');
+    return response.data;
+  },
+
+  // Get daily usage
+  daily: async (days = 30) => {
+    const response = await api.get('/api/v1/usage/daily', { 
+      params: { days } 
+    });
+    return response.data;
+  },
+
+  // Get current month usage
+  currentMonth: async () => {
+    const response = await api.get('/api/v1/usage/current-month');
+    return response.data;
+  },
+};
+
+export default api;

@@ -1,0 +1,97 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: mymemo_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-lifelogs_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-lifelogs_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lifelogs_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: mymemo_redis
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: mymemo_backend
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-lifelogs_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-lifelogs_db}
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - S3_BUCKET_IMAGES=${S3_BUCKET_IMAGES}
+      - S3_BUCKET_THUMBNAILS=${S3_BUCKET_THUMBNAILS}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOWED_ORIGINS=https://${DOMAIN}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    # Puerto NO expuesto al host — nginx es el único punto de entrada
+
+  celery_worker:
+    build: ./backend
+    container_name: mymemo_celery
+    command: celery -A tasks.celery_app worker --loglevel=info --pool=threads --concurrency=4
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-lifelogs_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-lifelogs_db}
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=production
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - S3_BUCKET_IMAGES=${S3_BUCKET_IMAGES}
+      - S3_BUCKET_THUMBNAILS=${S3_BUCKET_THUMBNAILS}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - backend
+      - redis
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: mymemo_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    container_name: mymemo_certbot
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    # Renueva el certificado automáticamente cada 12 horas
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  certbot_certs:
+  certbot_www:
