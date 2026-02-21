@@ -57,11 +57,15 @@ export default function MemoryDetail() {
   }
 
   const meta = memory.ai_metadata || {};
+  const nlp = meta.nlp || {};
   const faces = meta.faces || [];
-  const tags = meta.detected_tags || [];
-  const categories = meta.user_categories || [];
-  const sentiment = meta.sentiment_label || meta.sentiment || null;
-  const activity = meta.activity || categories[0] || null;
+  const tags = nlp.tags || [];
+  const themes = nlp.themes || [];
+  const userCategories = meta.user_categories || [];
+  const allTags = [...new Set([...userCategories, ...themes, ...tags])];
+  const sentiment = nlp.sentiment || null;
+  const activity = nlp.activity || null;
+  const summary = nlp.summary || null;
 
   // Formatea la fecha
   const date = memory.created_at
@@ -121,31 +125,36 @@ export default function MemoryDetail() {
               {time && <span>🕐 {time}</span>}
             </div>
           )}
-          {memory.location && (
+          {memory.location_name && (
             <div className="flex items-center gap-2 text-sm text-text-primary-light dark:text-text-primary-dark">
               <MapPin size={16} className="text-primary" />
-              <span className="font-medium">{memory.location}</span>
+              <span className="font-medium">{memory.location_name}</span>
             </div>
           )}
         </div>
 
         {/* Description */}
-        {memory.content && (
-          <div className="bg-surface-light dark:bg-surface-dark rounded-2xl p-6">
+        {memory.description_raw && (
+          <div className="bg-surface-light dark:bg-surface-dark rounded-2xl p-6 space-y-3">
             <p className="text-text-primary-light dark:text-text-primary-dark leading-relaxed">
-              {memory.content}
+              {memory.description_raw}
             </p>
+            {summary && (
+              <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark italic border-t border-border-light dark:border-border-dark pt-3">
+                💡 {summary}
+              </p>
+            )}
           </div>
         )}
 
         {/* Tags */}
-        {(tags.length > 0 || categories.length > 0) && (
+        {allTags.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
               🏷️ Tags
             </h3>
             <div className="flex flex-wrap gap-2">
-              {[...categories, ...tags].map((tag, i) => (
+              {allTags.map((tag, i) => (
                 <Chip key={i} selected>{tag}</Chip>
               ))}
             </div>
@@ -187,7 +196,7 @@ export default function MemoryDetail() {
                   🎭 Sentimiento
                 </p>
                 <p className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark mt-1">
-                  {sentiment}
+                  {sentiment === 'positive' ? '😊 Positivo' : sentiment === 'negative' ? '😔 Negativo' : '😐 Neutral'}
                 </p>
               </div>
             )}
