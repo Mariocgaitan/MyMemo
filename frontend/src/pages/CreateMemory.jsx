@@ -269,8 +269,21 @@ export default function CreateMemory() {
             <Input
               label="📍 Ubicación"
               value={formData.location}
-              onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-              placeholder="Taquería de canasta, CDMX"
+              onChange={(e) => {
+                const value = e.target.value;
+                // Intenta parsear coordenadas del texto (ej: "19.4348, -99.1891" o "📍 GPS: 19.4348, -99.1891")
+                const coordMatch = value.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+                if (coordMatch) {
+                  const lat = parseFloat(coordMatch[1]);
+                  const lng = parseFloat(coordMatch[2]);
+                  if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                    setFormData(prev => ({ ...prev, location: value, latitude: lat, longitude: lng }));
+                    return;
+                  }
+                }
+                setFormData(prev => ({ ...prev, location: value }));
+              }}
+              placeholder="Taquería de canasta, CDMX  ó  19.4348, -99.1891"
               startIcon={<MapPin size={18} />}
             />
             <p className={`text-xs ${
@@ -279,8 +292,8 @@ export default function CreateMemory() {
               'text-text-secondary-light dark:text-text-secondary-dark'
             }`}>
               {gpsStatus === 'loading' && '📡 Obteniendo ubicación GPS...'}
-              {gpsStatus === 'success' && `✅ GPS capturado: ${formData.latitude?.toFixed(4)}, ${formData.longitude?.toFixed(4)}`}
-              {gpsStatus === 'error' && '⚠️ GPS no disponible. Asegúrate de dar permisos de ubicación en tu navegador. (Se usará ubicación por defecto)'}
+              {gpsStatus === 'success' && `✅ Coordenadas: ${formData.latitude?.toFixed(4)}, ${formData.longitude?.toFixed(4)}`}
+              {gpsStatus === 'error' && '⚠️ GPS no disponible. Puedes escribir coordenadas manualmente (ej: 19.4348, -99.1891)'}
             </p>
           </div>
 
