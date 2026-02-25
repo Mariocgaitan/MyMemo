@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import MapView from '../components/map/MapView';
-import { memoryAPI, peopleAPI } from '../services/api';
+import { memoryAPI, peopleAPI, searchAPI } from '../services/api';
 
 // Initial categories
 const INITIAL_CATEGORIES = [
@@ -25,8 +25,12 @@ export default function Home() {
   const [memories, setMemories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null); // null = not searching
+  const [searchLoading, setSearchLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [people, setPeople] = useState([]);
+  const [showAllTimeline, setShowAllTimeline] = useState(false);
+  const searchDebounceRef = useRef(null);
 
   // Load categories from localStorage on mount
   useEffect(() => {
@@ -62,12 +66,43 @@ export default function Home() {
   const fetchPeople = async () => {
     try {
       const data = await peopleAPI.getAll();
-      // Only show people with a real name (skip Unknown Person)
       const named = (data || []).filter(p => !p.name.startsWith('Unknown Person'));
       setPeople(named);
     } catch (error) {
       console.error('Error fetching people:', error);
     }
+  };
+
+  // Debounced API search — fires 400ms after the user stops typing
+  const handleSearchChange = useCallback((e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    if (!value.trim()) {
+      setSearchResults(null);
+      return;
+    }
+
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        setSearchLoading(true);
+        const results = await searchAPI.text(value.trim(), { limit: 200 });
+        setSearchResults(results.memories || results || []);
+      } catch (err) {
+        console.error('Search error:', err);
+        setSearchResults(null); // fall back to client-side
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 400);
+  }, []);
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults(null);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
   };
 
   const toggleCategory = (category) => {
@@ -86,25 +121,29 @@ export default function Home() {
     );
   };
 
-  // Apply all active filters and search query
-  const filteredMemories = memories.filter(memory => {
-    // Search filter
-    if (searchQuery.trim()) {
+  // Base list: API search results when searching, otherwise all loaded memories
+  const baseMemories = searchResults !== null ? searchResults : memories;
+
+  // Apply category and people filters on top
+  const filteredMemories = baseMemories.filter(memory => {
+    // Client-side fallback text filter (when API search not yet returned or no query)
+    if (searchQuery.trim() && searchResults === null) {
       const q = searchQuery.toLowerCase();
       const inDesc = (memory.description_raw || '').toLowerCase().includes(q);
       const inLocation = (memory.location_name || '').toLowerCase().includes(q);
-      const inTags = (memory.ai_metadata?.tags || []).some(t => t.toLowerCase().includes(q));
+      // Fixed: tags live in ai_metadata.nlp.tags
+      const inTags = (memory.ai_metadata?.nlp?.tags || []).some(t => t.toLowerCase().includes(q));
       if (!inDesc && !inLocation && !inTags) return false;
     }
 
-    // Category filter (user_categories stored in ai_metadata)
+    // Category filter
     if (selectedCategories.length > 0) {
       const memCats = memory.ai_metadata?.user_categories || [];
       const hasCategory = selectedCategories.some(cat => memCats.includes(cat));
       if (!hasCategory) return false;
     }
 
-    // People filter — match person ID against memory's detected faces
+    // People filter
     if (selectedPeople.length > 0) {
       const memFaces = memory.ai_metadata?.faces || [];
       const faceIds = memFaces.map(f => f.person_id);
@@ -113,6 +152,19 @@ export default function Home() {
     }
 
     return true;
+  });
+
+  // Timeline: limit to last 7 days unless showAllTimeline is true
+  const timelineMemories = showAllTimeline
+    ? filteredMemories
+    : filteredMemories.filter(m => {
+        const diffDays = (Date.now() - new Date(m.created_at)) / 86400000;
+        return diffDays <= 7;
+      });
+
+  const hasMoreThanWeek = filteredMemories.some(m => {
+    const diffDays = (Date.now() - new Date(m.created_at)) / 86400000;
+    return diffDays > 7;
   });
 
   const addCategory = () => {
@@ -137,13 +189,25 @@ export default function Home() {
       <div className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark p-4 space-y-3">
         {/* Search bar with filters toggle */}
         <div className="flex gap-2">
-          <Input
-            placeholder="Buscar por frase, tags, lugar..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            startIcon={<Search size={20} />}
-            className="flex-1"
-          />
+          <div className="relative flex-1">
+            <Input
+              placeholder="Buscar por frase, tags, lugar..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              startIcon={searchLoading
+                ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                : <Search size={20} />}
+              className="flex-1 w-full"
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
           <button
             onClick={() => setFiltersExpanded(!filtersExpanded)}
             className="px-4 py-2 rounded-xl border-2 border-border-light dark:border-border-dark hover:border-primary transition-colors flex items-center gap-2 text-sm font-medium text-text-primary-light dark:text-text-primary-dark"
@@ -214,20 +278,51 @@ export default function Home() {
       <div className="bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark p-4 flex-[2] overflow-hidden">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
-            📅 Timeline (últimos 7 días)
+            📅 {showAllTimeline ? 'Todos los recuerdos' : 'Últimos 7 días'}
+            {searchQuery && (
+              <span className="ml-2 text-sm font-normal text-text-secondary-light dark:text-text-secondary-dark">
+                — {filteredMemories.length} resultado{filteredMemories.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </h2>
-          <button className="text-sm font-medium text-primary hover:text-primary-hover transition-colors">
-            Ver todo →
-          </button>
+          {hasMoreThanWeek && (
+            <button
+              onClick={() => setShowAllTimeline(prev => !prev)}
+              className="text-sm font-medium text-primary hover:text-primary-hover transition-colors"
+            >
+              {showAllTimeline ? '← Recientes' : 'Ver todo →'}
+            </button>
+          )}
         </div>
-        
+
         {loading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto"></div>
           </div>
-        ) : filteredMemories.length > 0 ? (
+        ) : memories.length === 0 ? (
+          <div className="text-center py-12 text-text-secondary-light dark:text-text-secondary-dark">
+            <p className="text-3xl mb-2">📸</p>
+            <p className="font-medium">Aún no tienes recuerdos</p>
+            <p className="text-sm mt-1">Toca el botón <strong>+</strong> para crear tu primer recuerdo</p>
+          </div>
+        ) : timelineMemories.length === 0 ? (
+          <div className="text-center py-12 text-text-secondary-light dark:text-text-secondary-dark">
+            <p className="text-3xl mb-2">🔍</p>
+            <p className="font-medium">
+              {searchQuery ? `Sin resultados para "${searchQuery}"` : 'Sin recuerdos en los últimos 7 días'}
+            </p>
+            {(searchQuery || !showAllTimeline) && (
+              <button
+                onClick={searchQuery ? clearSearch : () => setShowAllTimeline(true)}
+                className="mt-2 text-sm text-primary hover:text-primary-hover"
+              >
+                {searchQuery ? 'Limpiar búsqueda' : 'Ver todos los recuerdos'}
+              </button>
+            )}
+          </div>
+        ) : (
           <div className="space-y-4 overflow-y-auto h-[calc(100%-3rem)]">
-            {groupMemoriesByDay(filteredMemories).map(group => (
+            {groupMemoriesByDay(timelineMemories).map(group => (
               <div key={group.label}>
                 <h3 className="text-sm font-semibold text-text-secondary-light dark:text-text-secondary-dark mb-2">
                   {group.label}
@@ -258,12 +353,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-        ) : (
-          <div className="text-center py-12 text-text-secondary-light dark:text-text-secondary-dark">
-            <p className="text-xl mb-2">📸</p>
-            <p className="font-medium">No hay recuerdos aún</p>
-            <p className="text-sm mt-1">Presiona el botón + para crear tu primer recuerdo</p>
-          </div>
+
         )}
       </div>
     </div>

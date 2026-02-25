@@ -160,7 +160,7 @@ function createPopupContent(memories, onMemoryClick) {
   header.className = 'bg-primary/10 px-4 py-3 border-b border-gray-200 dark:border-gray-700';
   header.innerHTML = `
     <h3 class="font-bold text-gray-900 dark:text-gray-100">
-      📍 ${memories[0].location || 'Ubicación'}
+      📍 ${memories[0].location_name || memories[0].location || 'Ubicación'}
     </h3>
     <p class="text-sm text-gray-600 dark:text-gray-400">
       ${memories.length} ${memories.length === 1 ? 'recuerdo' : 'recuerdos'} en este lugar
