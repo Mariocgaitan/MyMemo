@@ -1,7 +1,7 @@
-# LifeLog AI - Project Tracker & Development Log
+# MyMemo - Project Tracker & Development Log
 
-**Last Updated:** February 19, 2026  
-**Current Phase:** Backend Complete + Serverless-Ready Refactor - Ready for Frontend  
+**Last Updated:** February 24, 2026  
+**Current Phase:** Phase 2 — Bug Fixing, UX Improvements & Feature Completion  
 **Project Status:** 🟢 Active Development
 
 ---
@@ -17,12 +17,12 @@
 | **Backend Implementation** | ✅ Complete | 100% |
 | **Backend Testing** | ✅ Complete | 100% |
 | **Serverless Architecture** | ✅ Ready | 100% |
-| **Frontend Implementation** | ⏳ Not Started | 0% |
+| **Frontend (MVP)** | ✅ Deployed | 80% |
 | **AI/ML Integration** | ✅ Complete | 100% |
-| **Testing** | ✅ Backend Done | 50% |
-| **Deployment** | ⏳ Not Started | 0% |
+| **Production Deployment** | ✅ Live | 100% |
+| **Phase 2: Bugs & UX** | 🔄 In Progress | 10% |
 
-**Overall Project Progress:** 70% (Backend 100% + Refactored for Serverless)
+**Overall Project Progress:** 85% (MVP live in production, Phase 2 starting)
 
 **Component Status:**
 - ✅ API Endpoints (23/23 working)
@@ -1635,6 +1635,179 @@ DEBUG=true
 - Documented progress while waiting for Docker build
 - User can review testing results so far
 - Ready to continue once compilation completes
+
+---
+
+---
+
+# 🎉 FASE 1 COMPLETADA — Resumen Ejecutivo
+
+**Fecha de Cierre:** February 24, 2026  
+**Duración Total:** ~10 sesiones de desarrollo  
+**Resultado:** MVP funcional y desplegado en producción con HTTPS
+
+## ✅ Todo lo que se logró en Fase 1
+
+### Infraestructura & Despliegue
+| Componente | Detalle |
+|---|---|
+| **Servidor** | AWS Lightsail — Ubuntu 22.04, 2 GB RAM, 2 vCPUs, 60 GB SSD |
+| **IP Estática** | `16.58.56.110` (Ohio zone A) |
+| **Dominio** | `mymemo-app.duckdns.org` (DuckDNS, free) |
+| **SSL** | Let's Encrypt via certbot (auto-renueva cada 90 días) |
+| **Docker** | 6 contenedores corriendo: backend, db (PostgreSQL+PostGIS), redis, celery_worker, frontend (nginx), certbot |
+| **PWA** | Habilitado — instalable en iPhone desde Safari |
+
+### Backend
+- ✅ FastAPI con 23 endpoints funcionando
+- ✅ PostgreSQL 16 + PostGIS + pgvector
+- ✅ Celery + Redis para tareas asíncronas (face recognition + NLP)
+- ✅ OpenAI gpt-4o-mini para extracción de metadatos
+- ✅ S3 para almacenamiento de imágenes y thumbnails
+- ✅ Tracking de costos de IA por memoria
+
+### Frontend
+- ✅ React 18 + Vite + TailwindCSS
+- ✅ PWA con iconos personalizados (icon-192.png, icon-512.png)
+- ✅ Subida de memorias con foto, descripción, ubicación y GPS
+- ✅ Vista de detalle de memoria con datos reales de la API
+- ✅ Vista de inicio con lista de memorias
+- ✅ Gestión de personas (renombrar, con merge en caso de duplicado)
+
+### Bugs Resueltos en Fase 1
+| # | Bug | Solución |
+|---|---|---|
+| 1 | Frontend llamaba `localhost:8000` en producción | `api.js` siempre usa URLs relativas (`''`) |
+| 2 | `UniqueViolationError` al renombrar persona | `people.py` hace merge cuando hay colisión de nombre |
+| 3 | `MemoryDetail` mostraba datos hardcodeados (mock) | Reescritura completa para consumir API real |
+| 4 | Coordenadas manuales no se actualizaban al subir memoria | `onChange` en `CreateMemory.jsx` parsea coordenadas con regex |
+| 5 | Clave OpenAI expuesta en `.env.example` de GitHub | Reemplazada con placeholder + `git commit --amend --force-push` |
+| 6 | Variables de entorno no cargadas en Docker | Siempre usar `--env-file .env.prod` en todos los comandos |
+| 7 | Certbot challenge fallaba (nginx no corría) | Usar modo `--standalone` antes de levantar nginx |
+
+---
+
+# 🚀 FASE 2 — Plan: Bugs, UX y Mejoras
+
+**Inicio:** February 24, 2026  
+**Objetivo:** Pulir la experiencia, cerrar huecos funcionales y preparar el app para uso diario real.
+
+## 🐛 Bugs Conocidos (Pendientes de Validar)
+
+| # | Descripción | Prioridad | Estado |
+|---|---|---|---|
+| B1 | Cache del Service Worker en Safari — cambios no se ven sin modo incógnito | Alta | Pendiente |
+| B2 | Pins del mapa (MapView) — verificar que aparecen después de subir memorias | Media | Pendiente |
+| B3 | Timeline en Home — verificar orden cronológico y que muestra memorias nuevas | Media | Pendiente |
+| B4 | `vite.svg` genera 404 en logs de nginx (asset de Vite que no se usa) | Baja | Pendiente |
+| B5 | Coordenadas en `CreateMemory` — validar que el fix del parsing funciona en producción | Alta | Pendiente (post-deploy) |
+
+## 🔧 Mejoras de UX Identificadas
+
+| # | Mejora | Prioridad | Estado |
+|---|---|---|---|
+| U1 | Feedback visual al subir memoria (spinner / progress bar) | Alta | Pendiente |
+| U2 | Confirmación antes de eliminar memoria | Alta | Pendiente |
+| U3 | Estado de procesamiento de IA en la vista de detalle (`Procesando...` mientras Celery trabaja) | Media | Pendiente |
+| U4 | Mensaje cuando no hay memorias en Home | Media | Pendiente |
+| U5 | Búsqueda funcional en la UI (ya existe el endpoint `/search/text`) | Alta | Pendiente |
+| U6 | Filtro por etiquetas / personas en Home | Media | Pendiente |
+| U7 | Vista de galería de fotos (además de timeline) | Baja | Pendiente |
+| U8 | Mostrar thumbnail en lugar de imagen original en listas | Media | Pendiente |
+
+## 🌟 Features Faltantes del MVP
+
+| # | Feature | Prioridad | Estado |
+|---|---|---|---|
+| F1 | **Búsqueda** — conectar barra de búsqueda de Home con el endpoint de texto | Alta | Pendiente |
+| F2 | **MapView** — verificar clustering de pins y popup al hacer click | Alta | Pendiente |
+| F3 | **FaceTagModal** — flujo completo para etiquetar caras en fotos | Alta | Pendiente |
+| F4 | **Personas** — pantalla de gestión de personas con sus memorias | Media | Pendiente |
+| F5 | **Offline** — IndexedDB queue para subir memorias sin conexión | Baja | Pendiente |
+| F6 | **Editar memoria** — modificar descripción, ubicación, etiquetas | Media | Pendiente |
+| F7 | **Búsqueda por ubicación** — "memorias cerca de aquí" (endpoint ya existe) | Media | Pendiente |
+| F8 | **Dashboard de costos de IA** — pantalla de `/usage` para ver qué gasta | Baja | Pendiente |
+
+## 📊 Orden de Ataque Recomendado — Fase 2
+
+### Sprint 1: Estabilización (1-2 sesiones)
+1. Deploy del fix de coordenadas al servidor
+2. Verificar que MapView muestra pins reales
+3. Verificar Timeline carga memorias reales
+4. Fix Service Worker cache (estrategia de cache bust)
+5. Fix 404 de vite.svg
+
+### Sprint 2: UX crítico (2-3 sesiones)
+6. Conectar búsqueda de Home con la API
+7. Feedback visual de subida (spinner)
+8. Confirmación antes de eliminar
+9. Estado de procesamiento de IA en detalle
+
+### Sprint 3: Features clave (3-4 sesiones)
+10. Flujo completo de FaceTagModal
+11. Pantalla de Personas con sus memorias
+12. Thumbnails en listas
+13. Filtros por etiquetas
+
+### Sprint 4: Extras (futuro)
+14. Offline support (IndexedDB)
+15. Edición de memorias
+16. Búsqueda geoespacial en UI
+17. Dashboard de costos
+
+## 🔑 Referencias Técnicas Importantes (para IA)
+
+```
+# Servidor
+IP: 16.58.56.110
+Dominio: mymemo-app.duckdns.org
+SSH: ssh ubuntu@16.58.56.110
+Path en servidor: /app/mymemo
+
+# Comandos de servidor
+cd /app/mymemo && git pull origin main
+cd frontend && npm run build && cd ..
+docker compose -f docker-compose.prod.yml --env-file .env.prod restart nginx
+# SIEMPRE usar --env-file .env.prod con docker compose
+
+# Rebuild completo
+docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
+
+# Ver logs
+docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend
+```
+
+### Estructura de datos clave
+
+```js
+// Memory object desde la API
+{
+  id, description_raw, image_url, thumbnail_url,
+  location_name, latitude, longitude, created_at,
+  ai_metadata: {
+    nlp: { tags, themes, sentiment, summary, activity, entities },
+    faces: [...]
+  }
+}
+
+// API base URL — siempre relativa
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+// nginx proxea /api/* a backend:8000
+```
+
+### Archivos frontend clave
+- `frontend/src/services/api.js` — cliente Axios
+- `frontend/src/pages/Home.jsx` — lista de memorias + mapa
+- `frontend/src/pages/CreateMemory.jsx` — subida de memorias
+- `frontend/src/pages/MemoryDetail.jsx` — detalle de memoria
+- `frontend/src/components/FaceTagModal.jsx` — etiquetar caras (pendiente integrar)
+
+### Archivos backend clave
+- `backend/api/v1/endpoints/memories.py` — CRUD de memorias
+- `backend/api/v1/endpoints/people.py` — gestión de personas (con merge)
+- `backend/api/v1/endpoints/search.py` — búsqueda (texto, geo, tags, fechas)
+- `backend/services/face_service.py` — reconocimiento facial portable
+- `backend/services/nlp_service.py` — extracción NLP portable
 
 ---
 

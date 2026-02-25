@@ -32,11 +32,25 @@ router = APIRouter(prefix="/memories", tags=["memories"])
 # ============================================================
 
 def memory_to_response(memory: Memory) -> MemoryResponse:
-    """Convert Memory ORM model to response schema"""
+    """Convert Memory ORM model to response schema with fresh presigned URLs"""
     # Extract coordinates from Geography column
     from geoalchemy2.shape import to_shape
     point = to_shape(memory.coordinates)
-    
+
+    # Always generate a fresh presigned URL (7-day expiry).
+    # Works whether the stored value is a raw key (new format) or
+    # an old full presigned URL that may have already expired.
+    fresh_image_url = storage_service.get_presigned_url(
+        memory.image_url, storage_service.images_bucket
+    )
+    fresh_thumbnail_url = (
+        storage_service.get_presigned_url(
+            memory.thumbnail_url, storage_service.thumbnails_bucket
+        )
+        if memory.thumbnail_url
+        else None
+    )
+
     return MemoryResponse(
         id=memory.id,
         user_id=memory.user_id,
@@ -44,8 +58,8 @@ def memory_to_response(memory: Memory) -> MemoryResponse:
         location_name=memory.location_name,
         latitude=point.y,
         longitude=point.x,
-        image_url=memory.image_url,
-        thumbnail_url=memory.thumbnail_url,
+        image_url=fresh_image_url,
+        thumbnail_url=fresh_thumbnail_url,
         ai_metadata=memory.ai_metadata,
         faces_processed=memory.faces_processed,
         visibility=memory.visibility,

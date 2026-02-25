@@ -6,6 +6,7 @@ import base64
 import uuid
 from typing import Optional, Tuple
 from io import BytesIO
+from urllib.parse import urlparse
 from PIL import Image
 from botocore.exceptions import ClientError
 
@@ -62,16 +63,11 @@ class StorageService:
     
     def _upload_to_s3(self, bucket: str, key: str, data: bytes, content_type: str) -> str:
         """
-        Upload data to S3 bucket
-        
-        Args:
-            bucket: S3 bucket name
-            key: Object key/path
-            data: Raw bytes to upload
-            content_type: MIME type
-            
+        Upload data to S3 bucket.
+
         Returns:
-            Pre-signed URL of uploaded object (valid for 24 hours)
+            The S3 object key (e.g. "memories/uuid.jpg").
+            Use get_presigned_url() to obtain a fresh download URL.
         """
         try:
             self.s3_client.put_object(
@@ -79,19 +75,41 @@ class StorageService:
                 Key=key,
                 Body=data,
                 ContentType=content_type,
-                CacheControl='max-age=31536000'  # 1 year cache
+                CacheControl='max-age=31536000'  # 1 year cache hint for CDN / browser
             )
-            
-            # Generate pre-signed URL (24 hours for Celery processing)
-            url = self.s3_client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': bucket, 'Key': key},
-                ExpiresIn=86400  # 24 hours
-            )
-            return url
-            
+            return key  # Store the key, not a time-limited URL
+
         except ClientError as e:
             raise Exception(f"Failed to upload to S3: {str(e)}")
+
+    def get_presigned_url(self, value: str, bucket: str, expiration: int = 86400 * 7) -> str:
+        """
+        Generate a fresh presigned URL from either:
+        - A raw S3 key  (new format, e.g. "memories/uuid.jpg")
+        - A full presigned URL (old format that may have already expired)
+
+        Default expiration: 7 days.
+        """
+        if not value:
+            return value
+
+        if value.startswith("http"):
+            # Old format: full presigned URL → extract the path key
+            parsed = urlparse(value)
+            key = parsed.path.lstrip("/")
+        else:
+            key = value
+
+        try:
+            return self.s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": bucket, "Key": key},
+                ExpiresIn=expiration,
+            )
+        except ClientError as e:
+            # Return original value so the app doesn't hard-crash on edge cases
+            print(f"Warning: could not refresh presigned URL for {key}: {e}")
+            return value
     
     def _generate_and_upload_thumbnail(self, image: Image.Image, memory_id: uuid.UUID) -> str:
         """
@@ -184,25 +202,10 @@ class StorageService:
     
     def generate_presigned_url(self, bucket: str, key: str, expiration: int = 3600) -> str:
         """
-        Generate presigned URL for temporary access
-        
-        Args:
-            bucket: S3 bucket name
-            key: Object key
-            expiration: URL validity in seconds (default 1 hour)
-            
-        Returns:
-            Presigned URL
+        Generate presigned URL for temporary access (legacy helper).
+        Prefer get_presigned_url() for new code.
         """
-        try:
-            url = self.s3_client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': bucket, 'Key': key},
-                ExpiresIn=expiration
-            )
-            return url
-        except ClientError as e:
-            raise Exception(f"Failed to generate presigned URL: {str(e)}")
+        return self.get_presigned_url(key, bucket, expiration)
 
 
 # Singleton instance

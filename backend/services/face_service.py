@@ -7,6 +7,7 @@ that can be used by Celery tasks, Lambda functions, or any other orchestrator.
 import os
 import sys
 import uuid
+import json
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
 
@@ -14,7 +15,7 @@ import face_recognition
 import requests
 import numpy as np
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageEnhance
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -22,20 +23,66 @@ from models.database import Memory, Person, MemoryPerson, ProcessingJob
 from sqlalchemy.orm.attributes import flag_modified
 from services.storage_service import storage_service
 
+# Store up to this many encodings per person for robust matching
+MAX_ENCODINGS_PER_PERSON = 5
+# Match threshold: lower = stricter. 0.55 reduces false positives vs 0.6
+MATCH_TOLERANCE = 0.55
+
 
 class FaceRecognitionService:
     """Service for face detection and recognition"""
-    
+
     def __init__(self):
         """Initialize face recognition service"""
-        # Explicitly add face_recognition_models to Python path
         models_path = "/usr/local/lib/python3.12/site-packages/face_recognition_models"
         if models_path not in sys.path:
             sys.path.insert(0, models_path)
-        
-        # Set environment variable for model location
         os.environ['FACE_RECOGNITION_MODELS'] = models_path
-    
+
+    # ------------------------------------------------------------------
+    # Encoding serialization helpers (backward-compatible)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _load_person_encodings(person: Person) -> List[np.ndarray]:
+        """
+        Parse stored face encodings from a Person record.
+
+        Supports two formats:
+        - New: JSON string  '[[0.1, 0.2, ...], [0.15, ...]]'  → multiple encodings
+        - Old: comma-separated string  '0.1,0.2,...'            → single encoding
+        """
+        raw = person.face_embedding
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+            if parsed and isinstance(parsed[0], list):
+                return [np.array(enc) for enc in parsed]
+            # JSON array of numbers (edge-case: single encoding as flat list)
+            return [np.array(parsed)]
+        except (json.JSONDecodeError, TypeError):
+            # Legacy comma-separated format
+            return [np.array([float(x) for x in raw.split(",")])]
+
+    @staticmethod
+    def _serialize_encodings(encodings: List[np.ndarray]) -> str:
+        """Serialize a list of encodings to a JSON string."""
+        return json.dumps([enc.tolist() for enc in encodings])
+
+    @staticmethod
+    def _preprocess_image(image_bytes: bytes) -> np.ndarray:
+        """
+        Normalize image before face detection:
+        - Slight contrast enhancement helps with uneven lighting
+        - Keeps original resolution (no downscale)
+        """
+        pil = Image.open(BytesIO(image_bytes)).convert("RGB")
+        pil = ImageEnhance.Contrast(pil).enhance(1.3)
+        pil = ImageEnhance.Brightness(pil).enhance(1.05)
+        return np.array(pil), pil
+
+
     def detect_and_recognize_faces(
         self,
         db: Session,
@@ -71,19 +118,20 @@ class FaceRecognitionService:
                 job.started_at = datetime.now(timezone.utc)
                 db.commit()
             
-            # Download image from S3
-            response = requests.get(memory.image_url, timeout=30)
+            # Refresh presigned URL before downloading — stored URL may have expired
+            fresh_url = storage_service.get_presigned_url(
+                memory.image_url, storage_service.images_bucket
+            )
+            response = requests.get(fresh_url, timeout=30)
             response.raise_for_status()
             image_bytes = response.content
-            
-            # Load image with face_recognition (requires numpy array)
-            image = face_recognition.load_image_file(BytesIO(image_bytes))
-            # Also load as PIL Image for cropping face thumbnails
-            pil_image = Image.open(BytesIO(image_bytes)).convert('RGB')
-            
-            # Detect faces (HOG model - CPU friendly)
-            face_locations = face_recognition.face_locations(image, model="hog")
-            face_encodings = face_recognition.face_encodings(image, face_locations)
+
+            # Load and preprocess image
+            image, pil_image = self._preprocess_image(image_bytes)
+
+            # Detect faces — upsample=2 catches smaller / off-angle faces
+            face_locations = face_recognition.face_locations(image, number_of_times_to_upsample=2, model="hog")
+            face_encodings = face_recognition.face_encodings(image, face_locations, num_jitters=2)
             
             if not face_encodings:
                 # No faces found - mark as completed
@@ -193,15 +241,17 @@ class FaceRecognitionService:
             best_match_confidence = 0.0
             
             for person in existing_people:
-                # Parse stored encoding
-                stored_encoding = np.array([float(x) for x in person.face_embedding.split(",")])
-                
-                # Compare faces (lower distance = better match)
-                face_distance = face_recognition.face_distance([stored_encoding], face_encoding)[0]
-                confidence = 1 - face_distance  # Convert distance to confidence
-                
-                # Threshold: 0.6 (60% confidence)
-                if confidence > 0.6 and confidence > best_match_confidence:
+                # Load ALL stored encodings for this person (multi-encoding support)
+                person_encodings = self._load_person_encodings(person)
+                if not person_encodings:
+                    continue
+
+                # Compare against each stored encoding, keep the best (lowest distance)
+                distances = face_recognition.face_distance(person_encodings, face_encoding)
+                min_distance = float(np.min(distances))
+                confidence = 1.0 - min_distance
+
+                if confidence > MATCH_TOLERANCE and confidence > best_match_confidence:
                     matched_person = person
                     best_match_confidence = confidence
             
@@ -209,6 +259,12 @@ class FaceRecognitionService:
                 # Update existing person
                 matched_person.times_detected += 1
                 matched_person.last_seen = datetime.now(timezone.utc)
+
+                # Add new encoding to the stored list (up to MAX_ENCODINGS_PER_PERSON)
+                existing_encodings = self._load_person_encodings(matched_person)
+                if len(existing_encodings) < MAX_ENCODINGS_PER_PERSON:
+                    existing_encodings.append(face_encoding)
+                    matched_person.face_embedding = self._serialize_encodings(existing_encodings)
                 
                 # Update thumbnail if person doesn't have one yet
                 if not matched_person.thumbnail_url:
@@ -234,12 +290,12 @@ class FaceRecognitionService:
                     "is_new": False
                 })
             else:
-                # Create new unknown person
+                # Create new unknown person — store encoding in new JSON format
                 new_person = Person(
                     id=uuid.uuid4(),
                     user_id=memory.user_id,
                     name=f"Unknown Person {uuid.uuid4().hex[:8]}",
-                    face_embedding=encoding_str,
+                    face_embedding=self._serialize_encodings([face_encoding]),
                     times_detected=1
                 )
                 db.add(new_person)
