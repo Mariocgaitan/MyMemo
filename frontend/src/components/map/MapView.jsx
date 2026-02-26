@@ -5,17 +5,138 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 
-// Fix for default marker icons in Webpack/Vite
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+// Inject photo marker CSS once
+const PHOTO_MARKER_CSS = `
+  .photo-marker {
+    background: none !important;
+    border: none !important;
+  }
+  .photo-marker-inner {
+    width: 48px;
+    height: 48px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    overflow: hidden;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    background: #6366f1;
+  }
+  .photo-marker-inner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: rotate(45deg) scale(1.35);
+    transform-origin: center;
+  }
+  .photo-marker-inner .photo-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    transform: rotate(45deg);
+  }
+  .photo-cluster {
+    background: none !important;
+    border: none !important;
+  }
+  .photo-cluster-inner {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid white;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    background: #6366f1;
+  }
+  .photo-cluster-inner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .photo-cluster-inner .cluster-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+  }
+  .photo-cluster-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #6366f1;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    padding: 0 3px;
+    line-height: 1;
+    z-index: 1;
+  }
+`;
 
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
+if (!document.getElementById('photo-marker-styles')) {
+  const style = document.createElement('style');
+  style.id = 'photo-marker-styles';
+  style.textContent = PHOTO_MARKER_CSS;
+  document.head.appendChild(style);
+}
+
+// Create a photo pin icon from a memory
+function createPhotoIcon(memory) {
+  const imgSrc = memory.thumbnail_url || memory.image_url;
+  const html = `
+    <div class="photo-marker-inner">
+      ${imgSrc
+        ? `<img src="${imgSrc}" alt="" loading="lazy" />`
+        : `<div class="photo-placeholder">📸</div>`
+      }
+    </div>
+  `;
+  return L.divIcon({
+    html,
+    className: 'photo-marker',
+    iconSize: [48, 48],
+    iconAnchor: [10, 46], // tip of the rotated square
+    popupAnchor: [14, -40],
+  });
+}
+
+// Create a cluster icon showing the most recent memory's thumbnail
+function createClusterIcon(cluster) {
+  const markers = cluster.getAllChildMarkers();
+  // Get most recent memory thumbnail from first marker's options
+  const firstMemory = markers[0]?.options?._memory;
+  const imgSrc = firstMemory?.thumbnail_url || firstMemory?.image_url;
+  const count = cluster.getChildCount();
+  const html = `
+    <div style="position:relative;display:inline-block;">
+      <div class="photo-cluster-inner">
+        ${imgSrc
+          ? `<img src="${imgSrc}" alt="" loading="lazy" />`
+          : `<div class="cluster-placeholder">📸</div>`
+        }
+      </div>
+      <span class="photo-cluster-badge">${count > 99 ? '99+' : count}</span>
+    </div>
+  `;
+  return L.divIcon({
+    html,
+    className: 'photo-cluster',
+    iconSize: [56, 56],
+    iconAnchor: [28, 28],
+  });
+}
 
 export default function MapView({ memories = [], onMemoryClick, onLocationClick, loading = false }) {
   const mapRef = useRef(null);
@@ -27,34 +148,30 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    // Create map centered on CDMX (default)
     const map = L.map(mapRef.current, {
-      center: [19.4326, -99.1332], // CDMX coordinates
+      center: [19.4326, -99.1332],
       zoom: 12,
       zoomControl: true,
     });
 
-    // Add OpenStreetMap tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
     }).addTo(map);
 
-    // Create marker cluster group
     const markerCluster = L.markerClusterGroup({
-      maxClusterRadius: 50,
+      maxClusterRadius: 60,
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
       zoomToBoundsOnClick: true,
+      iconCreateFunction: createClusterIcon,
     });
-    
-    map.addLayer(markerCluster);
 
+    map.addLayer(markerCluster);
     mapInstanceRef.current = map;
     markerClusterRef.current = markerCluster;
     setMapReady(true);
 
-    // Cleanup on unmount
     return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
@@ -67,48 +184,44 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
   useEffect(() => {
     if (!mapReady || !markerClusterRef.current) return;
 
-    // Clear existing markers
     markerClusterRef.current.clearLayers();
 
-    // Group memories by location (to show count in popup)
+    // Group memories by exact lat/lng
     const locationGroups = memories.reduce((acc, memory) => {
+      if (!memory.latitude || !memory.longitude) return acc;
       const key = `${memory.latitude},${memory.longitude}`;
       if (!acc[key]) {
-        acc[key] = {
-          latitude: memory.latitude,
-          longitude: memory.longitude,
-          memories: [],
-        };
+        acc[key] = { latitude: memory.latitude, longitude: memory.longitude, memories: [] };
       }
       acc[key].memories.push(memory);
       return acc;
     }, {});
 
-    // Create markers for each location
     Object.values(locationGroups).forEach(location => {
-      const marker = L.marker([location.latitude, location.longitude]);
-
-      // Create popup content
-      const popupContent = createPopupContent(location.memories, onMemoryClick);
-      marker.bindPopup(popupContent, {
-        maxWidth: 320,
-        className: 'memory-popup',
+      // Most recent memory at this spot drives the pin photo
+      const primary = location.memories[0];
+      const marker = L.marker([location.latitude, location.longitude], {
+        icon: createPhotoIcon(primary),
+        _memory: primary, // stored so cluster icon can read it
       });
 
-      // Add click event for single location
+      const popupContent = createPopupContent(location.memories, onMemoryClick);
+      marker.bindPopup(popupContent, { maxWidth: 320, className: 'memory-popup' });
+
       marker.on('click', () => {
-        if (onLocationClick) {
-          onLocationClick(location);
-        }
+        if (onLocationClick) onLocationClick(location);
       });
 
       markerClusterRef.current.addLayer(marker);
     });
 
-    // Fit bounds to show all markers
     if (memories.length > 0) {
-      const bounds = memories.map(m => [m.latitude, m.longitude]);
-      mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50] });
+      const bounds = memories
+        .filter(m => m.latitude && m.longitude)
+        .map(m => [m.latitude, m.longitude]);
+      if (bounds.length > 0) {
+        mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+      }
     }
   }, [memories, mapReady, onMemoryClick, onLocationClick]);
 
