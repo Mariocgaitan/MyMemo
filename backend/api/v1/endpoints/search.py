@@ -43,13 +43,26 @@ async def search_by_text(
     """
     user = await get_default_user(db)
     
-    # Build full-text search query
-    # Using to_tsquery for better search (handles AND, OR, NOT operators)
+    # Build full-text search query across multiple fields:
+    # description_raw + location_name + ai_metadata tags/themes/summary
     search_query = text("""
         SELECT id FROM memories
         WHERE user_id = :user_id
-        AND to_tsvector('english', description_raw) @@ plainto_tsquery('english', :query)
-        ORDER BY ts_rank(to_tsvector('english', description_raw), plainto_tsquery('english', :query)) DESC
+        AND (
+            to_tsvector('spanish', COALESCE(description_raw, ''))
+                @@ plainto_tsquery('spanish', :query)
+            OR to_tsvector('english', COALESCE(description_raw, ''))
+                @@ plainto_tsquery('english', :query)
+            OR to_tsvector('spanish', COALESCE(location_name, ''))
+                @@ plainto_tsquery('spanish', :query)
+            OR LOWER(COALESCE(location_name, '')) LIKE LOWER('%' || :query_plain || '%')
+            OR LOWER(COALESCE(ai_metadata::text, '')) LIKE LOWER('%' || :query_plain || '%')
+        )
+        ORDER BY ts_rank(
+            to_tsvector('spanish', COALESCE(description_raw, '')) ||
+            to_tsvector('english', COALESCE(description_raw, '')),
+            plainto_tsquery('english', :query)
+        ) DESC
         LIMIT :limit OFFSET :offset
     """)
     
@@ -60,6 +73,7 @@ async def search_by_text(
         {
             "user_id": user.id,
             "query": q,
+            "query_plain": q,
             "limit": page_size,
             "offset": offset
         }
@@ -70,12 +84,21 @@ async def search_by_text(
     count_query = text("""
         SELECT COUNT(*) FROM memories
         WHERE user_id = :user_id
-        AND to_tsvector('english', description_raw) @@ plainto_tsquery('english', :query)
+        AND (
+            to_tsvector('spanish', COALESCE(description_raw, ''))
+                @@ plainto_tsquery('spanish', :query)
+            OR to_tsvector('english', COALESCE(description_raw, ''))
+                @@ plainto_tsquery('english', :query)
+            OR to_tsvector('spanish', COALESCE(location_name, ''))
+                @@ plainto_tsquery('spanish', :query)
+            OR LOWER(COALESCE(location_name, '')) LIKE LOWER('%' || :query_plain || '%')
+            OR LOWER(COALESCE(ai_metadata::text, '')) LIKE LOWER('%' || :query_plain || '%')
+        )
     """)
     
     total_result = await db.execute(
         count_query,
-        {"user_id": user.id, "query": q}
+        {"user_id": user.id, "query": q, "query_plain": q}
     )
     total = total_result.scalar()
     
