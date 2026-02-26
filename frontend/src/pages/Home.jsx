@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Plus, X, MapPin, ArrowRight } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
+import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
 import { memoryAPI, peopleAPI, searchAPI } from '../services/api';
 
@@ -30,6 +31,7 @@ export default function Home() {
   const [categories, setCategories] = useState([]);
   const [people, setPeople] = useState([]);
   const [showAllTimeline, setShowAllTimeline] = useState(false);
+  const [locationModal, setLocationModal] = useState(null); // { location_name, memories[] }
   const searchDebounceRef = useRef(null);
 
   // Load categories from localStorage on mount
@@ -186,6 +188,10 @@ export default function Home() {
     navigate(`/memory/${memory.id}`);
   };
 
+  const handleLocationClick = (location) => {
+    setLocationModal(location);
+  };
+
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col">
       {/* Search and Filters */}
@@ -273,9 +279,67 @@ export default function Home() {
         <MapView 
           memories={filteredMemories}
           onMemoryClick={handleMemoryClick}
+          onLocationClick={handleLocationClick}
           loading={loading}
         />
       </div>
+
+      {/* Location Modal */}
+      <Modal
+        isOpen={!!locationModal}
+        onClose={() => setLocationModal(null)}
+        title={locationModal?.memories?.[0] && (locationModal.memories[0].location_name || '📍 Recuerdos en este lugar')}
+        size="lg"
+      >
+        {locationModal && (
+          <div className="space-y-4">
+            <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+              {locationModal.memories.length} {locationModal.memories.length === 1 ? 'recuerdo' : 'recuerdos'} en este lugar
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {locationModal.memories.map(memory => (
+                <div
+                  key={memory.id}
+                  className="bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden border border-border-light dark:border-border-dark hover:shadow-md transition-shadow"
+                >
+                  {/* Photo */}
+                  <div className="relative h-48 bg-gray-100 dark:bg-gray-800">
+                    <img
+                      src={memory.thumbnail_url || memory.image_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
+                      {new Date(memory.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </div>
+                  </div>
+                  {/* Info */}
+                  <div className="p-4">
+                    <p className="text-sm text-text-primary-light dark:text-text-primary-dark line-clamp-3">
+                      {memory.description_raw}
+                    </p>
+                    {memory.ai_metadata?.nlp?.tags?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {memory.ai_metadata.nlp.tags.slice(0, 4).map(tag => (
+                          <span key={tag} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { setLocationModal(null); navigate(`/memory/${memory.id}`); }}
+                      className="mt-3 flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-hover transition-colors"
+                    >
+                      Ver detalle <ArrowRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Timeline Container - 40% height */}
       <div className="bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark p-4 flex-[2] overflow-hidden">

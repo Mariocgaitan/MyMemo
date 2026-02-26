@@ -205,9 +205,7 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
         _memory: primary, // stored so cluster icon can read it
       });
 
-      const popupContent = createPopupContent(location.memories, onMemoryClick);
-      marker.bindPopup(popupContent, { maxWidth: 320, className: 'memory-popup' });
-
+      // No Leaflet popup — click opens the modal in parent
       marker.on('click', () => {
         if (onLocationClick) onLocationClick(location);
       });
@@ -223,7 +221,7 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
         mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
       }
     }
-  }, [memories, mapReady, onMemoryClick, onLocationClick]);
+  }, [memories, mapReady, onLocationClick]);
 
   return (
     <div className="w-full h-full relative">
@@ -261,94 +259,4 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
       )}
     </div>
   );
-}
-
-// Helper function to create popup HTML
-function createPopupContent(memories, onMemoryClick) {
-  const container = document.createElement('div');
-  container.className = 'memory-popup-content';
-
-  // Header
-  const header = document.createElement('div');
-  header.className = 'bg-primary/10 px-4 py-3 border-b border-gray-200 dark:border-gray-700';
-  header.innerHTML = `
-    <h3 class="font-bold text-gray-900 dark:text-gray-100">
-      📍 ${memories[0].location_name || memories[0].location || 'Ubicación'}
-    </h3>
-    <p class="text-sm text-gray-600 dark:text-gray-400">
-      ${memories.length} ${memories.length === 1 ? 'recuerdo' : 'recuerdos'} en este lugar
-    </p>
-  `;
-  container.appendChild(header);
-
-  // Memory list
-  const list = document.createElement('div');
-  list.className = 'divide-y divide-gray-200 dark:divide-gray-700 max-h-64 overflow-y-auto';
-  
-  memories.slice(0, 5).forEach(memory => {
-    const item = document.createElement('div');
-    item.className = 'flex gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors';
-    item.onclick = () => {
-      if (onMemoryClick) onMemoryClick(memory);
-    };
-
-    const img = memory.thumbnail_url || memory.image_url;
-    item.innerHTML = `
-      <img 
-        src="${img}" 
-        alt="Memory"
-        class="w-20 h-20 rounded-lg object-cover flex-shrink-0"
-        loading="lazy"
-      />
-      <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-          ${memory.description_raw?.substring(0, 50) || 'Sin descripción'}...
-        </p>
-        <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
-          🕐 ${formatDate(memory.created_at)}
-        </p>
-        ${memory.people?.length > 0 ? `
-          <p class="text-xs text-gray-600 dark:text-gray-400">
-            👤 Con ${memory.people.map(p => p.name).join(', ')}
-          </p>
-        ` : ''}
-      </div>
-    `;
-    list.appendChild(item);
-  });
-  container.appendChild(list);
-
-  // View all button if more than 5
-  if (memories.length > 5) {
-    const footer = document.createElement('div');
-    footer.className = 'border-t border-gray-200 dark:border-gray-700 p-3';
-    footer.innerHTML = `
-      <button class="w-full text-center text-sm font-medium text-primary hover:text-primary-hover transition-colors">
-        Ver todos (${memories.length}) →
-      </button>
-    `;
-    container.appendChild(footer);
-  }
-
-  return container;
-}
-
-// Helper function to format date
-function formatDate(dateString) {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 60) return `Hace ${diffMins} min`;
-  if (diffHours < 24) return `Hace ${diffHours} hora${diffHours > 1 ? 's' : ''}`;
-  if (diffDays < 7) return `Hace ${diffDays} día${diffDays > 1 ? 's' : ''}`;
-  
-  return date.toLocaleDateString('es-MX', { 
-    day: 'numeric', 
-    month: 'short',
-    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined 
-  });
 }
