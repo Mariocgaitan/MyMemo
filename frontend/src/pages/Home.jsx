@@ -89,7 +89,10 @@ export default function Home() {
       try {
         setSearchLoading(true);
         const results = await searchAPI.text(value.trim(), { limit: 200 });
-        setSearchResults(results.memories || results || []);
+        const apiResults = results.memories || results || [];
+        // Solo reemplazar si la API devuelve algo — si devuelve vacío,
+        // mantener client-side para evitar falsos "sin resultados"
+        setSearchResults(apiResults.length > 0 ? apiResults : null);
       } catch (err) {
         console.error('Search error:', err);
         setSearchResults(null); // fall back to client-side
