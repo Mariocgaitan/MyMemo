@@ -213,7 +213,9 @@ class FaceRecognitionService:
         """
         img_w, img_h = (pil_image.size if pil_image else (0, 0))
         detected_faces = []
-        
+        image_w = img_w  # store for bbox normalization
+        image_h = img_h
+
         for face_encoding, face_location in zip(face_encodings, face_locations):
             # face_location = (top, right, bottom, left)
             top, right, bottom, left = face_location
@@ -285,9 +287,16 @@ class FaceRecognitionService:
                 
                 detected_faces.append({
                     "person_id": str(matched_person.id),
+                    "person_name": matched_person.name,
                     "name": matched_person.name,
                     "confidence": float(best_match_confidence),
-                    "is_new": False
+                    "is_new": False,
+                    "bbox": {
+                        "top": top, "right": right,
+                        "bottom": bottom, "left": left
+                    },
+                    "image_w": image_w,
+                    "image_h": image_h,
                 })
             else:
                 # Create new unknown person — store encoding in new JSON format
@@ -319,9 +328,16 @@ class FaceRecognitionService:
                 
                 detected_faces.append({
                     "person_id": str(new_person.id),
+                    "person_name": new_person.name,
                     "name": new_person.name,
                     "confidence": 1.0,
-                    "is_new": True
+                    "is_new": True,
+                    "bbox": {
+                        "top": top, "right": right,
+                        "bottom": bottom, "left": left
+                    },
+                    "image_w": image_w,
+                    "image_h": image_h,
                 })
         
         return detected_faces

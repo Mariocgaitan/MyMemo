@@ -31,8 +31,8 @@ function UploadOverlay({ step }) {
             const isActive = i === idx;
             return (
               <div key={s.id} className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${isActive ? 'bg-primary/10 text-primary' :
-                  isDone ? 'text-green-600 dark:text-green-400' :
-                    'text-text-secondary-light dark:text-text-secondary-dark opacity-40'
+                isDone ? 'text-green-600 dark:text-green-400' :
+                  'text-text-secondary-light dark:text-text-secondary-dark opacity-40'
                 }`}>
                 <span className="text-xl">{isDone ? '✅' : s.emoji}</span>
                 <span className={`text-sm font-medium ${isActive ? 'font-semibold' : ''}`}>{s.label}</span>
@@ -67,6 +67,7 @@ export default function CreateMemory() {
   const [gpsStatus, setGpsStatus] = useState('loading'); // 'loading', 'success', 'error'
   const [showFaceTagModal, setShowFaceTagModal] = useState(false);
   const [createdMemoryId, setCreatedMemoryId] = useState(null);
+  const [createdMemoryUrl, setCreatedMemoryUrl] = useState(null);
   const [formData, setFormData] = useState({
     image: null,
     imagePreview: null,
@@ -205,8 +206,9 @@ export default function CreateMemory() {
       setUploadStep('ai');
       await new Promise(r => setTimeout(r, 800)); // brief visual pause
 
-      // Store memory ID and show face tagging modal
+      // Store memory ID and image URL, then show face tagging modal
       setCreatedMemoryId(response.id);
+      setCreatedMemoryUrl(response.image_url || null);
       setShowFaceTagModal(true);
 
     } catch (err) {
@@ -328,8 +330,8 @@ export default function CreateMemory() {
               startIcon={<MapPin size={18} />}
             />
             <p className={`text-xs ${gpsStatus === 'success' ? 'text-green-600 dark:text-green-400' :
-                gpsStatus === 'error' ? 'text-yellow-600 dark:text-yellow-400' :
-                  'text-text-secondary-light dark:text-text-secondary-dark'
+              gpsStatus === 'error' ? 'text-yellow-600 dark:text-yellow-400' :
+                'text-text-secondary-light dark:text-text-secondary-dark'
               }`}>
               {gpsStatus === 'loading' && '📡 Obteniendo ubicación GPS...'}
               {gpsStatus === 'success' && `✅ Coordenadas: ${formData.latitude?.toFixed(4)}, ${formData.longitude?.toFixed(4)}`}
@@ -404,6 +406,7 @@ export default function CreateMemory() {
         isOpen={showFaceTagModal}
         onClose={() => { setShowFaceTagModal(false); navigate('/'); }}
         memoryId={createdMemoryId}
+        memoryImageUrl={createdMemoryUrl}
         onComplete={handleFaceTagComplete}
         prefilledNames={formData.people ? formData.people.split(',').map(n => n.trim()) : []}
       />

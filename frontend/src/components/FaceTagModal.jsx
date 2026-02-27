@@ -3,12 +3,51 @@ import { Modal, Input, Button } from './ui';
 import { User, Loader } from 'lucide-react';
 import { memoryAPI, peopleAPI } from '../services/api';
 
-export default function FaceTagModal({ 
-  isOpen, 
-  onClose, 
+/**
+ * FaceCrop — renders a cropped region of the memory image using CSS clip/scale.
+ * Uses the bbox (top, right, bottom, left in px) and the original image dimensions
+ * to position and scale the image inside a fixed container.
+ */
+function FaceCrop({ imageUrl, bbox, imageW, imageH, size = 120 }) {
+  const { top, right, bottom, left } = bbox;
+  const faceW = right - left;
+  const faceH = bottom - top;
+
+  // Scale so the face fills `size` px (use the larger dimension)
+  const scale = size / Math.max(faceW, faceH);
+  const scaledW = imageW * scale;
+  const scaledH = imageH * scale;
+  const offsetX = -left * scale;
+  const offsetY = -top * scale;
+
+  return (
+    <div
+      style={{ width: size, height: size }}
+      className="rounded-xl overflow-hidden bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark flex-shrink-0 relative"
+    >
+      <img
+        src={imageUrl}
+        alt="cara"
+        style={{
+          position: 'absolute',
+          width: scaledW,
+          height: scaledH,
+          left: offsetX,
+          top: offsetY,
+          objectFit: 'cover',
+        }}
+      />
+    </div>
+  );
+}
+
+export default function FaceTagModal({
+  isOpen,
+  onClose,
   memoryId,
   onComplete,
-  prefilledNames = [] // Names from manual tagging
+  prefilledNames = [],
+  memoryImageUrl = null,   // <-- pass the image_url of the memory for crop
 }) {
   const [faces, setFaces] = useState([]);
   const [faceNames, setFaceNames] = useState({});
@@ -27,17 +66,17 @@ export default function FaceTagModal({
     try {
       setLoading(true);
       setProcessingStatus('waiting');
-      
-      // Poll job status until face_recognition completes
-      const maxAttempts = 30; // 30 seconds max
+
+      // Poll job status until face_recognition completes (max 30s)
+      const maxAttempts = 30;
       let attempts = 0;
       let jobCompleted = false;
-      
+
       while (attempts < maxAttempts && !jobCompleted) {
         try {
           const jobs = await memoryAPI.getJobs(memoryId);
-          const faceJob = jobs.find(job => job.job_type === 'face_recognition');
-          
+          const faceJob = (jobs.jobs || jobs || []).find(j => j.job_type === 'face_recognition');
+
           if (faceJob) {
             if (faceJob.status === 'completed') {
               jobCompleted = true;
@@ -51,9 +90,9 @@ export default function FaceTagModal({
               setProcessingStatus('processing');
             }
           }
-          
+
           if (!jobCompleted) {
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+            await new Promise(r => setTimeout(r, 1000));
             attempts++;
           }
         } catch (err) {
@@ -61,30 +100,36 @@ export default function FaceTagModal({
           break;
         }
       }
-      
+
       if (!jobCompleted) {
         setProcessingStatus('timeout');
         setError('El procesamiento está tomando más tiempo del esperado');
       }
-      
-      // Fetch detected faces from backend
-      const detectedFaces = await peopleAPI.getAll({ memory_id: memoryId });
-      
+
+      // Fetch the memory to get ai_metadata.faces (which includes bbox now)
+      let detectedFaces = [];
+      try {
+        const memData = await memoryAPI.getById(memoryId);
+        detectedFaces = memData?.ai_metadata?.faces || [];
+      } catch {
+        // Fallback: fetch people list
+        const people = await peopleAPI.getAll({ memory_id: memoryId });
+        detectedFaces = (people || []).map(p => ({ person_id: p.id, name: p.name }));
+      }
+
       setFaces(detectedFaces);
-      
-      // Pre-fill names: use prefilled manual names first, then existing person name if not "Unknown"
+
+      // Pre-fill names from manual entry, then from recognized names
       const initialNames = {};
       detectedFaces.forEach((face, index) => {
         if (prefilledNames[index]) {
-          // Use manually entered name
-          initialNames[face.id] = prefilledNames[index];
+          initialNames[face.person_id] = prefilledNames[index];
         } else if (face.name && !face.name.startsWith('Unknown Person')) {
-          // Use existing recognized name
-          initialNames[face.id] = face.name;
+          initialNames[face.person_id] = face.name;
         }
       });
       setFaceNames(initialNames);
-      
+
     } catch (err) {
       console.error('Error fetching faces:', err);
       setError('No se pudieron cargar las caras detectadas');
@@ -96,16 +141,11 @@ export default function FaceTagModal({
   const handleSave = async () => {
     try {
       setSaving(true);
-      
-      // Update names for each person
       for (const [personId, name] of Object.entries(faceNames)) {
         if (name && name.trim()) {
           await peopleAPI.rename(personId, name.trim());
         }
       }
-      
-      console.log('Saved face names:', faceNames);
-      
       onComplete?.(faceNames);
       onClose();
     } catch (err) {
@@ -121,6 +161,8 @@ export default function FaceTagModal({
     onClose();
   };
 
+  const hasBbox = faces.some(f => f.bbox && f.image_w);
+
   return (
     <Modal
       isOpen={isOpen}
@@ -130,16 +172,18 @@ export default function FaceTagModal({
     >
       <div className="space-y-6">
         <p className="text-text-secondary-light dark:text-text-secondary-dark">
-          La IA está procesando las caras en tu foto. Nombra a cada persona para que pueda reconocerlas en el futuro.
+          {hasBbox
+            ? 'Puedes ver cada cara detectada. Ponle nombre para reconocerla en el futuro.'
+            : 'La IA está procesando las caras en tu foto. Nombra a cada persona para reconocerlas en el futuro.'}
         </p>
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader className="animate-spin text-primary mb-4" size={48} />
             <p className="text-text-secondary-light dark:text-text-secondary-dark">
-              {processingStatus === 'waiting' ? 'Esperando procesamiento...' : 
-               processingStatus === 'processing' ? 'Detectando caras en la foto...' : 
-               'Cargando resultados...'}
+              {processingStatus === 'waiting' ? 'Esperando procesamiento...' :
+                processingStatus === 'processing' ? 'Detectando caras en la foto...' :
+                  'Cargando resultados...'}
             </p>
           </div>
         ) : faces.length === 0 ? (
@@ -148,34 +192,40 @@ export default function FaceTagModal({
             <p className="text-text-primary-light dark:text-text-primary-dark font-medium">
               No se detectaron caras en esta foto
             </p>
-            <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-2">
-              {prefilledNames.length > 0 && `Personas mencionadas: ${prefilledNames.join(', ')}`}
-            </p>
+            {prefilledNames.length > 0 && (
+              <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-2">
+                Personas mencionadas: {prefilledNames.join(', ')}
+              </p>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {faces.map((face, index) => (
-              <div key={face.id} className="space-y-3">
-                {/* Face thumbnail or placeholder */}
-                <div className="aspect-square rounded-xl overflow-hidden bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark flex items-center justify-center">
-                  {face.thumbnail_url ? (
-                    <img 
-                      src={face.thumbnail_url} 
-                      alt={`Face ${index + 1}`}
-                      className="w-full h-full object-cover"
+              <div key={face.person_id || index} className="space-y-3">
+                {/* Face crop (if bbox available) or person thumbnail */}
+                <div className="flex justify-center">
+                  {face.bbox && face.image_w && memoryImageUrl ? (
+                    <FaceCrop
+                      imageUrl={memoryImageUrl}
+                      bbox={face.bbox}
+                      imageW={face.image_w}
+                      imageH={face.image_h}
+                      size={120}
                     />
                   ) : (
-                    <User size={48} className="text-text-secondary-light dark:text-text-secondary-dark" />
+                    <div className="w-[120px] h-[120px] rounded-xl overflow-hidden bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark flex items-center justify-center">
+                      <User size={48} className="text-text-secondary-light dark:text-text-secondary-dark" />
+                    </div>
                   )}
                 </div>
-                
+
                 {/* Name input */}
                 <Input
                   placeholder="Nombre..."
-                  value={faceNames[face.id] || ''}
-                  onChange={(e) => setFaceNames(prev => ({
+                  value={faceNames[face.person_id] || ''}
+                  onChange={e => setFaceNames(prev => ({
                     ...prev,
-                    [face.id]: e.target.value
+                    [face.person_id]: e.target.value
                   }))}
                 />
               </div>
@@ -190,14 +240,10 @@ export default function FaceTagModal({
         )}
 
         <div className="flex gap-3 justify-end pt-4 border-t border-border-light dark:border-border-dark">
-          <Button
-            variant="secondary"
-            onClick={handleSkip}
-            disabled={saving}
-          >
+          <Button variant="secondary" onClick={handleSkip} disabled={saving}>
             {faces.length === 0 ? 'Cerrar' : 'Omitir por ahora'}
           </Button>
-          
+
           {faces.length > 0 && (
             <Button
               onClick={handleSave}
