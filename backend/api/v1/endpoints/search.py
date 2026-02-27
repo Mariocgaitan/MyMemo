@@ -153,65 +153,37 @@ async def search_nearby(
     search_point = Point(longitude, latitude)
     geography_point = from_shape(search_point, srid=4326)
     
-    # PostGIS query for nearby memories
-    # ST_DWithin uses meters, so multiply km by 1000
-    # Use native PostGIS point creation to avoid WKB cast issues
-    nearby_query = text("""
-        SELECT id, ST_Distance(coordinates, CAST(ST_SetSRID(ST_MakePoint(:lon, :lat), 4326) AS geography)) as distance
-        FROM memories
-        WHERE user_id = :user_id
-        AND ST_DWithin(coordinates, CAST(ST_SetSRID(ST_MakePoint(:lon, :lat), 4326) AS geography), :radius)
-        ORDER BY distance ASC
-        LIMIT :limit OFFSET :offset
-    """)
-    
+    radius_meters = radius_km * 1000
     offset = (page - 1) * page_size
     
-    result = await db.execute(
-        nearby_query,
-        {
-            "user_id": user.id,
-            "lon": longitude,
-            "lat": latitude,
-            "radius": radius_km * 1000,  # Convert km to meters
-            "limit": page_size,
-            "offset": offset
-        }
+    # Safe SQLAlchemy ORM Query using GeoAlchemy2 functions
+    distance_col = func.ST_Distance(Memory.coordinates, geography_point).label("distance")
+    
+    query = (
+        select(Memory)
+        .where(
+            and_(
+                Memory.user_id == user.id,
+                func.ST_DWithin(Memory.coordinates, geography_point, radius_meters)
+            )
+        )
+        .order_by(distance_col.asc())
+        .offset(offset)
+        .limit(page_size)
     )
-    rows = result.fetchall()
-    memory_ids = [row[0] for row in rows]
+    
+    result = await db.execute(query)
+    sorted_memories = result.scalars().all()
     
     # Get total count
-    count_query = text("""
-        SELECT COUNT(*)
-        FROM memories
-        WHERE user_id = :user_id
-        AND ST_DWithin(coordinates, CAST(ST_SetSRID(ST_MakePoint(:lon, :lat), 4326) AS geography), :radius)
-    """)
-    
-    total_result = await db.execute(
-        count_query,
-        {
-            "user_id": user.id,
-            "lon": longitude,
-            "lat": latitude,
-            "radius": radius_km * 1000
-        }
-    )
-    total = total_result.scalar()
-    
-    # Fetch full memory objects
-    if memory_ids:
-        memories_result = await db.execute(
-            select(Memory).where(Memory.id.in_(memory_ids))
+    count_query = select(func.count()).select_from(Memory).where(
+        and_(
+            Memory.user_id == user.id,
+            func.ST_DWithin(Memory.coordinates, geography_point, radius_meters)
         )
-        memories = memories_result.scalars().all()
-        
-        # Sort by original order (closest first)
-        id_to_memory = {str(m.id): m for m in memories}
-        sorted_memories = [id_to_memory[str(mid)] for mid in memory_ids if str(mid) in id_to_memory]
-    else:
-        sorted_memories = []
+    )
+    total_result = await db.execute(count_query)
+    total = total_result.scalar()
     
     memory_responses = [memory_to_response(m) for m in sorted_memories]
     has_more = (offset + page_size) < total

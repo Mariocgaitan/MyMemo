@@ -98,7 +98,7 @@ if (!document.getElementById('photo-marker-styles')) {
 function createPhotoIcon(memory) {
   const imgSrc = memory.thumbnail_url || memory.image_url;
   const html = `
-    <div class="photo-marker-inner">
+    <div class="photo-marker-inner" style="background-color: #1f2937 !important;">
       ${imgSrc
       ? `<img src="${imgSrc}" alt="" loading="lazy" />`
       : `<div class="photo-placeholder">📸</div>`
@@ -123,7 +123,7 @@ function createClusterIcon(cluster) {
   const count = cluster.getChildCount();
   const html = `
     <div style="position:relative;display:inline-block;">
-      <div class="photo-cluster-inner">
+      <div class="photo-cluster-inner" style="background-color: #1f2937 !important;">
         ${imgSrc
       ? `<img src="${imgSrc}" alt="" loading="lazy" />`
       : `<div class="cluster-placeholder">📸</div>`
@@ -188,28 +188,19 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
 
     markerClusterRef.current.clearLayers();
 
-    // Group memories by exact lat/lng
-    const locationGroups = memories.reduce((acc, memory) => {
-      if (!memory.latitude || !memory.longitude) return acc;
-      const key = `${memory.latitude},${memory.longitude}`;
-      if (!acc[key]) {
-        acc[key] = { latitude: memory.latitude, longitude: memory.longitude, memories: [] };
-      }
-      acc[key].memories.push(memory);
-      return acc;
-    }, {});
+    // Create individual marker for EVERY memory. 
+    // If they share exact coords, Leaflet's Spiderfy will spread them out automatically.
+    memories.forEach(memory => {
+      if (!memory.latitude || !memory.longitude) return;
 
-    Object.values(locationGroups).forEach(location => {
-      // Most recent memory at this spot drives the pin photo
-      const primary = location.memories[0];
-      const marker = L.marker([location.latitude, location.longitude], {
-        icon: createPhotoIcon(primary),
-        _memory: primary, // stored so cluster icon can read it
+      const marker = L.marker([memory.latitude, memory.longitude], {
+        icon: createPhotoIcon(memory),
+        _memory: memory, // stored so cluster icon can read it
       });
 
-      // No Leaflet popup — click opens the modal in parent
+      // Direct navigation to MemoryDetail, exactly like the timeline
       marker.on('click', () => {
-        if (onLocationClick) onLocationClick(location);
+        if (onMemoryClick) onMemoryClick(memory);
       });
 
       markerClusterRef.current.addLayer(marker);
