@@ -1844,10 +1844,10 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 
 ### Pendiente Fase 2
 
-**Grupo C — UX de flujos:**
-- Spinner/progress bar al subir memoria (U4)
-- Confirmación antes de eliminar (U5)
-- Estado "Procesando IA..." en detalle mientras Celery trabaja (U6)
+**Grupo C — UX de flujos:** ✅ Completado
+- [x] Overlay de subida con pasos animados (U4)
+- [x] Confirmacion antes de eliminar (U5)
+- [x] Estado de IA con polling en detalle (U6)
 
 **Grupo D — Personas y caras:**
 - `FaceTagModal` completo — etiquetar caras detectadas en foto (F1)
@@ -1855,13 +1855,71 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 
 **Extras pendientes:**
 - Offline support / IndexedDB (F3)
-- Edición de memorias (F4)
-- Búsqueda geoespacial en UI (F5)
+- Edicion de memorias (F4)
+- Busqueda geoespacial en UI (F5)
 - Dashboard de costos IA (F6)
 - Fix cache Service Worker Safari (B1)
 
 ---
 
+## Session 8: February 26, 2026 — Grupo C: UX de flujos
+
+**Participantes:** Mario + Antigravity AI
+**Commit:** `9896a2f`
+
+### Cambios realizados
+
+#### U4 — Overlay de subida en CreateMemory
+**Archivo:** `frontend/src/pages/CreateMemory.jsx`
+
+Reemplazado el simple boton "Guardando..." por un overlay a pantalla completa
+con 3 pasos animados que dan feedback claro durante los ~5-10s de subida:
+
+| Paso | Descripcion |
+|---|---|
+| 1 | Preparando foto (conversion a base64) |
+| 2 | Subiendo al servidor (llamada a la API) |
+| 3 | Lanzando analisis de IA (Celery tasks lanzadas) |
+
+- Cada paso completado muestra tick verde
+- El paso activo tiene spinner animado
+- Overlay con backdrop blur (no se puede hacer clic debajo)
+- Se cierra automaticamente al terminar (exito o error)
+
+#### U5 — Modal de confirmacion antes de eliminar
+**Archivo:** `frontend/src/pages/MemoryDetail.jsx`
+
+Eliminado `confirm()` nativo del browser, reemplazado por componente
+`DeleteConfirmModal` propio:
+- Backdrop blur con click para cerrar
+- Icono de papelera en circulo rojo
+- Texto explicativo del impacto
+- Boton "Cancelar" (outline) + "Eliminar" (rojo)
+- Spinner dentro del boton durante el delete
+- Se deshabilita interaccion mientras elimina
+
+#### U6 — Banner de estado de IA con polling
+**Archivo:** `frontend/src/pages/MemoryDetail.jsx`
+
+Al abrir el detalle de un recuerdo recien subido:
+- Llama a `GET /api/v1/memories/{id}/jobs` para ver estado de los jobs
+- Si hay jobs `pending` o `processing`: muestra banner animado con icono `Brain`
+- Muestra estado por tarea (nlp_extraction, face_recognition)
+- Hace polling cada **5 segundos** automaticamente
+- Al detectar que todos los jobs estan `completed`:
+  - Para el polling
+  - Muestra banner verde "IA completada!"
+  - Recarga la memoria desde la API para mostrar tags, sentimiento y resumen
+
+### Archivos modificados
+
+| Archivo | Tipo de cambio |
+|---|---|
+| `frontend/src/pages/CreateMemory.jsx` | Overlay de 3 pasos + componente `UploadOverlay` |
+| `frontend/src/pages/MemoryDetail.jsx` | Modal `DeleteConfirmModal` + banner `AIProcessingBanner` + polling |
+| `Proyecto_md/Project_Tracker.md` | Estado Grupo C actualizado + este log |
+
+---
 
 ### Estructura de datos clave
 
@@ -1890,10 +1948,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 ### Archivos backend clave
 - `backend/api/v1/endpoints/memories.py` — CRUD de memorias
-- `backend/api/v1/endpoints/people.py` — gestión de personas (con merge)
-- `backend/api/v1/endpoints/search.py` — búsqueda (texto, geo, tags, fechas)
+- `backend/api/v1/endpoints/people.py` — gestion de personas (con merge)
+- `backend/api/v1/endpoints/search.py` — busqueda (texto, geo, tags, fechas)
 - `backend/services/face_service.py` — reconocimiento facial portable
-- `backend/services/nlp_service.py` — extracción NLP portable
+- `backend/services/nlp_service.py` — extraccion NLP portable
 
 ---
 
