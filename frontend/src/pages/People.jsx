@@ -1,50 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, User, Edit2, Trash2, ChevronRight, Loader2 } from 'lucide-react';
-import { Button, Input } from '../components/ui';
+import { ChevronLeft, User, Edit2, Trash2, ChevronRight, Loader2, GitMerge } from 'lucide-react';
+import { Input } from '../components/ui';
 import { peopleAPI } from '../services/api';
 
 // ─── Rename Modal ──────────────────────────────────────────────────────────────
 function RenameModal({ person, onSave, onCancel }) {
     const [name, setName] = useState(person?.name || '');
     const [saving, setSaving] = useState(false);
-
     const handleSave = async () => {
         if (!name.trim()) return;
         setSaving(true);
         await onSave(name.trim());
         setSaving(false);
     };
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
             <div className="relative z-10 bg-surface-light dark:bg-surface-dark rounded-2xl shadow-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark">
-                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark mb-4">
-                    Renombrar persona
-                </h2>
-                <Input
-                    label="Nombre"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    placeholder="Ej: Mario, Ángel, Ana..."
-                    autoFocus
-                    onKeyDown={e => e.key === 'Enter' && handleSave()}
-                />
+                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark mb-4">Renombrar persona</h2>
+                <Input label="Nombre" value={name} onChange={e => setName(e.target.value)}
+                    placeholder="Ej: Mario, Angel, Ana..." autoFocus onKeyDown={e => e.key === 'Enter' && handleSave()} />
                 <div className="flex gap-3 mt-4">
-                    <button
-                        onClick={onCancel}
-                        className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors"
-                    >
+                    <button onClick={onCancel}
+                        className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors">
                         Cancelar
                     </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={saving || !name.trim()}
-                        className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                        {saving ? <Loader2 size={16} className="animate-spin" /> : null}
-                        Guardar
+                    <button onClick={handleSave} disabled={saving || !name.trim()}
+                        className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        {saving && <Loader2 size={16} className="animate-spin" />} Guardar
                     </button>
                 </div>
             </div>
@@ -52,7 +36,7 @@ function RenameModal({ person, onSave, onCancel }) {
     );
 }
 
-// ─── Delete Confirm ───────────────────────────────────────────────────────────
+// ─── Delete Confirm Modal ─────────────────────────────────────────────────────
 function DeletePersonModal({ person, onConfirm, onCancel, isDeleting }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -62,26 +46,88 @@ function DeletePersonModal({ person, onConfirm, onCancel, isDeleting }) {
                     <Trash2 size={22} className="text-red-500" />
                 </div>
                 <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
-                    ¿Eliminar a {person?.name}?
+                    ¿Eliminar a {person?.name?.startsWith('Unknown') ? 'persona desconocida' : person?.name}?
                 </h2>
                 <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1 mb-4">
                     Se eliminará la persona y todas sus detecciones en memorias.
                 </p>
                 <div className="flex gap-3">
-                    <button
-                        onClick={onCancel}
-                        disabled={isDeleting}
-                        className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors disabled:opacity-50"
-                    >
+                    <button onClick={onCancel} disabled={isDeleting}
+                        className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors disabled:opacity-50">
                         Cancelar
                     </button>
-                    <button
-                        onClick={onConfirm}
-                        disabled={isDeleting}
-                        className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                        {isDeleting ? <Loader2 size={16} className="animate-spin" /> : null}
-                        Eliminar
+                    <button onClick={onConfirm} disabled={isDeleting}
+                        className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        {isDeleting && <Loader2 size={16} className="animate-spin" />} Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Merge Modal ──────────────────────────────────────────────────────────────
+function MergeModal({ sourcePerson, allPeople, onConfirm, onCancel, isMerging }) {
+    const [targetId, setTargetId] = useState('');
+    // Exclude source person from targets
+    const targets = allPeople.filter(p => p.id !== sourcePerson.id);
+    const sourceName = sourcePerson.name?.startsWith('Unknown') ? 'Persona desconocida' : sourcePerson.name;
+    const targetPerson = targets.find(p => p.id === targetId);
+    const targetName = targetPerson
+        ? (targetPerson.name?.startsWith('Unknown') ? 'Persona desconocida' : targetPerson.name)
+        : null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative z-10 bg-surface-light dark:bg-surface-dark rounded-2xl shadow-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark">
+                {/* Icon */}
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <GitMerge size={24} className="text-primary" />
+                </div>
+
+                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark text-center mb-1">
+                    Fusionar persona
+                </h2>
+                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark text-center mb-5">
+                    <span className="font-semibold text-text-primary-light dark:text-text-primary-dark">{sourceName}</span> se fusionará en la persona que elijas. Sus memorias quedarán bajo esa persona.
+                </p>
+
+                {/* Target selector */}
+                <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark mb-2">
+                    Fusionar en:
+                </label>
+                <select
+                    value={targetId}
+                    onChange={e => setTargetId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark focus:border-primary focus:outline-none transition-colors"
+                >
+                    <option value="">-- Selecciona una persona --</option>
+                    {targets.map(p => (
+                        <option key={p.id} value={p.id}>
+                            {p.name?.startsWith('Unknown') ? 'Persona desconocida' : p.name}
+                            {p.face_count ? ` (${p.face_count} apariciones)` : ''}
+                        </option>
+                    ))}
+                </select>
+
+                {/* Preview */}
+                {targetName && (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-text-secondary-light dark:text-text-secondary-dark bg-primary/5 rounded-xl px-4 py-2">
+                        <GitMerge size={14} className="text-primary flex-shrink-0" />
+                        <span><b>{sourceName}</b> → <b>{targetName}</b></span>
+                    </div>
+                )}
+
+                <div className="flex gap-3 mt-5">
+                    <button onClick={onCancel}
+                        className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors">
+                        Cancelar
+                    </button>
+                    <button onClick={() => onConfirm(targetId)} disabled={!targetId || isMerging}
+                        className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        {isMerging && <Loader2 size={16} className="animate-spin" />}
+                        Fusionar
                     </button>
                 </div>
             </div>
@@ -90,21 +136,15 @@ function DeletePersonModal({ person, onConfirm, onCancel, isDeleting }) {
 }
 
 // ─── Person Card ──────────────────────────────────────────────────────────────
-function PersonCard({ person, onRename, onDelete, onClick }) {
+function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onClick }) {
     const isUnknown = person.name?.startsWith('Unknown Person');
-
     return (
         <div className="bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark p-4 flex items-center gap-4 hover:shadow-md transition-shadow">
             {/* Avatar */}
-            <div
-                className="w-14 h-14 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 cursor-pointer"
-                onClick={onClick}
-            >
-                {person.thumbnail_url ? (
-                    <img src={person.thumbnail_url} alt={person.name} className="w-full h-full object-cover" />
-                ) : (
-                    <User size={24} className="text-primary" />
-                )}
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 cursor-pointer" onClick={onClick}>
+                {person.thumbnail_url
+                    ? <img src={person.thumbnail_url} alt={person.name} className="w-full h-full object-cover" />
+                    : <User size={24} className="text-primary" />}
             </div>
 
             {/* Info */}
@@ -119,18 +159,18 @@ function PersonCard({ person, onRename, onDelete, onClick }) {
 
             {/* Actions */}
             <div className="flex items-center gap-1 flex-shrink-0">
-                <button
-                    onClick={() => onRename(person)}
-                    className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary"
-                    title="Renombrar"
-                >
+                <button onClick={() => onRename(person)}
+                    className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Renombrar">
                     <Edit2 size={16} />
                 </button>
-                <button
-                    onClick={() => onDelete(person)}
-                    className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-500"
-                    title="Eliminar"
-                >
+                {allPeople.length > 1 && (
+                    <button onClick={() => onMerge(person)}
+                        className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Fusionar con otra persona">
+                        <GitMerge size={16} />
+                    </button>
+                )}
+                <button onClick={() => onDelete(person)}
+                    className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-500" title="Eliminar">
                     <Trash2 size={16} />
                 </button>
                 <ChevronRight size={16} className="text-text-secondary-light dark:text-text-secondary-dark ml-1 cursor-pointer" onClick={onClick} />
@@ -145,22 +185,18 @@ function PersonMemories({ person, onBack, onMemoryClick }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetch = async () => {
+        const load = async () => {
             try {
                 const data = await peopleAPI.getMemories(person.id);
                 setMemories(data?.memories || data || []);
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
-            }
+            } catch (e) { console.error(e); }
+            finally { setLoading(false); }
         };
-        fetch();
+        load();
     }, [person.id]);
 
     return (
         <div className="space-y-4">
-            {/* Sub-header */}
             <div className="flex items-center gap-3">
                 <button onClick={onBack} className="flex items-center gap-1 text-primary text-sm font-medium hover:text-primary-hover transition-colors">
                     <ChevronLeft size={16} /> Personas
@@ -170,11 +206,8 @@ function PersonMemories({ person, onBack, onMemoryClick }) {
                     {person.name?.startsWith('Unknown') ? 'Persona desconocida' : person.name}
                 </span>
             </div>
-
             {loading ? (
-                <div className="flex justify-center py-12">
-                    <Loader2 size={32} className="animate-spin text-primary" />
-                </div>
+                <div className="flex justify-center py-12"><Loader2 size={32} className="animate-spin text-primary" /></div>
             ) : memories.length === 0 ? (
                 <div className="text-center py-12 text-text-secondary-light dark:text-text-secondary-dark">
                     <p className="text-3xl mb-2">📸</p>
@@ -183,19 +216,12 @@ function PersonMemories({ person, onBack, onMemoryClick }) {
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {memories.map(m => (
-                        <div
-                            key={m.id}
-                            onClick={() => onMemoryClick(m.id)}
-                            className="cursor-pointer rounded-xl overflow-hidden border border-border-light dark:border-border-dark hover:shadow-md transition-shadow"
-                        >
-                            <img
-                                src={m.thumbnail_url || m.image_url}
-                                alt=""
-                                className="w-full h-28 object-cover"
-                            />
+                        <div key={m.id} onClick={() => onMemoryClick(m.id)}
+                            className="cursor-pointer rounded-xl overflow-hidden border border-border-light dark:border-border-dark hover:shadow-md transition-shadow">
+                            <img src={m.thumbnail_url || m.image_url} alt="" className="w-full h-28 object-cover" />
                             <div className="p-2">
                                 <p className="text-xs text-text-primary-light dark:text-text-primary-dark line-clamp-2">
-                                    {m.description_raw?.substring(0, 60) || 'Sin descripción'}
+                                    {m.description_raw?.substring(0, 60) || 'Sin descripcion'}
                                 </p>
                                 <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1">
                                     {new Date(m.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
@@ -214,21 +240,20 @@ export default function People() {
     const navigate = useNavigate();
     const [people, setPeople] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedPerson, setSelectedPerson] = useState(null); // person to show memories of
+    const [selectedPerson, setSelectedPerson] = useState(null);
     const [renamingPerson, setRenamingPerson] = useState(null);
     const [deletingPerson, setDeletingPerson] = useState(null);
+    const [mergingPerson, setMergingPerson] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isMerging, setIsMerging] = useState(false);
 
     const fetchPeople = async () => {
         try {
             setLoading(true);
             const data = await peopleAPI.getAll();
             setPeople(data || []);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); }
     };
 
     useEffect(() => { fetchPeople(); }, []);
@@ -238,9 +263,7 @@ export default function People() {
             await peopleAPI.rename(renamingPerson.id, newName);
             setPeople(prev => prev.map(p => p.id === renamingPerson.id ? { ...p, name: newName } : p));
             setRenamingPerson(null);
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
     };
 
     const handleDelete = async () => {
@@ -250,15 +273,46 @@ export default function People() {
             setPeople(prev => prev.filter(p => p.id !== deletingPerson.id));
             setDeletingPerson(null);
             if (selectedPerson?.id === deletingPerson.id) setSelectedPerson(null);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsDeleting(false);
-        }
+        } catch (e) { console.error(e); }
+        finally { setIsDeleting(false); }
+    };
+
+    const handleMerge = async (targetId) => {
+        if (!targetId) return;
+        setIsMerging(true);
+        try {
+            await peopleAPI.merge(mergingPerson.id, targetId);
+            // Remove source person, keep target
+            setPeople(prev => prev.filter(p => p.id !== mergingPerson.id));
+            setMergingPerson(null);
+            if (selectedPerson?.id === mergingPerson.id) setSelectedPerson(null);
+        } catch (e) { console.error(e); }
+        finally { setIsMerging(false); }
     };
 
     const named = people.filter(p => !p.name?.startsWith('Unknown Person'));
     const unknown = people.filter(p => p.name?.startsWith('Unknown Person'));
+
+    const renderSection = (list, title) => list.length > 0 && (
+        <div className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
+                {title} ({list.length})
+            </h2>
+            <div className="space-y-2">
+                {list.map(p => (
+                    <PersonCard
+                        key={p.id}
+                        person={p}
+                        allPeople={people}
+                        onRename={setRenamingPerson}
+                        onDelete={setDeletingPerson}
+                        onMerge={setMergingPerson}
+                        onClick={() => setSelectedPerson(p)}
+                    />
+                ))}
+            </div>
+        </div>
+    );
 
     return (
         <>
@@ -266,16 +320,12 @@ export default function People() {
                 {/* Header */}
                 <div className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark px-6 py-4">
                     <div className="max-w-4xl mx-auto flex items-center justify-between">
-                        <button
-                            onClick={() => navigate('/')}
-                            className="flex items-center gap-2 text-text-primary-light dark:text-text-primary-dark hover:text-primary transition-colors"
-                        >
+                        <button onClick={() => navigate('/')}
+                            className="flex items-center gap-2 text-text-primary-light dark:text-text-primary-dark hover:text-primary transition-colors">
                             <ChevronLeft size={20} />
                             <span className="font-medium">Volver</span>
                         </button>
-                        <h1 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">
-                            👥 Personas
-                        </h1>
+                        <h1 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">👥 Personas</h1>
                         <div className="w-20" />
                     </div>
                 </div>
@@ -289,11 +339,9 @@ export default function People() {
                         <div className="text-center py-16 text-text-secondary-light dark:text-text-secondary-dark">
                             <p className="text-5xl mb-4">👤</p>
                             <p className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark">
-                                Aún no hay personas reconocidas
+                                Aun no hay personas reconocidas
                             </p>
-                            <p className="text-sm mt-2">
-                                Sube una memoria con personas para que la IA las detecte automáticamente.
-                            </p>
+                            <p className="text-sm mt-2">Sube una memoria con personas para que la IA las detecte automaticamente.</p>
                         </div>
                     ) : selectedPerson ? (
                         <PersonMemories
@@ -303,66 +351,27 @@ export default function People() {
                         />
                     ) : (
                         <div className="space-y-6">
-                            {/* Named */}
-                            {named.length > 0 && (
-                                <div className="space-y-3">
-                                    <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
-                                        Reconocidas ({named.length})
-                                    </h2>
-                                    <div className="space-y-2">
-                                        {named.map(p => (
-                                            <PersonCard
-                                                key={p.id}
-                                                person={p}
-                                                onRename={setRenamingPerson}
-                                                onDelete={setDeletingPerson}
-                                                onClick={() => setSelectedPerson(p)}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Unknown */}
-                            {unknown.length > 0 && (
-                                <div className="space-y-3">
-                                    <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
-                                        Sin nombre ({unknown.length})
-                                    </h2>
-                                    <div className="space-y-2">
-                                        {unknown.map(p => (
-                                            <PersonCard
-                                                key={p.id}
-                                                person={p}
-                                                onRename={setRenamingPerson}
-                                                onDelete={setDeletingPerson}
-                                                onClick={() => setSelectedPerson(p)}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            {renderSection(named, 'Reconocidas')}
+                            {renderSection(unknown, 'Sin nombre')}
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Rename Modal */}
             {renamingPerson && (
-                <RenameModal
-                    person={renamingPerson}
-                    onSave={handleRename}
-                    onCancel={() => setRenamingPerson(null)}
-                />
+                <RenameModal person={renamingPerson} onSave={handleRename} onCancel={() => setRenamingPerson(null)} />
             )}
-
-            {/* Delete Modal */}
             {deletingPerson && (
-                <DeletePersonModal
-                    person={deletingPerson}
-                    onConfirm={handleDelete}
-                    onCancel={() => setDeletingPerson(null)}
-                    isDeleting={isDeleting}
+                <DeletePersonModal person={deletingPerson} onConfirm={handleDelete}
+                    onCancel={() => setDeletingPerson(null)} isDeleting={isDeleting} />
+            )}
+            {mergingPerson && (
+                <MergeModal
+                    sourcePerson={mergingPerson}
+                    allPeople={people}
+                    onConfirm={handleMerge}
+                    onCancel={() => setMergingPerson(null)}
+                    isMerging={isMerging}
                 />
             )}
         </>
