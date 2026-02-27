@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Layout } from './components/layout';
-import { Home, CreateMemory, MemoryDetail } from './pages';
+import { Home, CreateMemory, MemoryDetail, People } from './pages';
 import './App.css';
 
 function App() {
@@ -10,33 +10,43 @@ function App() {
       <Router>
         <Routes>
           {/* Home page with FAB */}
-          <Route 
-            path="/" 
+          <Route
+            path="/"
             element={
               <Layout showFAB>
                 <Home />
               </Layout>
-            } 
+            }
           />
-          
+
           {/* Create memory page */}
-          <Route 
-            path="/create" 
+          <Route
+            path="/create"
             element={
               <Layout>
                 <CreateMemory />
               </Layout>
-            } 
+            }
           />
-          
+
           {/* Memory detail page */}
-          <Route 
-            path="/memory/:id" 
+          <Route
+            path="/memory/:id"
             element={
               <Layout>
                 <MemoryDetail />
               </Layout>
-            } 
+            }
+          />
+
+          {/* People page */}
+          <Route
+            path="/people"
+            element={
+              <Layout>
+                <People />
+              </Layout>
+            }
           />
         </Routes>
       </Router>
@@ -45,3 +55,4 @@ function App() {
 }
 
 export default App;
+

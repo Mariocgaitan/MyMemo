@@ -1849,9 +1849,61 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 - [x] Confirmacion antes de eliminar (U5)
 - [x] Estado de IA con polling en detalle (U6)
 
-**Grupo D — Personas y caras:**
-- `FaceTagModal` completo — etiquetar caras detectadas en foto (F1)
-- Pantalla de Personas con memorias asociadas (F2)
+**Grupo D — Personas y caras:** ✅ Completado
+- [x] `People.jsx` — pantalla completa de personas reconocidas (F2)
+- [x] Route `/people` en `App.jsx`
+- [x] Link "Personas" en Header con navegacion
+- [x] `FaceTagModal.jsx` — ya existia con logica de polling y rename (F1)
+
+---
+
+## Session 9: February 26, 2026 — Grupo D: Personas y Caras
+
+**Participantes:** Mario + Antigravity AI
+**Commit:** (ver git log)
+
+### Cambios realizados
+
+#### F2 — Pantalla de Personas (nueva)
+**Archivo:** `frontend/src/pages/People.jsx` (nuevo)
+
+Nueva pagina completa en `/people` con:
+- Lista separada en dos secciones: **Reconocidas** (con nombre) y **Sin nombre** (Unknown)
+- `PersonCard` por persona: avatar/thumbnail, nombre, contador de apariciones
+- Acciones inline: renombrar (lapiz) y eliminar (basura)
+- **Drill-down**: click en persona muestra grid de sus memorias (`PersonMemories`)
+- `RenameModal` propio con input y guardado via `PATCH /api/v1/people/{id}`
+- `DeletePersonModal` con confirmacion y spinner
+- Loading state con spinner y empty state si no hay personas
+
+#### Route y navegacion
+**Archivos:** `App.jsx`, `pages/index.js`, `components/layout/Header.jsx`
+
+| Archivo | Cambio |
+|---|---|
+| `App.jsx` | Nuevo route `/people` -> `<People />` |
+| `pages/index.js` | Export de `People` al barrel |
+| `Header.jsx` | Boton "Personas" (icono Users) navega a `/people`; logo tambien es clickeable para volver a `/` |
+
+#### F1 — FaceTagModal (ya existia)
+`FaceTagModal.jsx` ya tenia logica completa:
+- Polling de jobs hasta que `face_recognition` completa
+- Grid de caras detectadas con input de nombre
+- Guardado via `peopleAPI.rename()`
+- Integrado en `CreateMemory.jsx` al terminar de subir
+- Pendiente a futuro: bounding boxes de caras en la foto (requiere cambio de backend)
+
+### Archivos modificados/creados
+
+| Archivo | Tipo |
+|---|---|
+| `frontend/src/pages/People.jsx` | NUEVO |
+| `frontend/src/pages/index.js` | Modificado (export) |
+| `frontend/src/App.jsx` | Modificado (route) |
+| `frontend/src/components/layout/Header.jsx` | Modificado (nav link) |
+| `Proyecto_md/Project_Tracker.md` | Documentacion |
+
+---
 
 **Extras pendientes:**
 - Offline support / IndexedDB (F3)
