@@ -60,7 +60,11 @@
   }
 
   .dark .leaflet-popup-content-wrapper,
-  .dark .leaflet-popup-tip {
+  .dark .leaflet-popup-tip,
+  .dark .photo-marker img,
+  .dark .photo-cluster img,
+  .dark .photo-marker-inner,
+  .dark .photo-cluster-inner {
     filter: hue-rotate(-180deg);
   }
 
