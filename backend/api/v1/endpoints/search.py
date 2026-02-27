@@ -157,10 +157,10 @@ async def search_nearby(
     # ST_DWithin uses meters, so multiply km by 1000
     # Use native PostGIS point creation to avoid WKB cast issues
     nearby_query = text("""
-        SELECT id, ST_Distance(coordinates::geography, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography) as distance
+        SELECT id, ST_Distance(coordinates, CAST(ST_SetSRID(ST_MakePoint(:lon, :lat), 4326) AS geography)) as distance
         FROM memories
         WHERE user_id = :user_id
-        AND ST_DWithin(coordinates::geography, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography, :radius)
+        AND ST_DWithin(coordinates, CAST(ST_SetSRID(ST_MakePoint(:lon, :lat), 4326) AS geography), :radius)
         ORDER BY distance ASC
         LIMIT :limit OFFSET :offset
     """)
@@ -186,7 +186,7 @@ async def search_nearby(
         SELECT COUNT(*)
         FROM memories
         WHERE user_id = :user_id
-        AND ST_DWithin(coordinates::geography, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography, :radius)
+        AND ST_DWithin(coordinates, CAST(ST_SetSRID(ST_MakePoint(:lon, :lat), 4326) AS geography), :radius)
     """)
     
     total_result = await db.execute(

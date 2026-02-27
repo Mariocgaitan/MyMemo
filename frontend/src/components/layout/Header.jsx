@@ -1,4 +1,4 @@
-import { Menu, Moon, Sun, Users } from 'lucide-react';
+import { Menu, Moon, Sun, Users, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import Button from '../ui/Button';
@@ -6,6 +6,20 @@ import Button from '../ui/Button';
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+
+  const handleClearCache = async () => {
+    if (window.confirm("¿Forzar actualización profunda borrando todos los cachés? (Arregla problemas de PWA)")) {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (let r of regs) await r.unregister();
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (let k of keys) await caches.delete(k);
+      }
+      window.location.reload(true);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark px-6 py-4 shadow-sm">
@@ -29,6 +43,17 @@ export default function Header() {
 
         {/* Right: Dark mode + People nav */}
         <div className="flex items-center gap-3">
+          {/* Nuke Cache button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClearCache}
+            title="Limpiar Caché"
+            aria-label="Limpiar Caché"
+          >
+            <RefreshCw className="text-red-500 overflow-visible" size={18} />
+          </Button>
+
           {/* Dark mode toggle */}
           <Button
             variant="ghost"
