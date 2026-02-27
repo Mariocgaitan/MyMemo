@@ -18,7 +18,7 @@ const PHOTO_MARKER_CSS = `
     overflow: hidden;
     border: 3px solid white;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    background: #6366f1;
+    background: #1f2937;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -48,7 +48,7 @@ const PHOTO_MARKER_CSS = `
     overflow: hidden;
     border: 3px solid white;
     box-shadow: 0 4px 14px rgba(0,0,0,0.4);
-    background: #6366f1;
+    background: #1f2937;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -70,7 +70,7 @@ const PHOTO_MARKER_CSS = `
     position: absolute;
     top: -4px;
     right: -4px;
-    background: #6366f1;
+    background: #1f2937;
     color: white;
     font-size: 11px;
     font-weight: 700;

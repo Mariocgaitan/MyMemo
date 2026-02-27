@@ -224,7 +224,17 @@ export default function MemoryDetail() {
     );
   }
 
-  const meta = memory.ai_metadata || {};
+  // Helper to safely parse metadata string
+  const getSafeMeta = () => {
+    const raw = memory.ai_metadata;
+    if (!raw) return {};
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw); } catch { return {}; }
+    }
+    return raw;
+  };
+
+  const meta = getSafeMeta();
   const nlp = meta.nlp || {};
   const faces = meta.faces || [];
   const tags = nlp.tags || [];
