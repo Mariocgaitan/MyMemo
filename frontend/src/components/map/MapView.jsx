@@ -14,19 +14,19 @@ const PHOTO_MARKER_CSS = `
   .photo-marker-inner {
     width: 48px;
     height: 48px;
-    border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg);
+    border-radius: 8px;
     overflow: hidden;
     border: 3px solid white;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     background: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .photo-marker-inner img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transform: rotate(45deg) scale(1.35);
-    transform-origin: center;
   }
   .photo-marker-inner .photo-placeholder {
     width: 100%;
@@ -34,8 +34,7 @@ const PHOTO_MARKER_CSS = `
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
-    transform: rotate(45deg);
+    font-size: 24px;
   }
   .photo-cluster {
     background: none !important;
@@ -45,11 +44,14 @@ const PHOTO_MARKER_CSS = `
     position: relative;
     width: 56px;
     height: 56px;
-    border-radius: 50%;
+    border-radius: 8px;
     overflow: hidden;
     border: 3px solid white;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
     background: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .photo-cluster-inner img {
     width: 100%;
@@ -62,7 +64,7 @@ const PHOTO_MARKER_CSS = `
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
+    font-size: 28px;
   }
   .photo-cluster-badge {
     position: absolute;
@@ -98,9 +100,9 @@ function createPhotoIcon(memory) {
   const html = `
     <div class="photo-marker-inner">
       ${imgSrc
-        ? `<img src="${imgSrc}" alt="" loading="lazy" />`
-        : `<div class="photo-placeholder">📸</div>`
-      }
+      ? `<img src="${imgSrc}" alt="" loading="lazy" />`
+      : `<div class="photo-placeholder">📸</div>`
+    }
     </div>
   `;
   return L.divIcon({
@@ -123,9 +125,9 @@ function createClusterIcon(cluster) {
     <div style="position:relative;display:inline-block;">
       <div class="photo-cluster-inner">
         ${imgSrc
-          ? `<img src="${imgSrc}" alt="" loading="lazy" />`
-          : `<div class="cluster-placeholder">📸</div>`
-        }
+      ? `<img src="${imgSrc}" alt="" loading="lazy" />`
+      : `<div class="cluster-placeholder">📸</div>`
+    }
       </div>
       <span class="photo-cluster-badge">${count > 99 ? '99+' : count}</span>
     </div>
@@ -225,12 +227,12 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
 
   return (
     <div className="w-full h-full relative">
-      <div 
-        ref={mapRef} 
+      <div
+        ref={mapRef}
         className="w-full h-full"
         style={{ minHeight: '400px' }}
       />
-      
+
       {/* Loading overlay */}
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm z-[1000]">
@@ -242,7 +244,7 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
           </div>
         </div>
       )}
-      
+
       {/* Empty state overlay - only show when not loading */}
       {!loading && memories.length === 0 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">

@@ -18,6 +18,15 @@ const INITIAL_CATEGORIES = [
   { id: 'cat_8', label: 'Famituki', value: 'famituki' },
 ];
 
+// Helper to safely parse ai_metadata which might come as a string
+const parseMetadata = (metadata) => {
+  if (!metadata) return {};
+  if (typeof metadata === 'string') {
+    try { return JSON.parse(metadata); } catch { return {}; }
+  }
+  return metadata;
+};
+
 export default function Home() {
   const navigate = useNavigate();
   const [filtersExpanded, setFiltersExpanded] = useState(false);
@@ -30,7 +39,7 @@ export default function Home() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [people, setPeople] = useState([]);
-  const [showAllTimeline, setShowAllTimeline] = useState(false);
+  const [showAllTimeline, setShowAllTimeline] = useState(true); // Default to showing all
   const [locationModal, setLocationModal] = useState(null);
   const [nearbyResults, setNearbyResults] = useState(null); // null = not active
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -138,7 +147,11 @@ export default function Home() {
         setNearbyError('No se pudo obtener tu ubicacion');
         setNearbyLoading(false);
       },
-      { timeout: 10000 }
+      {
+        enableHighAccuracy: false, // Prevents 10s hang on desktop/some mobiles
+        maximumAge: 300000,        // 5 mins cache
+        timeout: 10000
+      }
     );
   };
 
@@ -169,26 +182,27 @@ export default function Home() {
 
   // Apply category and people filters on top
   const filteredMemories = baseMemories.filter(memory => {
+    const meta = parseMetadata(memory.ai_metadata);
+
     // Client-side fallback text filter (when API search not yet returned or no query)
     if (searchQuery.trim() && searchResults === null) {
       const q = searchQuery.toLowerCase();
       const inDesc = (memory.description_raw || '').toLowerCase().includes(q);
       const inLocation = (memory.location_name || '').toLowerCase().includes(q);
-      // Fixed: tags live in ai_metadata.nlp.tags
-      const inTags = (memory.ai_metadata?.nlp?.tags || []).some(t => t.toLowerCase().includes(q));
+      const inTags = (meta.nlp?.tags || []).some(t => t.toLowerCase().includes(q));
       if (!inDesc && !inLocation && !inTags) return false;
     }
 
     // Category filter
     if (selectedCategories.length > 0) {
-      const memCats = memory.ai_metadata?.user_categories || [];
+      const memCats = meta.user_categories || [];
       const hasCategory = selectedCategories.some(cat => memCats.includes(cat));
       if (!hasCategory) return false;
     }
 
     // People filter
     if (selectedPeople.length > 0) {
-      const memFaces = memory.ai_metadata?.faces || [];
+      const memFaces = meta.faces || [];
       const faceIds = memFaces.map(f => f.person_id);
       const hasPerson = selectedPeople.some(pid => faceIds.includes(pid));
       if (!hasPerson) return false;
@@ -389,9 +403,9 @@ export default function Home() {
                     <p className="text-sm text-text-primary-light dark:text-text-primary-dark line-clamp-3">
                       {memory.description_raw}
                     </p>
-                    {memory.ai_metadata?.nlp?.tags?.length > 0 && (
+                    {parseMetadata(memory.ai_metadata)?.nlp?.tags?.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {memory.ai_metadata.nlp.tags.slice(0, 4).map(tag => (
+                        {parseMetadata(memory.ai_metadata).nlp.tags.slice(0, 4).map(tag => (
                           <span key={tag} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                             {tag}
                           </span>
@@ -428,7 +442,7 @@ export default function Home() {
               onClick={() => setShowAllTimeline(prev => !prev)}
               className="text-sm font-medium text-primary hover:text-primary-hover transition-colors"
             >
-              {showAllTimeline ? '← Recientes' : 'Ver todo →'}
+              {showAllTimeline ? 'Ver recientes' : 'Ver todo →'}
             </button>
           )}
         </div>
