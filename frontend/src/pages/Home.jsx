@@ -138,7 +138,8 @@ export default function Home() {
           const list = results.memories || results || [];
           setNearbyResults(list);
         } catch (e) {
-          setNearbyError('No se pudo buscar memorias cercanas');
+          const errMsg = e.response?.data?.detail || e.message || 'Error desconocido';
+          setNearbyError(`Error del servidor: ${errMsg}`);
         } finally {
           setNearbyLoading(false);
         }
@@ -404,11 +405,11 @@ export default function Home() {
                     <p className="text-sm text-text-primary-light dark:text-text-primary-dark line-clamp-3">
                       {memory.description_raw}
                     </p>
-                    {parseMetadata(memory.ai_metadata)?.nlp?.tags?.length > 0 && (
+                    {Array.isArray(parseMetadata(memory.ai_metadata)?.nlp?.tags) && parseMetadata(memory.ai_metadata).nlp.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {parseMetadata(memory.ai_metadata).nlp.tags.slice(0, 4).map(tag => (
                           <span key={tag} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                            {tag}
+                            {String(tag)}
                           </span>
                         ))}
                       </div>

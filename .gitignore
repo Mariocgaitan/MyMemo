@@ -98,3 +98,5 @@ celerybeat.pid
 # Logs
 logs/
 *.log
+# CV / Personal documents
+Proyecto_md/CV_Project_Summary.md
