@@ -1907,10 +1907,100 @@ Nueva pagina completa en `/people` con:
 
 **Extras pendientes:**
 - Offline support / IndexedDB (F3)
-- Edicion de memorias (F4)
-- Busqueda geoespacial en UI (F5)
-- Dashboard de costos IA (F6)
-- Fix cache Service Worker Safari (B1)
+- Fix cache Service Worker Safari (B1) → ✅ COMPLETADO (Session 11)
+- Edicion de memorias (F4) → ✅ COMPLETADO (Session 11)
+- Busqueda geoespacial en UI (F5) → ✅ COMPLETADO (Session 11)
+- Dashboard de costos IA (F6) → ✅ COMPLETADO (Session 11, Streamlit)
+
+---
+
+## Session 11: February 26, 2026 — B1 + Merge Personas + Edicion + Geo Search + Streamlit Dashboard
+
+**Participantes:** Mario + Antigravity AI
+**Commits:** `91be2c4` (SW fix), `6e22b95` (merge), `a770336` (edit+geo), `aae8ca8` (dashboard)
+
+### B1 — Fix Safari Service Worker Cache
+
+**Archivo:** `frontend/vite.config.js`
+
+Problema raíz: Safari no cierra las tabs abiertas (especialmente como PWA instalada), por lo que el SW nuevo nunca tomaba control con `registerType: 'autoUpdate'` solo.
+
+Solucion: workbox config con:
+- `skipWaiting: true` — nuevo SW toma control de inmediato
+- `clientsClaim: true` — reclama todas las tabs existentes
+- `cleanupOutdatedCaches: true` — elimina caches obsoletos
+- `NetworkOnly` para `/api/*` (la API nunca se cachea)
+- `NetworkFirst` para app shell JS/CSS (5s timeout → fallback a cache)
+- `StaleWhileRevalidate` para imagenes S3 (60 dias, max 200 entradas)
+
+### Alta — Merge de Personas en UI
+
+**Archivo:** `frontend/src/pages/People.jsx`
+
+Nuevo componente `MergeModal`:
+- Dropdown para seleccionar persona destino (excluye la persona origen)
+- Preview en tiempo real: "Mario → Angel"
+- Boton fusionar llama a `POST /api/v1/people/{sourceId}/merge/{targetId}`
+- La persona origen desaparece de la lista local tras el merge
+
+Boton `GitMerge` añadido a `PersonCard` — solo aparece cuando hay 2+ personas.
+
+### F4 — Edicion de Memorias
+
+**Archivos:** `frontend/src/pages/EditMemory.jsx` (NUEVO), `App.jsx`, `MemoryDetail.jsx`, `pages/index.js`
+
+- Nueva pagina `/memory/:id/edit` que precarga los datos de la memoria
+- Permite editar: descripcion, nombre de ubicacion, categorias
+- Llama a `PATCH /api/v1/memories/{id}`
+- Muestra "✅ Guardado" y redirige al detalle automaticamente
+- Boton `Edit2` (lapiz azul) en el header de `MemoryDetail`, junto al de eliminar
+
+### F5 — Busqueda Geoespacial en UI
+
+**Archivo:** `frontend/src/pages/Home.jsx`
+
+- Boton `Navigation` (icono brujula) en la barra de busqueda
+- `handleNearbySearch`: usa `navigator.geolocation.getCurrentPosition()` → llama `searchAPI.nearby(lat, lng, 5km)`
+- Banner verde debajo de la barra mostrando cuantas memorias se encontraron en 5km
+- Boton X para limpiar el filtro geo
+- Prioridad en `baseMemories`: nearby > busqueda texto > todas las memorias
+- Boton se pone verde cuando el filtro geo esta activo
+
+### F6 — Dashboard Streamlit de Costos (admin)
+
+**Archivos:** `dashboard/app.py` (NUEVO), `dashboard/requirements.txt`, `dashboard/README.md`
+
+Dashboard separado de la app, para uso admin local:
+- KPI cards: tokens OpenAI totales, costo USD, faces detectadas, total memorias
+- Grafica barras: tokens OpenAI por dia
+- Grafica linea: costo acumulado por dia (USD)
+- Grafica barras: faces detectadas por dia
+- Tabla raw: ultimas 100 metricas
+- Resumen de personas: nombradas vs desconocidas + top 10 por apariciones
+- Cache de 60s con boton 🔄 Refrescar
+- Variable: `MYMEMO_API_URL` (default: `http://localhost:8000`)
+
+**Uso:**
+```bash
+cd dashboard
+pip install -r requirements.txt
+MYMEMO_API_URL=http://tu-servidor:8000 streamlit run app.py
+```
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `frontend/vite.config.js` | workbox skipWaiting + clientsClaim + runtimeCaching |
+| `frontend/src/pages/People.jsx` | MergeModal + GitMerge button |
+| `frontend/src/pages/EditMemory.jsx` | NUEVO — pagina de edicion |
+| `frontend/src/pages/MemoryDetail.jsx` | Boton Edit2 en header |
+| `frontend/src/App.jsx` | Route /memory/:id/edit |
+| `frontend/src/pages/index.js` | Export EditMemory |
+| `frontend/src/pages/Home.jsx` | Busqueda geoespacial con Navigation button + banner |
+| `dashboard/app.py` | NUEVO — Streamlit admin dashboard |
+| `dashboard/requirements.txt` | NUEVO |
+| `dashboard/README.md` | NUEVO |
 
 ---
 
