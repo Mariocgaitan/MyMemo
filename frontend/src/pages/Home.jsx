@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronDown, ChevronUp, Plus, X, MapPin, ArrowRight } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Plus, X, MapPin, Navigation } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
@@ -31,7 +31,10 @@ export default function Home() {
   const [categories, setCategories] = useState([]);
   const [people, setPeople] = useState([]);
   const [showAllTimeline, setShowAllTimeline] = useState(false);
-  const [locationModal, setLocationModal] = useState(null); // { location_name, memories[] }
+  const [locationModal, setLocationModal] = useState(null);
+  const [nearbyResults, setNearbyResults] = useState(null); // null = not active
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError, setNearbyError] = useState('');
   const searchDebounceRef = useRef(null);
 
   // Load categories from localStorage on mount
@@ -110,24 +113,59 @@ export default function Home() {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
   };
 
+  const handleNearbySearch = () => {
+    if (!navigator.geolocation) {
+      setNearbyError('Tu dispositivo no soporta geolocalización');
+      return;
+    }
+    setNearbyLoading(true);
+    setNearbyError('');
+    setNearbyResults(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const results = await searchAPI.nearby(latitude, longitude, 5);
+          const list = results.memories || results || [];
+          setNearbyResults(list);
+        } catch (e) {
+          setNearbyError('No se pudo buscar memorias cercanas');
+        } finally {
+          setNearbyLoading(false);
+        }
+      },
+      () => {
+        setNearbyError('No se pudo obtener tu ubicacion');
+        setNearbyLoading(false);
+      },
+      { timeout: 10000 }
+    );
+  };
+
+  const clearNearby = () => setNearbyResults(null);
+
   const toggleCategory = (category) => {
-    setSelectedCategories(prev => 
-      prev.includes(category) 
+    setSelectedCategories(prev =>
+      prev.includes(category)
         ? prev.filter(c => c !== category)
         : [...prev, category]
     );
   };
 
   const togglePerson = (personId) => {
-    setSelectedPeople(prev => 
+    setSelectedPeople(prev =>
       prev.includes(personId)
         ? prev.filter(p => p !== personId)
         : [...prev, personId]
     );
   };
 
-  // Base list: API search results when searching, otherwise all loaded memories
-  const baseMemories = searchResults !== null ? searchResults : memories;
+  // Base list: nearby > API search > all loaded memories
+  const baseMemories = nearbyResults !== null
+    ? nearbyResults
+    : searchResults !== null
+      ? searchResults
+      : memories;
 
   // Apply category and people filters on top
   const filteredMemories = baseMemories.filter(memory => {
@@ -163,9 +201,9 @@ export default function Home() {
   const timelineMemories = showAllTimeline
     ? filteredMemories
     : filteredMemories.filter(m => {
-        const diffDays = (Date.now() - new Date(m.created_at)) / 86400000;
-        return diffDays <= 7;
-      });
+      const diffDays = (Date.now() - new Date(m.created_at)) / 86400000;
+      return diffDays <= 7;
+    });
 
   const hasMoreThanWeek = filteredMemories.some(m => {
     const diffDays = (Date.now() - new Date(m.created_at)) / 86400000;
@@ -175,10 +213,10 @@ export default function Home() {
   const addCategory = () => {
     const label = prompt('Nombre de la categoría:');
     if (!label || !label.trim()) return;
-    
+
     const value = label.toLowerCase().replace(/\s+/g, '_');
     const newCategory = { id: `cat_${Date.now()}`, label: label.trim(), value };
-    
+
     const updatedCategories = [...categories, newCategory];
     setCategories(updatedCategories);
     localStorage.setItem('mymemo_categories', JSON.stringify(updatedCategories));
@@ -196,7 +234,7 @@ export default function Home() {
     <div className="h-[calc(100vh-80px)] flex flex-col">
       {/* Search and Filters */}
       <div className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark p-4 space-y-3">
-        {/* Search bar with filters toggle */}
+        {/* Search bar + geo button + filters toggle */}
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Input
@@ -217,6 +255,20 @@ export default function Home() {
               </button>
             )}
           </div>
+          {/* Nearby search button */}
+          <button
+            onClick={handleNearbySearch}
+            disabled={nearbyLoading}
+            title="Buscar memorias cerca de aqui"
+            className={`px-3 py-2 rounded-xl border-2 transition-colors flex items-center gap-1 ${nearbyResults !== null
+              ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+              : 'border-border-light dark:border-border-dark hover:border-primary text-text-primary-light dark:text-text-primary-dark'
+              } disabled:opacity-50`}
+          >
+            {nearbyLoading
+              ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              : <Navigation size={16} />}
+          </button>
           <button
             onClick={() => setFiltersExpanded(!filtersExpanded)}
             className="px-4 py-2 rounded-xl border-2 border-border-light dark:border-border-dark hover:border-primary transition-colors flex items-center gap-2 text-sm font-medium text-text-primary-light dark:text-text-primary-dark"
@@ -226,8 +278,27 @@ export default function Home() {
           </button>
         </div>
 
+        {/* Nearby active banner */}
+        {nearbyResults !== null && (
+          <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2">
+            <MapPin size={14} className="text-green-600 flex-shrink-0" />
+            <span className="text-sm text-green-800 dark:text-green-300 flex-1">
+              {nearbyResults.length > 0
+                ? `${nearbyResults.length} memoria${nearbyResults.length !== 1 ? 's' : ''} cerca de ti (5 km)`
+                : 'Sin memorias en un radio de 5 km'}
+            </span>
+            <button onClick={clearNearby} className="text-green-700 dark:text-green-400 hover:text-green-900">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+        {nearbyError && (
+          <p className="text-xs text-red-500 px-1">{nearbyError}</p>
+        )}
+
         {/* Expandable filters */}
         {filtersExpanded && (
+
           <div className="space-y-3 animate-slide-up">
             {/* Categories */}
             <div className="flex flex-wrap items-center gap-2">
@@ -276,7 +347,7 @@ export default function Home() {
 
       {/* Map Container - 60% height */}
       <div className="flex-[3] relative">
-        <MapView 
+        <MapView
           memories={filteredMemories}
           onMemoryClick={handleMemoryClick}
           onLocationClick={handleLocationClick}
@@ -401,8 +472,8 @@ export default function Home() {
                       onClick={() => handleMemoryClick(memory)}
                       className="flex-shrink-0 w-48 bg-white dark:bg-surface-dark rounded-xl shadow-card hover:shadow-card-hover overflow-hidden cursor-pointer transition-all duration-normal hover:-translate-y-1"
                     >
-                      <img 
-                        src={memory.thumbnail_url || memory.image_url} 
+                      <img
+                        src={memory.thumbnail_url || memory.image_url}
                         alt="Memory"
                         className="w-full h-32 object-cover"
                       />
@@ -437,7 +508,7 @@ function groupMemoriesByDay(memories) {
   const groups = memories.reduce((acc, memory) => {
     const memoryDate = new Date(memory.created_at);
     const memoryDay = new Date(memoryDate.getFullYear(), memoryDate.getMonth(), memoryDate.getDate());
-    
+
     let label;
     if (memoryDay.getTime() === today.getTime()) {
       label = 'Hoy';
@@ -448,9 +519,9 @@ function groupMemoriesByDay(memories) {
       if (diffDays < 7) {
         label = `Hace ${diffDays} días`;
       } else {
-        label = memoryDate.toLocaleDateString('es-MX', { 
-          day: 'numeric', 
-          month: 'short' 
+        label = memoryDate.toLocaleDateString('es-MX', {
+          day: 'numeric',
+          month: 'short'
         });
       }
     }
@@ -482,9 +553,9 @@ function formatRelativeTime(dateString) {
 
   if (diffMins < 60) return `Hace ${diffMins} min`;
   if (diffHours < 24) return `Hace ${diffHours} hora${diffHours > 1 ? 's' : ''}`;
-  
-  return date.toLocaleTimeString('es-MX', { 
-    hour: 'numeric', 
+
+  return date.toLocaleTimeString('es-MX', {
+    hour: 'numeric',
     minute: '2-digit',
     hour12: true
   });

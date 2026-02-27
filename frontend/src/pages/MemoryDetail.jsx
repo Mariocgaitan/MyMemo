@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, MapPin, Trash2, Loader2, Brain, CheckCircle } from 'lucide-react';
+import { ChevronLeft, MapPin, Trash2, Loader2, Brain, CheckCircle, Edit2 } from 'lucide-react';
 import { Button, Chip } from '../components/ui';
 import { memoryAPI } from '../services/api';
 
@@ -237,13 +237,13 @@ export default function MemoryDetail() {
 
   const date = memory.created_at
     ? new Date(memory.created_at).toLocaleDateString('es-MX', {
-        day: 'numeric', month: 'long', year: 'numeric'
-      })
+      day: 'numeric', month: 'long', year: 'numeric'
+    })
     : null;
   const time = memory.created_at
     ? new Date(memory.created_at).toLocaleTimeString('es-MX', {
-        hour: '2-digit', minute: '2-digit'
-      })
+      hour: '2-digit', minute: '2-digit'
+    })
     : null;
 
   return (
@@ -262,14 +262,23 @@ export default function MemoryDetail() {
             <h1 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">
               Recuerdo
             </h1>
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              disabled={deleting}
-              className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-500 disabled:opacity-40"
-              aria-label="Eliminar recuerdo"
-            >
-              <Trash2 size={20} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => navigate(`/memory/${id}/edit`)}
+                className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary"
+                aria-label="Editar recuerdo"
+              >
+                <Edit2 size={20} />
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                disabled={deleting}
+                className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-500 disabled:opacity-40"
+                aria-label="Eliminar recuerdo"
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
           </div>
         </div>
 

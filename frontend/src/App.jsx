@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Layout } from './components/layout';
-import { Home, CreateMemory, MemoryDetail, People } from './pages';
+import { Home, CreateMemory, MemoryDetail, People, EditMemory } from './pages';
 import './App.css';
 
 function App() {
@@ -45,6 +45,15 @@ function App() {
             element={
               <Layout>
                 <People />
+              </Layout>
+            }
+          />
+          {/* Edit memory page */}
+          <Route
+            path="/memory/:id/edit"
+            element={
+              <Layout>
+                <EditMemory />
               </Layout>
             }
           />
