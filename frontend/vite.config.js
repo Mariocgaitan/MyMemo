@@ -8,10 +8,51 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Solo activo en producción (HTTPS); desactivado en dev para evitar cache issues
+      // Solo activo en producción (HTTPS)
       devOptions: {
         enabled: false
       },
+
+      // ── Workbox config (Safari fix) ──────────────────────────────────────
+      workbox: {
+        // Safari fix: take control immediately without waiting for tabs to close
+        skipWaiting: true,
+        clientsClaim: true,
+
+        // Remove old caches after SW updates (avoids stale assets)
+        cleanupOutdatedCaches: true,
+
+        // Runtime caching strategies
+        runtimeCaching: [
+          {
+            // API calls → NEVER serve from cache (always fresh)
+            urlPattern: /\/api\/.*/i,
+            handler: 'NetworkOnly',
+          },
+          {
+            // S3 images → StaleWhileRevalidate (fast load + background refresh)
+            urlPattern: /^https:\/\/.*\.s3\..*\.amazonaws\.com\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'mymemo-s3-images',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 60, // 60 days
+              },
+            },
+          },
+          {
+            // App shell (HTML, JS, CSS) → NetworkFirst so updates are picked up
+            urlPattern: /\.(js|css|html)$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'mymemo-app-shell',
+              networkTimeoutSeconds: 5, // Fall back to cache after 5s
+            },
+          },
+        ],
+      },
+
       manifest: {
         name: 'MyMemo - Personal Memory Journal',
         short_name: 'MyMemo',
@@ -39,7 +80,7 @@ export default defineConfig({
     })
   ],
   server: {
-    port: 5174, // Changed from 5173 to avoid HTTPS cache
+    port: 5174,
     host: true,
     proxy: {
       '/api': {
@@ -49,3 +90,4 @@ export default defineConfig({
     }
   }
 })
+
