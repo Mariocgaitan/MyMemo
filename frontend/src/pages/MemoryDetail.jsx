@@ -358,24 +358,24 @@ export default function MemoryDetail() {
           )}
 
           {/* People */}
-          {faces.filter(f => f.person_name && f.person_name !== 'Unknown Person').length > 0 && (
+          {faces.filter(f => f?.person_name && f?.person_name !== 'Unknown Person').length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
                 👥 Personas detectadas
               </h3>
               <div className="flex gap-4 flex-wrap">
                 {faces
-                  .filter(f => f.person_name && f.person_name !== 'Unknown Person')
+                  .filter(f => f?.person_name && f?.person_name !== 'Unknown Person')
                   .map((face, i) => (
                     <div key={i} className="flex flex-col items-center gap-2">
                       <div className="w-16 h-16 rounded-full overflow-hidden bg-primary/20 flex items-center justify-center">
-                        {face.thumbnail_url
+                        {face?.thumbnail_url
                           ? <img src={face.thumbnail_url} alt={face.person_name} className="w-full h-full object-cover" />
                           : <span className="text-2xl">👤</span>
                         }
                       </div>
                       <span className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
-                        {face.person_name}
+                        {face?.person_name}
                       </span>
                     </div>
                   ))}

@@ -143,14 +143,15 @@ export default function Home() {
           setNearbyLoading(false);
         }
       },
-      () => {
-        setNearbyError('No se pudo obtener tu ubicacion');
+      (err) => {
+        console.error("GPS Error:", err);
+        setNearbyError(`No se pudo obtener tu ubicación: ${err.message || 'Desconocido'}`);
         setNearbyLoading(false);
       },
       {
         enableHighAccuracy: false, // Prevents 10s hang on desktop/some mobiles
         maximumAge: 300000,        // 5 mins cache
-        timeout: 10000
+        timeout: 15000             // 15 seconds to give mobile enough time
       }
     );
   };
