@@ -1914,7 +1914,48 @@ Nueva pagina completa en `/people` con:
 
 ---
 
-## Session 8: February 26, 2026 — Grupo C: UX de flujos
+## Session 10: February 26, 2026 — Face Bounding Boxes + FaceTagModal Visual Crop
+
+**Participantes:** Mario + Antigravity AI
+**Commit:** `3a3cc69`
+
+### Cambios realizados
+
+#### Backend — face_service.py
+Agregado `bbox` (top, right, bottom, left) y dimensiones de imagen a cada cara en `ai_metadata.faces`.
+No requirio cambios en base de datos ni migraciones — es solo añadir campos al JSON existente.
+
+```python
+# Antes
+{"person_id": "...", "name": "Mario", "confidence": 0.87, "is_new": False}
+
+# Ahora
+{"person_id": "...", "name": "Mario", "confidence": 0.87, "is_new": False,
+ "bbox": {"top": 120, "right": 280, "bottom": 240, "left": 160},
+ "image_w": 1200, "image_h": 800}
+```
+
+#### Frontend — FaceTagModal.jsx
+Nuevo componente `FaceCrop` que recorta la exacta region de la cara usando CSS positioning:
+- Calcula el `scale` para que la cara llene el contenedor (120x120px)
+- Posiciona la imagen completa con `left/top` negativos para centrar en la cara
+- Funciona con las coordenadas reales de `face_recognition` (top, right, bottom, left)
+- Fallback a icono de usuario si no hay bbox (memorias anteriores al cambio)
+
+#### Frontend — CreateMemory.jsx
+Agrega `createdMemoryUrl` (guarda `response.image_url`) y lo pasa como prop `memoryImageUrl` al `FaceTagModal`.
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `backend/services/face_service.py` | bbox + image_w/image_h en detected_faces |
+| `frontend/src/components/FaceTagModal.jsx` | Componente FaceCrop + uso de bbox |
+| `frontend/src/pages/CreateMemory.jsx` | Pasa memoryImageUrl al FaceTagModal |
+
+---
+
+
 
 **Participantes:** Mario + Antigravity AI
 **Commit:** `9896a2f`
