@@ -2104,6 +2104,31 @@ Al abrir el detalle de un recuerdo recien subido:
 
 ---
 
+## Session 12: February 27, 2026 — PWA Cache Buster, Map Spiderfy & Dark Mode CSS Fix
+
+**Participantes:** Mario + Antigravity AI
+**Commits:** `95eead0` (PWA Cache V2), `ecd0ce3` (Dark Mode Hue), `76183c7` (Spiderfy & PostGIS GeoAlchemy)
+
+### Cambios Exitosos
+- **Filtro Verde en Fotografías (Mapa):** Se resolvió el error de fotos verdes en dispositivos móviles. Ocurría porque `.leaflet-container` aplicaba `filter: hue-rotate(180deg)` en Dark Mode, tintando las fotos. Se añadió un escudo inverso `hue-rotate(-180deg)` en `index.css` a las imágenes de los pines.
+- **Botón "Limpiar Caché" (PWA):** Ya que Safari/Android PWA's son ultra-persistentes, se agregó un botón rojo de "Recargar" en `Header.jsx`. Este botón fuerza matemáticamente un *unregister* de todos los ServiceWorkers y borra el entorno CacheStorage Offline sin tener que desinstalar la app.
+- **Navegación Visual Continua de Mapa (Spiderfy):** Se eliminó el "LocationModal" que agrupaba ubicaciones. Ahora cada recuerdo tiene un pin nativo Leaflet que es directamente interactivo. Con la función nativa *Spiderfy*, al dar clic a varias fotos en una misma coordenada, saltarán y se esparcirán para seleccionarlas visualmente; y al dar clic a una, navega directo a `MemoryDetail`.
+
+### Fallos Persistentes a Investigar
+- 🔴 **Búsqueda Geoespacial "Cerca de mí" sigue fallando:** A pesar de haber refactorizado las consultas de base de datos desde PostgreSQL crudo hacia funciones ORM de GeoAlchemy seguras (para curar un Error 500 provocado por `::geography`), la app web del usuario *continúa mostrando un mensaje de error*. El problema de Cerca de mí **NO está arreglado**.
+
+### Archivos modificados
+
+| Archivo | Tipo de cambio |
+|---|---|
+| `frontend/src/index.css` | Override inverso de `hue-rotate` para pines de mapa |
+| `frontend/src/components/layout/Header.jsx` | Boton Limpiar Caché que anula Service Workers |
+| `frontend/src/components/map/MapView.jsx` | Reversión de `LocationModal` global hacia clickeabilidad directa de Leaflet (Spiderfy direct navigate) |
+| `backend/api/v1/endpoints/search.py` | Refactor ORM de GeoAlchemy para `func.ST_DWithin` en búsqueda remota |
+| `Proyecto_md/Project_Tracker.md` | Este log de sesión |
+
+---
+
 ### Estructura de datos clave
 
 ```js
