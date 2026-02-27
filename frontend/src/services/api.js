@@ -123,8 +123,8 @@ export const peopleAPI = {
 export const searchAPI = {
   // Text search
   text: async (query, params = {}) => {
-    const response = await api.get('/api/v1/search/text', { 
-      params: { q: query, ...params } 
+    const response = await api.get('/api/v1/search/text', {
+      params: { q: query, ...params }
     });
     return response.data;
   },
@@ -132,7 +132,7 @@ export const searchAPI = {
   // Nearby search
   nearby: async (lat, lng, radiusKm = 5, params = {}) => {
     const response = await api.get('/api/v1/search/nearby', {
-      params: { lat, lng, radius_km: radiusKm, ...params }
+      params: { latitude: lat, longitude: lng, radius_km: radiusKm, ...params }
     });
     return response.data;
   },
@@ -178,8 +178,8 @@ export const usageAPI = {
 
   // Get daily usage
   daily: async (days = 30) => {
-    const response = await api.get('/api/v1/usage/daily', { 
-      params: { days } 
+    const response = await api.get('/api/v1/usage/daily', {
+      params: { days }
     });
     return response.data;
   },

@@ -22,6 +22,9 @@ export default defineConfig({
         // Remove old caches after SW updates (avoids stale assets)
         cleanupOutdatedCaches: true,
 
+        // Force index.html to fetch from network first so app updates immediately
+        navigateFallbackStrategy: 'NetworkFirst',
+
         // Runtime caching strategies
         runtimeCaching: [
           {

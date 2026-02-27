@@ -236,11 +236,16 @@ export default function MemoryDetail() {
 
   const meta = getSafeMeta();
   const nlp = meta.nlp || {};
-  const faces = meta.faces || [];
-  const tags = nlp.tags || [];
-  const themes = nlp.themes || [];
-  const userCategories = meta.user_categories || [];
-  const allTags = [...new Set([...userCategories, ...themes, ...tags])];
+  const faces = Array.isArray(meta.faces) ? meta.faces : [];
+
+  const rawTags = Array.isArray(nlp.tags) ? nlp.tags : [];
+  const rawThemes = Array.isArray(nlp.themes) ? nlp.themes : [];
+  const rawCats = Array.isArray(meta.user_categories) ? meta.user_categories : [];
+
+  // Combine all and strictly filter out objects that would crash React
+  const allTags = [...new Set([...rawCats, ...rawThemes, ...rawTags])]
+    .filter(t => typeof t === 'string' || typeof t === 'number');
+
   const sentiment = nlp.sentiment || null;
   const activity = nlp.activity || null;
   const summary = nlp.summary || null;
