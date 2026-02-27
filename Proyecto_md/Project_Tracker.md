@@ -1,6 +1,6 @@
 # MyMemo - Project Tracker & Development Log
 
-**Last Updated:** February 24, 2026  
+**Last Updated:** February 26, 2026  
 **Current Phase:** Phase 2 — Bug Fixing, UX Improvements & Feature Completion  
 **Project Status:** 🟢 Active Development
 
@@ -17,17 +17,25 @@
 | **Backend Implementation** | ✅ Complete | 100% |
 | **Backend Testing** | ✅ Complete | 100% |
 | **Serverless Architecture** | ✅ Ready | 100% |
-| **Frontend (MVP)** | ✅ Deployed | 80% |
+| **Frontend (MVP)** | ✅ Deployed | 90% |
 | **AI/ML Integration** | ✅ Complete | 100% |
 | **Production Deployment** | ✅ Live | 100% |
-| **Phase 2: Bugs & UX** | 🔄 In Progress | 10% |
+| **Phase 2: Bugs & UX** | 🔄 In Progress | 45% |
 
-**Overall Project Progress:** 85% (MVP live in production, Phase 2 starting)
+**Overall Project Progress:** 90% (Fase 2 en progreso activo)
 
 **Component Status:**
 - ✅ API Endpoints (23/23 working)
-- ✅ S3 Storage & Thumbnails
+- ✅ S3 Storage & Thumbnails (keys en lugar de URLs, presigned fresca en cada respuesta)
 - ✅ Database Persistence
+- ✅ Face Recognition (multi-encoding, upsample=2, threshold=0.55)
+- ✅ NLP Extraction (gpt-4o-mini)
+- ✅ SSH desde máquina local (puerto 2222)
+- ✅ Swap en servidor (2GB — build de dlib estable)
+- ✅ Grupo A: búsqueda con API + fix tags path + timeline 7 días + empty states
+- ✅ Grupo B: photo markers en mapa + modal de ubicación
+- ✅ Grupo C: UX de flujos (overlay de subida, confirmación eliminar, polling de IA)
+- ⏳ Grupo D: FaceTagModal + pantalla de Personas
 - ✅ NLP Extraction (gpt-4o-mini)
 - ✅ Face Recognition (dlib with 2 faces detected)
 - ✅ Serverless-Ready Architecture (services/ + lambda/ prepared)
@@ -1692,68 +1700,66 @@ DEBUG=true
 **Inicio:** February 24, 2026  
 **Objetivo:** Pulir la experiencia, cerrar huecos funcionales y preparar el app para uso diario real.
 
-## 🐛 Bugs Conocidos (Pendientes de Validar)
+## 🐛 Bugs Conocidos
 
 | # | Descripción | Prioridad | Estado |
 |---|---|---|---|
 | B1 | Cache del Service Worker en Safari — cambios no se ven sin modo incógnito | Alta | Pendiente |
-| B2 | Pins del mapa (MapView) — verificar que aparecen después de subir memorias | Media | Pendiente |
-| B3 | Timeline en Home — verificar orden cronológico y que muestra memorias nuevas | Media | Pendiente |
-| B4 | `vite.svg` genera 404 en logs de nginx (asset de Vite que no se usa) | Baja | Pendiente |
-| B5 | Coordenadas en `CreateMemory` — validar que el fix del parsing funciona en producción | Alta | Pendiente (post-deploy) |
+| B2 | `vite.svg` genera 404 en logs de nginx (asset de Vite que no se usa) | Baja | Pendiente |
+| B3 | Coordenadas manuales en `CreateMemory` — validar fix en producción | Alta | ⏳ Pendiente en servidor |
+| B4 | URLs de fotos expiradas (24h) — fix hecho, rebuild pendiente en servidor | Alta | ⏳ Pendiente en servidor |
+| B5 | Face recognition mejorado — rebuild pendiente en servidor | Alta | ⏳ Pendiente en servidor |
 
-## 🔧 Mejoras de UX Identificadas
+## 🔧 Mejoras de UX — Identificadas
 
-| # | Mejora | Prioridad | Estado |
-|---|---|---|---|
-| U1 | Feedback visual al subir memoria (spinner / progress bar) | Alta | Pendiente |
-| U2 | Confirmación antes de eliminar memoria | Alta | Pendiente |
-| U3 | Estado de procesamiento de IA en la vista de detalle (`Procesando...` mientras Celery trabaja) | Media | Pendiente |
-| U4 | Mensaje cuando no hay memorias en Home | Media | Pendiente |
-| U5 | Búsqueda funcional en la UI (ya existe el endpoint `/search/text`) | Alta | Pendiente |
-| U6 | Filtro por etiquetas / personas en Home | Media | Pendiente |
-| U7 | Vista de galería de fotos (además de timeline) | Baja | Pendiente |
-| U8 | Mostrar thumbnail en lugar de imagen original en listas | Media | Pendiente |
+| # | Mejora | Prioridad | Estado | Origen |
+|---|---|---|---|---|
+| U1 | **Búsqueda** — filtro de Home no conectado a la API | Alta | Pendiente | Mario |
+| U2 | **Timeline** — no hay vista de "todas las memorias" con scroll | Alta | Pendiente | Mario |
+| U3 | **Mapa con fotos** — en lugar de pins, mostrar thumbnail del recuerdo; si hay varias en mismo radio, permitir elegir | Alta | Pendiente | Mario |
+| U4 | Feedback visual al subir memoria (spinner / progress bar) | Alta | Pendiente | IA |
+| U5 | Confirmación antes de eliminar memoria | Alta | Pendiente | IA |
+| U6 | Estado de procesamiento de IA en detalle (`Procesando...` mientras Celery trabaja) | Media | Pendiente | IA |
+| U7 | Mensaje cuando no hay memorias en Home | Media | Pendiente | IA |
+| U8 | Mostrar thumbnail en lugar de imagen original en listas (performance) | Media | Pendiente | IA |
 
-## 🌟 Features Faltantes del MVP
+## 🌟 Features Faltantes
 
 | # | Feature | Prioridad | Estado |
 |---|---|---|---|
-| F1 | **Búsqueda** — conectar barra de búsqueda de Home con el endpoint de texto | Alta | Pendiente |
-| F2 | **MapView** — verificar clustering de pins y popup al hacer click | Alta | Pendiente |
-| F3 | **FaceTagModal** — flujo completo para etiquetar caras en fotos | Alta | Pendiente |
-| F4 | **Personas** — pantalla de gestión de personas con sus memorias | Media | Pendiente |
-| F5 | **Offline** — IndexedDB queue para subir memorias sin conexión | Baja | Pendiente |
-| F6 | **Editar memoria** — modificar descripción, ubicación, etiquetas | Media | Pendiente |
-| F7 | **Búsqueda por ubicación** — "memorias cerca de aquí" (endpoint ya existe) | Media | Pendiente |
-| F8 | **Dashboard de costos de IA** — pantalla de `/usage` para ver qué gasta | Baja | Pendiente |
+| F1 | **FaceTagModal** — flujo completo para etiquetar caras en fotos | Alta | Pendiente |
+| F2 | **Pantalla de Personas** — gestión con sus memorias asociadas | Media | Pendiente |
+| F3 | **Offline** — IndexedDB queue para subir memorias sin conexión | Baja | Pendiente |
+| F4 | **Editar memoria** — modificar descripción, ubicación, etiquetas | Media | Pendiente |
+| F5 | **Búsqueda por ubicación** — "memorias cerca de aquí" (endpoint ya existe) | Media | Pendiente |
+| F6 | **Dashboard de costos de IA** — pantalla de `/usage` | Baja | Pendiente |
 
 ## 📊 Orden de Ataque Recomendado — Fase 2
 
-### Sprint 1: Estabilización (1-2 sesiones)
-1. Deploy del fix de coordenadas al servidor
-2. Verificar que MapView muestra pins reales
-3. Verificar Timeline carga memorias reales
-4. Fix Service Worker cache (estrategia de cache bust)
-5. Fix 404 de vite.svg
+### Sprint 1: Estabilización del servidor (en curso)
+- ⏳ Rebuild de Docker con fixes de URLs y face recognition
+- Verificar que fotos antiguas cargan
+- Verificar que coordenadas manuales funcionan
+- Fix SSL (cert expirado tras reboot)
 
-### Sprint 2: UX crítico (2-3 sesiones)
-6. Conectar búsqueda de Home con la API
-7. Feedback visual de subida (spinner)
-8. Confirmación antes de eliminar
-9. Estado de procesamiento de IA en detalle
+### Sprint 2: UX crítico (siguiente)
+1. **Búsqueda** — conectar barra de Home con `/search/text`
+2. **Timeline** — vista completa con scroll de todas las memorias
+3. **Mapa con fotos** — thumbnails en lugar de pins, agrupación por radio
+4. Spinner de subida
+5. Confirmación antes de eliminar
 
-### Sprint 3: Features clave (3-4 sesiones)
-10. Flujo completo de FaceTagModal
-11. Pantalla de Personas con sus memorias
-12. Thumbnails en listas
-13. Filtros por etiquetas
+### Sprint 3: Features clave
+6. FaceTagModal completo
+7. Pantalla de Personas
+8. Estado de procesamiento de IA en detalle
+9. Thumbnails en listas
 
 ### Sprint 4: Extras (futuro)
-14. Offline support (IndexedDB)
-15. Edición de memorias
-16. Búsqueda geoespacial en UI
-17. Dashboard de costos
+10. Offline support (IndexedDB)
+11. Edición de memorias
+12. Búsqueda geoespacial en UI
+13. Dashboard de costos
 
 ## 🔑 Referencias Técnicas Importantes (para IA)
 
@@ -1761,21 +1767,101 @@ DEBUG=true
 # Servidor
 IP: 16.58.56.110
 Dominio: mymemo-app.duckdns.org
-SSH: ssh ubuntu@16.58.56.110
+SSH: ssh mymemo  (puerto 2222, key: ~/.ssh/LightsailDefaultKey-us-east-2.pem)
+Instancia: mymemo-production-2 (AWS Lightsail, Ubuntu 24.04, 2GB RAM)
 Path en servidor: /app/mymemo
+Swap: 2GB (/swapfile) — necesario para compilar dlib
 
 # Comandos de servidor
 cd /app/mymemo && git pull origin main
-cd frontend && npm run build && cd ..
-docker compose -f docker-compose.prod.yml --env-file .env.prod restart nginx
+cd frontend && npm run build  # rebuild frontend (~8s)
+docker compose -f docker-compose.prod.yml --env-file .env.prod restart backend
 # SIEMPRE usar --env-file .env.prod con docker compose
 
-# Rebuild completo
-docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
+# Rebuild completo de backend (tarda ~40min por dlib, NO hacer a menos que cambien dependencias)
+docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d backend celery_worker
 
 # Ver logs
 docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 ```
+
+---
+
+## 📝 Session 7: February 25-26, 2026 — Fase 2 Activa
+
+**Duración:** ~2 sesiones  
+**Participantes:** Mario + GitHub Copilot
+
+### Infraestructura resuelta
+
+| Problema | Solución |
+|---|---|
+| Servidor colgado por OOM durante build | Agregado 2GB swap (`/swapfile`) antes de rebuild |
+| SSH desde local no funcionaba (ISP bloquea 22) | Puerto 2222 vía systemd socket override |
+| Browser SSH roto tras error en override.conf | Nueva instancia `mymemo-production-2` desde snapshot |
+| Firewall sin puertos 80/443 en nueva instancia | Abrir HTTP+HTTPS en Lightsail Networking |
+| Instancia vieja cobrando doble | Eliminada `mymemo-production` (original) |
+| SSL — cert válido hasta 22 mayo 2026 | No requirió renovación |
+| Frontend no servido (no existe servicio frontend en prod) | `cd frontend && npm run build` — nginx sirve `dist/` directo |
+
+### Grupo A — Búsqueda + Timeline ✅
+
+**Commits:** `688fff9`, `8a589b6`, `25710ea`
+
+| # | Cambio | Archivo |
+|---|---|---|
+| 1 | Fix path de tags: `ai_metadata?.nlp?.tags` (era `ai_metadata?.tags`) | `Home.jsx` |
+| 2 | Búsqueda conectada a `searchAPI.text()` con debounce 400ms | `Home.jsx` |
+| 3 | Si API devuelve vacío → fallback a filtro client-side (evita race condition) | `Home.jsx` |
+| 4 | Botón X para limpiar búsqueda | `Home.jsx` |
+| 5 | Timeline con filtro real de 7 días | `Home.jsx` |
+| 6 | "Ver todo →" / "← Recientes" toggle funcional | `Home.jsx` |
+| 7 | Empty states diferenciados: sin memorias / sin resultados esta semana / sin resultados de búsqueda | `Home.jsx` |
+| 8 | Fix `location_name` en popup del mapa (era `.location`) | `MapView.jsx` |
+| 9 | Búsqueda backend expandida: `description_raw` + `location_name` + `ai_metadata` (tags, temas) + stemming español | `search.py` |
+
+### Grupo B — Mapa con fotos ✅
+
+**Commits:** `06a88cf`, `e3b3bb5`
+
+| # | Cambio | Detalle |
+|---|---|---|
+| 1 | Marcadores con foto | Pin en forma de gota con thumbnail del recuerdo, borde blanco, sombra |
+| 2 | Clusters con foto | Círculo con thumbnail del recuerdo más reciente + badge numérico |
+| 3 | Modal en lugar de popup | Clic en pin abre Modal React con cards grandes |
+| 4 | Cards del modal | Foto grande, descripción completa, tags en chips, fecha, botón "Ver detalle →" |
+| 5 | Limpieza | Eliminadas `createPopupContent()` y `formatDate()` de MapView |
+
+### Estado actual de Bugs del tracker
+
+| # | Bug | Estado |
+|---|---|---|
+| B1 | Cache Service Worker Safari | ⏳ Pendiente |
+| B2 | vite.svg 404 | ⏳ Pendiente |
+| B3 | Coordenadas manuales en CreateMemory | ✅ Fix deployado |
+| B4 | URLs S3 expiradas (24h) | ✅ Fix deployado (ahora 7 días, fresh en cada respuesta) |
+| B5 | Face recognition mejorado | ✅ Deployado (multi-encoding, upsample=2, threshold=0.55) |
+
+### Pendiente Fase 2
+
+**Grupo C — UX de flujos:**
+- Spinner/progress bar al subir memoria (U4)
+- Confirmación antes de eliminar (U5)
+- Estado "Procesando IA..." en detalle mientras Celery trabaja (U6)
+
+**Grupo D — Personas y caras:**
+- `FaceTagModal` completo — etiquetar caras detectadas en foto (F1)
+- Pantalla de Personas con memorias asociadas (F2)
+
+**Extras pendientes:**
+- Offline support / IndexedDB (F3)
+- Edición de memorias (F4)
+- Búsqueda geoespacial en UI (F5)
+- Dashboard de costos IA (F6)
+- Fix cache Service Worker Safari (B1)
+
+---
+
 
 ### Estructura de datos clave
 
