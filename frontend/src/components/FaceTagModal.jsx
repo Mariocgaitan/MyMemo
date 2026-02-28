@@ -204,19 +204,14 @@ export default function FaceTagModal({
               <div key={face.person_id || index} className="space-y-3">
                 {/* Face crop (if bbox available) or person thumbnail */}
                 <div className="flex justify-center">
-                  {face.bbox && face.image_w && memoryImageUrl ? (
-                    <FaceCrop
-                      imageUrl={memoryImageUrl}
-                      bbox={face.bbox}
-                      imageW={face.image_w}
-                      imageH={face.image_h}
-                      size={120}
-                    />
-                  ) : (
-                    <div className="w-[120px] h-[120px] rounded-xl overflow-hidden bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark flex items-center justify-center">
-                      <User size={48} className="text-text-secondary-light dark:text-text-secondary-dark" />
-                    </div>
-                  )}
+                  <FaceCrop
+                    imageUrl={memoryImageUrl}
+                    bbox={face.bbox}
+                    imageW={face.image_w}
+                    imageH={face.image_h}
+                    thumbnailUrl={face.thumbnail_url}
+                    size={120}
+                  />
                 </div>
 
                 {/* Name input */}

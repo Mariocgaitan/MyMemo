@@ -150,8 +150,8 @@ class FaceRecognitionService:
             face_cascade = cv2.CascadeClassifier(cascade_path)
             
             # scaleFactor=1.05 and minNeighbors=6 catch smaller/distant non-selfie faces safely
-            # minNeighbors=6 reduces false positive objects misidentified as faces
-            cv_faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=6, minSize=(20, 20))
+            # minNeighbors=4 is optimal for preventing false positives without going blind
+            cv_faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=4, minSize=(20, 20))
             
             # Restore coordinates to ORIGINAL image dimensions by multiplying by ratio
             # This fixes the UI tracking bug and the corrupted S3 thumbnail cropping
