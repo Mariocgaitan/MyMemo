@@ -324,6 +324,7 @@ class FaceRecognitionService:
                     "name": matched_person.name,
                     "confidence": float(best_match_confidence),
                     "is_new": False,
+                    "thumbnail_url": matched_person.thumbnail_url,
                     "bbox": {
                         "top": top, "right": right,
                         "bottom": bottom, "left": left
@@ -365,6 +366,7 @@ class FaceRecognitionService:
                     "name": new_person.name,
                     "confidence": 1.0,
                     "is_new": True,
+                    "thumbnail_url": new_person.thumbnail_url,
                     "bbox": {
                         "top": top, "right": right,
                         "bottom": bottom, "left": left
