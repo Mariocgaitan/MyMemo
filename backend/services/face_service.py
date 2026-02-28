@@ -78,18 +78,20 @@ class FaceRecognitionService:
         - Keeps original resolution (no downscale)
         """
         pil = Image.open(BytesIO(image_bytes)).convert("RGB")
+        pil_original = pil.copy()
         
         # Performance optimization for EC2 t2.micro/small
         # Resize image proportionally if larger than 1000px on either side
         max_dimension = 1000
+        ratio = 1.0
         if pil.width > max_dimension or pil.height > max_dimension:
-            ratio = min(max_dimension / pil.width, max_dimension / pil.height)
-            new_size = (int(pil.width * ratio), int(pil.height * ratio))
+            ratio = max(pil.width / max_dimension, pil.height / max_dimension)
+            new_size = (int(pil.width / ratio), int(pil.height / ratio))
             pil = pil.resize(new_size, Image.Resampling.LANCZOS)
         
         pil = ImageEnhance.Contrast(pil).enhance(1.3)
         pil = ImageEnhance.Brightness(pil).enhance(1.05)
-        return np.array(pil), pil
+        return np.array(pil), pil, pil_original, ratio
 
 
     def detect_and_recognize_faces(
@@ -136,7 +138,7 @@ class FaceRecognitionService:
             image_bytes = response.content
 
             # Load and preprocess image
-            image, pil_image = self._preprocess_image(image_bytes)
+            image, pil_image, pil_original, ratio = self._preprocess_image(image_bytes)
 
             # --- OpenCV Haar Cascades for Ultra-Fast Detection ---
             # detectMultiScale scans the image in milliseconds vs HOG which takes minutes on EC2
@@ -151,11 +153,18 @@ class FaceRecognitionService:
             # minNeighbors=6 reduces false positive objects misidentified as faces
             cv_faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=6, minSize=(20, 20))
             
-            # Convert OpenCV (x, y, w, h) to face_recognition (top, right, bottom, left) bounding boxes
-            face_locations = [(y, x + w, y + h, x) for (x, y, w, h) in cv_faces]
+            # Restore coordinates to ORIGINAL image dimensions by multiplying by ratio
+            # This fixes the UI tracking bug and the corrupted S3 thumbnail cropping
+            face_locations = [
+                (int((y) * ratio), int((x + w) * ratio), int((y + h) * ratio), int((x) * ratio))
+                for (x, y, w, h) in cv_faces
+            ]
+            
+            # Switch back to original huge image for the actual identification encoding and cropping
+            original_image_array = np.array(pil_original)
             
             # Extract identities ONLY for the exact boxes found by OpenCV
-            face_encodings = face_recognition.face_encodings(image, face_locations, num_jitters=1)
+            face_encodings = face_recognition.face_encodings(original_image_array, face_locations, num_jitters=1)
             
             if not face_encodings:
                 # No faces found - mark as completed
@@ -172,13 +181,13 @@ class FaceRecognitionService:
                     "message": "No faces detected in image"
                 }
             
-            # Process each detected face
+            # Process each detected face using the high-res Original image to save clean thumbnails
             detected_faces = self._process_detected_faces(
                 db=db,
                 memory=memory,
                 face_encodings=face_encodings,
                 face_locations=face_locations,
-                pil_image=pil_image
+                pil_image=pil_original
             )
             
             # Update memory metadata
