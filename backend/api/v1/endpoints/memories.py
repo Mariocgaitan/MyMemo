@@ -51,6 +51,26 @@ def memory_to_response(memory: Memory) -> MemoryResponse:
         else None
     )
 
+    # -------------------------------------------------------------
+    # Hydrate Face Avatars with fresh S3 Links
+    # -------------------------------------------------------------
+    # The database stringifies `ai_metadata` into a static JSONB column. 
+    # Avatar URLs (faces/...jpg) are stored in the separate `Person` table and 
+    # often expire. We must dynamically inject fresh pre-signed URLs into 
+    # the returned JSON payload without permanently modifying the DB row.
+    import copy
+    safe_metadata = copy.deepcopy(memory.ai_metadata) if memory.ai_metadata else {}
+    
+    if "faces" in safe_metadata and isinstance(safe_metadata["faces"], list):
+        for face in safe_metadata["faces"]:
+            pid = face.get("person_id")
+            if pid:
+                # Ask Storage Service to give us a valid 7-day link for this person's avatar
+                face["thumbnail_url"] = storage_service.get_presigned_url(
+                    f"faces/{pid}.jpg", 
+                    storage_service.thumbnails_bucket
+                )
+
     return MemoryResponse(
         id=memory.id,
         user_id=memory.user_id,
@@ -60,7 +80,7 @@ def memory_to_response(memory: Memory) -> MemoryResponse:
         longitude=point.x,
         image_url=fresh_image_url,
         thumbnail_url=fresh_thumbnail_url,
-        ai_metadata=memory.ai_metadata,
+        ai_metadata=safe_metadata,
         faces_processed=memory.faces_processed,
         visibility=memory.visibility,
         created_at=memory.created_at,

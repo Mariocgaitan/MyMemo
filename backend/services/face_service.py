@@ -78,6 +78,15 @@ class FaceRecognitionService:
         - Keeps original resolution (no downscale)
         """
         pil = Image.open(BytesIO(image_bytes)).convert("RGB")
+        
+        # Performance optimization for EC2 t2.micro/small
+        # Resize image proportionally if larger than 1000px on either side
+        max_dimension = 1000
+        if pil.width > max_dimension or pil.height > max_dimension:
+            ratio = min(max_dimension / pil.width, max_dimension / pil.height)
+            new_size = (int(pil.width * ratio), int(pil.height * ratio))
+            pil = pil.resize(new_size, Image.Resampling.LANCZOS)
+        
         pil = ImageEnhance.Contrast(pil).enhance(1.3)
         pil = ImageEnhance.Brightness(pil).enhance(1.05)
         return np.array(pil), pil
@@ -129,9 +138,11 @@ class FaceRecognitionService:
             # Load and preprocess image
             image, pil_image = self._preprocess_image(image_bytes)
 
-            # Detect faces — upsample=2 catches smaller / off-angle faces
-            face_locations = face_recognition.face_locations(image, number_of_times_to_upsample=2, model="hog")
-            face_encodings = face_recognition.face_encodings(image, face_locations, num_jitters=2)
+            # Detect faces — upsample=1 and num_jitters=1 massively reduce 
+            # RAM/CPU load on small AWS instances compared to =2, while the 
+            # earlier 1000px resize guarantees faces are large enough for 'hog'.
+            face_locations = face_recognition.face_locations(image, number_of_times_to_upsample=1, model="hog")
+            face_encodings = face_recognition.face_encodings(image, face_locations, num_jitters=1)
             
             if not face_encodings:
                 # No faces found - mark as completed
