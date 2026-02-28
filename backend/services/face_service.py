@@ -147,8 +147,9 @@ class FaceRecognitionService:
             cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
             face_cascade = cv2.CascadeClassifier(cascade_path)
             
-            # scaleFactor=1.05 and minNeighbors=4 catch smaller/distant non-selfie faces safely
-            cv_faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=4, minSize=(20, 20))
+            # scaleFactor=1.05 and minNeighbors=6 catch smaller/distant non-selfie faces safely
+            # minNeighbors=6 reduces false positive objects misidentified as faces
+            cv_faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=6, minSize=(20, 20))
             
             # Convert OpenCV (x, y, w, h) to face_recognition (top, right, bottom, left) bounding boxes
             face_locations = [(y, x + w, y + h, x) for (x, y, w, h) in cv_faces]

@@ -94,9 +94,15 @@ class StorageService:
             return value
 
         if value.startswith("http"):
-            # Old format: full presigned URL → extract the path key
+            # Old format: full presigned URL → extract the actual object key
+            # AWS path styles are usually /<bucket_name>/<object_key>
             parsed = urlparse(value)
-            key = parsed.path.lstrip("/")
+            path = parsed.path.lstrip("/")
+            # If the path starts with the bucket name, remove it to get just the key
+            if path.startswith(f"{bucket}/"):
+                key = path[len(f"{bucket}/"):]
+            else:
+                key = path
         else:
             key = value
 
