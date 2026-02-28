@@ -12,6 +12,27 @@ from core.database import get_db
 from models.database import Person, User, MemoryPerson, Memory
 from models.schemas import PersonCreate, PersonResponse, MemoryResponse
 from api.v1.endpoints.memories import get_default_user, memory_to_response
+from services.storage_service import storage_service
+
+
+def person_to_response(person: Person) -> PersonResponse:
+    """Convert Person ORM model to response schema with fresh presigned URL"""
+    fresh_thumbnail_url = None
+    if person.thumbnail_url:
+        # Generate fresh 7-day presigned url to avoid expired tokens in UI
+        fresh_thumbnail_url = storage_service.get_presigned_url(
+            f"faces/{person.id}.jpg", storage_service.thumbnails_bucket
+        )
+
+    return PersonResponse(
+        id=person.id,
+        user_id=person.user_id,
+        name=person.name,
+        thumbnail_url=fresh_thumbnail_url,
+        times_detected=person.times_detected,
+        last_seen=person.last_seen,
+        created_at=person.created_at
+    )
 
 
 router = APIRouter(prefix="/people", tags=["people"])
@@ -56,7 +77,7 @@ async def list_people(
     
     people = result.scalars().all()
     
-    return people
+    return [person_to_response(p) for p in people]
 
 
 @router.get(
@@ -88,7 +109,7 @@ async def get_person(
             detail="Person not found"
         )
     
-    return person
+    return person_to_response(person)
 
 
 @router.get(
@@ -169,7 +190,7 @@ async def update_person(
         person.name = person_data.name
         await db.commit()
         await db.refresh(person)
-        return person
+        return person_to_response(person)
     except IntegrityError:
         await db.rollback()
         # Busca la persona existente con ese nombre
@@ -195,7 +216,7 @@ async def update_person(
         await db.execute(delete(Person).where(Person.id == person_id))
         await db.commit()
         await db.refresh(existing_person)
-        return existing_person
+        return person_to_response(existing_person)
 
 
 @router.delete(
@@ -288,4 +309,4 @@ async def merge_people(
     await db.commit()
     await db.refresh(target_person)
     
-    return target_person
+    return person_to_response(target_person)

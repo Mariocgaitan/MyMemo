@@ -138,10 +138,22 @@ class FaceRecognitionService:
             # Load and preprocess image
             image, pil_image = self._preprocess_image(image_bytes)
 
-            # Detect faces — upsample=1 and num_jitters=1 massively reduce 
-            # RAM/CPU load on small AWS instances compared to =2, while the 
-            # earlier 1000px resize guarantees faces are large enough for 'hog'.
-            face_locations = face_recognition.face_locations(image, number_of_times_to_upsample=1, model="hog")
+            # --- OpenCV Haar Cascades for Ultra-Fast Detection ---
+            # detectMultiScale scans the image in milliseconds vs HOG which takes minutes on EC2
+            import cv2
+            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+            
+            # Load the pre-trained Haar Cascade model from cv2 data
+            cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            face_cascade = cv2.CascadeClassifier(cascade_path)
+            
+            # scaleFactor=1.05 and minNeighbors=4 catch smaller/distant non-selfie faces safely
+            cv_faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=4, minSize=(20, 20))
+            
+            # Convert OpenCV (x, y, w, h) to face_recognition (top, right, bottom, left) bounding boxes
+            face_locations = [(y, x + w, y + h, x) for (x, y, w, h) in cv_faces]
+            
+            # Extract identities ONLY for the exact boxes found by OpenCV
             face_encodings = face_recognition.face_encodings(image, face_locations, num_jitters=1)
             
             if not face_encodings:
