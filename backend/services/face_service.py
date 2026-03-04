@@ -25,9 +25,10 @@ from services.storage_service import storage_service
 
 # Store up to this many encodings per person for robust matching
 MAX_ENCODINGS_PER_PERSON = 5
-# Match threshold: lower = stricter.
-# 0.62 balances rear-camera / angle variability vs false positives
-MATCH_TOLERANCE = 0.62
+# Match threshold: DISTANCE — lower = stricter (same unit as face_recognition library).
+# face_recognition default is 0.6. We use 0.55 to allow angle/lighting variation
+# while avoiding false positives between similar-looking people.
+MATCH_DISTANCE = 0.55
 
 
 class FaceRecognitionService:
@@ -289,8 +290,14 @@ class FaceRecognitionService:
         """
         img_w, img_h = (pil_image.size if pil_image else (0, 0))
         detected_faces = []
-        image_w = img_w  # store for bbox normalization
+        image_w = img_w
         image_h = img_h
+
+        # Load all known people once (not per-face)
+        existing_people = db.execute(
+            select(Person).where(Person.user_id == memory.user_id)
+        ).scalars().all()
+        print(f"[face_service] Processing {len(face_encodings)} face(s) against {len(existing_people)} known people (threshold distance < {MATCH_DISTANCE})")
 
         for face_encoding, face_location in zip(face_encodings, face_locations):
             # face_location = (top, right, bottom, left)
@@ -309,17 +316,11 @@ class FaceRecognitionService:
             
             # Convert encoding to string for storage
             encoding_str = ",".join(map(str, face_encoding.tolist()))
-            
-            # Try to match with existing people
-            existing_people = db.execute(
-                select(Person).where(Person.user_id == memory.user_id)
-            ).scalars().all()
-            
+
             matched_person = None
-            best_match_confidence = 0.0
-            
+            best_match_distance = 1.0  # lower is better
+
             for person in existing_people:
-                # Load ALL stored encodings for this person (multi-encoding support)
                 person_encodings = self._load_person_encodings(person)
                 if not person_encodings:
                     continue
@@ -327,13 +328,15 @@ class FaceRecognitionService:
                 # Compare against each stored encoding, keep the best (lowest distance)
                 distances = face_recognition.face_distance(person_encodings, face_encoding)
                 min_distance = float(np.min(distances))
-                confidence = 1.0 - min_distance
 
-                if confidence > MATCH_TOLERANCE and confidence > best_match_confidence:
+                if min_distance < MATCH_DISTANCE and min_distance < best_match_distance:
                     matched_person = person
-                    best_match_confidence = confidence
+                    best_match_distance = min_distance
+
+            best_match_confidence = round(1.0 - best_match_distance, 4)
             
             if matched_person:
+                print(f"[face_service] Matched '{matched_person.name}' distance={best_match_distance:.3f} confidence={best_match_confidence:.3f}")
                 # Update existing person
                 matched_person.times_detected += 1
                 matched_person.last_seen = datetime.now(timezone.utc)
@@ -345,13 +348,13 @@ class FaceRecognitionService:
                     matched_person.face_embedding = self._serialize_encodings(existing_encodings)
                 
                 # Update thumbnail if person doesn't have one yet
-                if not matched_person.thumbnail_url:
+                if not matched_person.thumbnail_url and face_crop is not None:
                     try:
                         matched_person.thumbnail_url = storage_service.upload_face_thumbnail(
                             face_crop, matched_person.id
                         )
                     except Exception as e:
-                        print(f"Warning: failed to upload face thumbnail: {e}")
+                        print(f"[face_service] ERROR uploading thumbnail for {matched_person.id}: {e}")
                 
                 # Link to memory
                 memory_person = MemoryPerson(
@@ -376,6 +379,7 @@ class FaceRecognitionService:
                     "image_h": image_h,
                 })
             else:
+                print(f"[face_service] No match found (best distance={best_match_distance:.3f}, threshold={MATCH_DISTANCE}). Creating Unknown.")
                 # Create new unknown person — store encoding in new JSON format
                 new_person = Person(
                     id=uuid.uuid4(),
@@ -388,12 +392,13 @@ class FaceRecognitionService:
                 db.flush()  # Get the ID
                 
                 # Upload face thumbnail for new person
-                try:
-                    new_person.thumbnail_url = storage_service.upload_face_thumbnail(
-                        face_crop, new_person.id
-                    )
-                except Exception as e:
-                    print(f"Warning: failed to upload face thumbnail: {e}")
+                if face_crop is not None:
+                    try:
+                        new_person.thumbnail_url = storage_service.upload_face_thumbnail(
+                            face_crop, new_person.id
+                        )
+                    except Exception as e:
+                        print(f"[face_service] ERROR uploading thumbnail for new person {new_person.id}: {e}")
                 
                 # Link to memory
                 memory_person = MemoryPerson(
