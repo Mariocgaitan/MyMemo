@@ -192,17 +192,10 @@ class FaceRecognitionService:
                     )
                     crop_arr = np.array(crop_pil)
 
-                # face location relative to the (possibly resized) crop
-                rel_top    = int((top  - c_top)  / crop_ratio)
-                rel_right  = int((right - c_left) / crop_ratio)
-                rel_bottom = int((bottom - c_top) / crop_ratio)
-                rel_left   = int((left - c_left) / crop_ratio)
-
-                encs = face_recognition.face_encodings(
-                    crop_arr,
-                    [(rel_top, rel_right, rel_bottom, rel_left)],
-                    num_jitters=1
-                )
+                # Let dlib find the face within the crop instead of passing
+                # relative coordinates — avoids compute_face_descriptor() errors
+                # when boundary math produces out-of-range landmark points.
+                encs = face_recognition.face_encodings(crop_arr, num_jitters=1)
                 if encs:
                     face_encodings.append(encs[0])
                     adjusted_locations.append((top, right, bottom, left))
