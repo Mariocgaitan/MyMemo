@@ -178,7 +178,9 @@ class FaceRecognitionService:
                 c_bottom = min(original_image_array.shape[0], bottom + pad)
                 c_right  = min(original_image_array.shape[1], right + pad)
 
-                crop_arr = original_image_array[c_top:c_bottom, c_left:c_right]
+                # np.ascontiguousarray is required: slicing produces a non-contiguous
+                # view and dlib's compute_face_descriptor rejects non-contiguous arrays
+                crop_arr = np.ascontiguousarray(original_image_array[c_top:c_bottom, c_left:c_right])
 
                 # Resize crop to ENCODE_SIZE if needed
                 crop_ratio = 1.0
@@ -190,7 +192,7 @@ class FaceRecognitionService:
                         (int(crop_arr.shape[1] / crop_ratio), int(crop_arr.shape[0] / crop_ratio)),
                         PILImage.Resampling.LANCZOS
                     )
-                    crop_arr = np.array(crop_pil)
+                    crop_arr = np.ascontiguousarray(np.array(crop_pil))
 
                 # Let dlib find the face within the crop instead of passing
                 # relative coordinates — avoids compute_face_descriptor() errors
