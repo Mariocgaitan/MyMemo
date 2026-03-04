@@ -101,7 +101,7 @@ function createPhotoIcon(memory) {
     <div class="photo-marker-inner" style="background-color: #1f2937 !important;">
       ${imgSrc
       ? `<img src="${imgSrc}" alt="" loading="lazy" />`
-      : `<div class="photo-placeholder">📸</div>`
+      : `<div class="photo-placeholder" style="font-size:20px;color:#6b7280;">+</div>`
     }
     </div>
   `;
@@ -126,7 +126,7 @@ function createClusterIcon(cluster) {
       <div class="photo-cluster-inner" style="background-color: #1f2937 !important;">
         ${imgSrc
       ? `<img src="${imgSrc}" alt="" loading="lazy" />`
-      : `<div class="cluster-placeholder">📸</div>`
+      : `<div class="cluster-placeholder" style="font-size:20px;color:#6b7280;">+</div>`
     }
       </div>
       <span class="photo-cluster-badge">${count > 99 ? '99+' : count}</span>
@@ -240,7 +240,6 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
       {!loading && memories.length === 0 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
           <div className="bg-white dark:bg-surface-dark shadow-card rounded-xl px-6 py-4 text-center">
-            <p className="text-4xl mb-2">🗺️</p>
             <p className="font-medium text-text-primary-light dark:text-text-primary-dark mb-1">
               No hay recuerdos aún
             </p>

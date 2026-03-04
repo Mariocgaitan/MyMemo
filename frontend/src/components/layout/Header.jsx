@@ -1,4 +1,4 @@
-import { Menu, Moon, Sun, Users, RefreshCw } from 'lucide-react';
+import { Menu, Moon, Sun, Users, RefreshCw, Map } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import Button from '../ui/Button';
@@ -37,7 +37,8 @@ export default function Header() {
             onClick={() => navigate('/')}
             className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
           >
-            🗺️ <span>LifeLog AI</span>
+            <Map size={20} className="text-primary" />
+            <span>LifeLog AI</span>
           </h1>
         </div>
 

@@ -7,9 +7,9 @@ import FaceTagModal from '../components/FaceTagModal';
 
 // Upload progress steps for the overlay
 const UPLOAD_STEPS = [
-  { id: 'prepare', label: 'Preparando foto...', emoji: '🖼️' },
-  { id: 'upload', label: 'Subiendo al servidor...', emoji: '☁️' },
-  { id: 'ai', label: 'Lanzando análisis de IA...', emoji: '🧠' },
+  { id: 'prepare', label: 'Preparando foto...', emoji: null },
+  { id: 'upload', label: 'Subiendo...', emoji: null },
+  { id: 'ai', label: 'Analizando con IA...', emoji: null },
 ];
 
 function UploadOverlay({ step }) {
@@ -21,7 +21,7 @@ function UploadOverlay({ step }) {
             <Loader2 size={32} className="text-primary animate-spin" />
           </div>
           <p className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
-            Guardando recuerdo
+            Guardando
           </p>
         </div>
         <div className="space-y-3">
@@ -34,7 +34,9 @@ function UploadOverlay({ step }) {
                 isDone ? 'text-green-600 dark:text-green-400' :
                   'text-text-secondary-light dark:text-text-secondary-dark opacity-40'
                 }`}>
-                <span className="text-xl">{isDone ? '✅' : s.emoji}</span>
+                <span className={`w-5 h-5 flex items-center justify-center text-sm flex-shrink-0`}>
+                  {isDone ? '✓' : ''}
+                </span>
                 <span className={`text-sm font-medium ${isActive ? 'font-semibold' : ''}`}>{s.label}</span>
                 {isActive && <Loader2 size={14} className="ml-auto animate-spin" />}
               </div>
@@ -97,7 +99,7 @@ export default function CreateMemory() {
             ...prev,
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-            location: `📍 GPS: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`
+            location: `GPS: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`
           }));
           setGpsStatus('success');
           console.log('GPS location obtained:', position.coords.latitude, position.coords.longitude);
@@ -267,9 +269,9 @@ export default function CreateMemory() {
               </div>
             ) : (
               <div className="aspect-[3/2] rounded-2xl border-2 border-dashed border-border-light dark:border-border-dark flex flex-col items-center justify-center gap-4 bg-surface-light dark:bg-surface-dark">
-                <p className="text-4xl">📷</p>
+                <Camera size={40} className="text-text-secondary-light dark:text-text-secondary-dark opacity-40" />
                 <p className="font-medium text-text-primary-light dark:text-text-primary-dark">
-                  Foto del recuerdo
+                  Agrega una foto
                 </p>
                 <div className="flex gap-3">
                   <input
@@ -310,7 +312,7 @@ export default function CreateMemory() {
           {/* Location */}
           <div className="space-y-2">
             <Input
-              label="📍 Ubicación"
+              label="Ubicación"
               value={formData.location}
               onChange={(e) => {
                 const value = e.target.value;
@@ -333,18 +335,18 @@ export default function CreateMemory() {
               gpsStatus === 'error' ? 'text-yellow-600 dark:text-yellow-400' :
                 'text-text-secondary-light dark:text-text-secondary-dark'
               }`}>
-              {gpsStatus === 'loading' && '📡 Obteniendo ubicación GPS...'}
-              {gpsStatus === 'success' && `✅ Coordenadas: ${formData.latitude?.toFixed(4)}, ${formData.longitude?.toFixed(4)}`}
-              {gpsStatus === 'error' && '⚠️ GPS no disponible. Puedes escribir coordenadas manualmente (ej: 19.4348, -99.1891)'}
+              {gpsStatus === 'loading' && 'Obteniendo ubicación...'}
+              {gpsStatus === 'success' && `GPS: ${formData.latitude?.toFixed(4)}, ${formData.longitude?.toFixed(4)}`}
+              {gpsStatus === 'error' && 'GPS no disponible — puedes escribir coordenadas manualmente (ej: 19.4348, -99.1891)'}
             </p>
           </div>
 
           {/* Description */}
           <Textarea
-            label="💭 ¿Qué pasó? Cuéntame más..."
+            label="¿Qué pasó?"
             value={formData.description}
             onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            placeholder="En unos taquitos de canasta con ángel, hoy me pedí 5..."
+            placeholder="En unos taquitos de canasta con Ángel, hoy me pedí 5..."
             rows={6}
             required
           />
@@ -352,7 +354,7 @@ export default function CreateMemory() {
           {/* Categories */}
           <div className="space-y-3">
             <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
-              🏷️ Categorías (opcional)
+              Categorías
             </label>
             <div className="flex flex-wrap gap-2">
               {categories.map(cat => (
@@ -370,14 +372,14 @@ export default function CreateMemory() {
           {/* People tagging */}
           <div className="space-y-3">
             <Input
-              label="👤 ¿Con quién estabas?"
+              label="¿Con quién estabas?"
               value={formData.people}
               onChange={(e) => setFormData(prev => ({ ...prev, people: e.target.value }))}
               placeholder="Mario, Ángel, Ana... (separa con comas)"
               helperText="Escribe los nombres de las personas en la foto"
             />
             <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-              💡 La IA intentará detectar caras automáticamente después de guardar
+              La IA detecta caras automáticamente al guardar
             </p>
           </div>
 

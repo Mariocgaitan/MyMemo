@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, MapPin, Trash2, Loader2, Brain, CheckCircle, Edit2 } from 'lucide-react';
+import { ChevronLeft, MapPin, Trash2, Loader2, Brain, CheckCircle, Edit2, User } from 'lucide-react';
 import { Button, Chip } from '../components/ui';
 import { memoryAPI } from '../services/api';
 
@@ -105,7 +105,7 @@ function AIProcessingBanner({ jobs }) {
           ))}
           {failed.map(j => (
             <span key={j.id} className="text-xs text-red-500">
-              ⚠️ {jobLabels[j.job_type] || j.job_type} falló
+              Error: {jobLabels[j.job_type] || j.job_type}
             </span>
           ))}
         </div>
@@ -316,9 +316,9 @@ export default function MemoryDetail() {
           <div className="space-y-2">
             {(date || time) && (
               <div className="flex items-center gap-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                {date && <span>📅 {date}</span>}
-                {date && time && <span>•</span>}
-                {time && <span>🕐 {time}</span>}
+                {date && <span>{date}</span>}
+                {date && time && <span>·</span>}
+                {time && <span>{time}</span>}
               </div>
             )}
             {memory.location_name && (
@@ -337,7 +337,7 @@ export default function MemoryDetail() {
               </p>
               {summary && (
                 <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark italic border-t border-border-light dark:border-border-dark pt-3">
-                  💡 {summary}
+                  {summary}
                 </p>
               )}
             </div>
@@ -347,7 +347,7 @@ export default function MemoryDetail() {
           {allTags.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                🏷️ Tags
+                Tags
               </h3>
               <div className="flex flex-wrap gap-2">
                 {allTags.map((tag, i) => (
@@ -361,7 +361,7 @@ export default function MemoryDetail() {
           {faces.filter(f => f?.person_name && f?.person_name !== 'Unknown Person').length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                👥 Personas detectadas
+                Personas
               </h3>
               <div className="flex gap-4 flex-wrap">
                 {faces
@@ -377,7 +377,7 @@ export default function MemoryDetail() {
                               onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
                             />
                           : null}
-                        <span className="text-2xl" style={{ display: face?.thumbnail_url ? 'none' : 'flex' }}>👤</span>
+                        <User size={20} className="text-primary" style={{ display: face?.thumbnail_url ? 'none' : 'block' }} />
                       </div>
                       <span className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
                         {face?.person_name}
@@ -394,17 +394,17 @@ export default function MemoryDetail() {
               {sentiment && (
                 <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-4">
                   <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                    🎭 Sentimiento
+                    Sentimiento
                   </p>
                   <p className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark mt-1">
-                    {sentiment === 'positive' ? '😊 Positivo' : sentiment === 'negative' ? '😔 Negativo' : '😐 Neutral'}
+                    {sentiment === 'positive' ? 'Positivo' : sentiment === 'negative' ? 'Negativo' : 'Neutral'}
                   </p>
                 </div>
               )}
               {activity && (
                 <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-4">
                   <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                    🎯 Actividad
+                    Actividad
                   </p>
                   <p className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark mt-1">
                     {activity}

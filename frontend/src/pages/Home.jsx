@@ -352,7 +352,7 @@ export default function Home() {
                   onClick={() => togglePerson(person.id)}
                   onRemove={selectedPeople.includes(person.id) ? () => togglePerson(person.id) : undefined}
                 >
-                  👤 {person.name}
+                  {person.name}
                 </Chip>
               ))}
             </div>
@@ -374,7 +374,7 @@ export default function Home() {
       <Modal
         isOpen={!!locationModal}
         onClose={() => setLocationModal(null)}
-        title={locationModal?.memories?.[0] && (locationModal.memories[0].location_name || '📍 Recuerdos en este lugar')}
+        title={locationModal?.memories?.[0] && (locationModal.memories[0].location_name || 'Recuerdos en este lugar')}
         size="lg"
       >
         {locationModal && (

@@ -216,7 +216,7 @@ function PersonMemories({ person, onBack, onMemoryClick }) {
                 <div className="flex justify-center py-12"><Loader2 size={32} className="animate-spin text-primary" /></div>
             ) : memories.length === 0 ? (
                 <div className="text-center py-12 text-text-secondary-light dark:text-text-secondary-dark">
-                    <p className="text-3xl mb-2">📸</p>
+                <p className="text-3xl mb-2">—</p>
                     <p className="font-medium">Sin memorias asociadas</p>
                 </div>
             ) : (
@@ -331,7 +331,7 @@ export default function People() {
                             <ChevronLeft size={20} />
                             <span className="font-medium">Volver</span>
                         </button>
-                        <h1 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">👥 Personas</h1>
+                        <h1 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">Personas</h1>
                         <div className="w-20" />
                     </div>
                 </div>
@@ -343,11 +343,11 @@ export default function People() {
                         </div>
                     ) : people.length === 0 ? (
                         <div className="text-center py-16 text-text-secondary-light dark:text-text-secondary-dark">
-                            <p className="text-5xl mb-4">👤</p>
+                            <User size={48} className="text-primary/30 mx-auto mb-4" />
                             <p className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark">
-                                Aun no hay personas reconocidas
+                                Aún no hay personas reconocidas
                             </p>
-                            <p className="text-sm mt-2">Sube una memoria con personas para que la IA las detecte automaticamente.</p>
+                            <p className="text-sm mt-2">Sube una memoria con personas para que la IA las detecte automáticamente.</p>
                         </div>
                     ) : selectedPerson ? (
                         <PersonMemories

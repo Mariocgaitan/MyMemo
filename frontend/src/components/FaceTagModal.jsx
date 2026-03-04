@@ -194,16 +194,16 @@ export default function FaceTagModal({
       <div className="space-y-6">
         <p className="text-text-secondary-light dark:text-text-secondary-dark">
           {hasBbox
-            ? 'Puedes ver cada cara detectada. Ponle nombre para reconocerla en el futuro.'
-            : 'La IA está procesando las caras en tu foto. Nombra a cada persona para reconocerlas en el futuro.'}
+            ? 'Ponle nombre a cada cara para reconocerla en el futuro.'
+            : 'La IA procesó las caras en tu foto. Ponle nombre a cada una para reconocerlas más adelante.'}
         </p>
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader className="animate-spin text-primary mb-4" size={48} />
             <p className="text-text-secondary-light dark:text-text-secondary-dark">
-              {processingStatus === 'waiting' ? 'Esperando procesamiento...' :
-                processingStatus === 'processing' ? 'Detectando caras en la foto...' :
+              {processingStatus === 'waiting' ? 'Esperando...' :
+                processingStatus === 'processing' ? 'Detectando caras...' :
                   'Cargando resultados...'}
             </p>
           </div>
@@ -211,7 +211,7 @@ export default function FaceTagModal({
           <div className="flex flex-col items-center justify-center py-12 bg-surface-light dark:bg-surface-dark rounded-xl">
             <User size={48} className="text-text-secondary-light dark:text-text-secondary-dark mb-4" />
             <p className="text-text-primary-light dark:text-text-primary-dark font-medium">
-              No se detectaron caras en esta foto
+              No se detectaron caras
             </p>
             {prefilledNames.length > 0 && (
               <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-2">

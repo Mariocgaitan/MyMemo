@@ -177,7 +177,7 @@ export default function EditMemory() {
                         disabled={!description.trim() || saving || success}
                     >
                         {success ? (
-                            '✅ Guardado'
+                            'Guardado'
                         ) : saving ? (
                             <span className="flex items-center gap-2 justify-center">
                                 <Loader2 size={18} className="animate-spin" /> Guardando...

@@ -77,13 +77,11 @@ export default function Timeline() {
           </div>
         ) : memories.length === 0 ? (
           <div className="text-center py-20 text-text-secondary-light dark:text-text-secondary-dark">
-            <p className="text-4xl mb-3">📸</p>
-            <p className="font-medium text-lg">Aún no tienes recuerdos</p>
-            <p className="text-sm mt-1">Toca el botón <strong>+</strong> en el inicio para crear tu primer recuerdo</p>
+            <p className="font-medium text-lg">Nada por aquí todavía</p>
+            <p className="text-sm mt-1">Toca <strong>+</strong> en el inicio para guardar tu primer recuerdo</p>
           </div>
         ) : displayMemories.length === 0 ? (
           <div className="text-center py-20 text-text-secondary-light dark:text-text-secondary-dark">
-            <p className="text-4xl mb-3">📅</p>
             <p className="font-medium">Sin recuerdos en los últimos 7 días</p>
             <button onClick={() => setShowAll(true)} className="mt-3 text-sm text-primary hover:text-primary-hover">
               Ver todos los recuerdos
@@ -129,7 +127,7 @@ export default function Timeline() {
                           </p>
                           {memory.location_name && (
                             <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1 truncate">
-                              📍 {memory.location_name}
+                              {memory.location_name}
                             </p>
                           )}
                           {tags.length > 0 && (
