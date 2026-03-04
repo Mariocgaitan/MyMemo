@@ -370,9 +370,14 @@ export default function MemoryDetail() {
                     <div key={i} className="flex flex-col items-center gap-2">
                       <div className="w-16 h-16 rounded-full overflow-hidden bg-primary/20 flex items-center justify-center">
                         {face?.thumbnail_url
-                          ? <img src={face.thumbnail_url} alt={face.person_name} className="w-full h-full object-cover" />
-                          : <span className="text-2xl">👤</span>
-                        }
+                          ? <img
+                              src={face.thumbnail_url}
+                              alt={face.person_name}
+                              className="w-full h-full object-cover"
+                              onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                            />
+                          : null}
+                        <span className="text-2xl" style={{ display: face?.thumbnail_url ? 'none' : 'flex' }}>👤</span>
                       </div>
                       <span className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
                         {face?.person_name}

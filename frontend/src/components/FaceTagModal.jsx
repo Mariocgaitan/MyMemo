@@ -4,39 +4,60 @@ import { User, Loader } from 'lucide-react';
 import { memoryAPI, peopleAPI } from '../services/api';
 
 /**
- * FaceCrop — renders a cropped region of the memory image using CSS clip/scale.
- * Uses the bbox (top, right, bottom, left in px) and the original image dimensions
- * to position and scale the image inside a fixed container.
+ * FaceCrop — shows a face using the best available source:
+ *  1. CSS crop from the full memory image using bbox coordinates (most accurate)
+ *  2. Pre-cropped S3 thumbnail (fallback for legacy memories without bbox)
+ *  3. User silhouette icon (last resort)
  */
-function FaceCrop({ imageUrl, bbox, imageW, imageH, size = 120 }) {
-  const { top, right, bottom, left } = bbox;
-  const faceW = right - left;
-  const faceH = bottom - top;
+function FaceCrop({ imageUrl, bbox, imageW, imageH, thumbnailUrl, size = 120 }) {
+  const containerClass =
+    'rounded-xl overflow-hidden bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark flex-shrink-0 relative';
 
-  // Scale so the face fills `size` px (use the larger dimension)
-  const scale = size / Math.max(faceW, faceH);
-  const scaledW = imageW * scale;
-  const scaledH = imageH * scale;
-  const offsetX = -left * scale;
-  const offsetY = -top * scale;
+  // Priority 1 — CSS crop from original image using bbox
+  const hasCrop = bbox && bbox.top != null && imageW && imageH && imageUrl;
+  if (hasCrop) {
+    const { top, right, bottom, left } = bbox;
+    const faceW = Math.max(right - left, 1);
+    const faceH = Math.max(bottom - top, 1);
+    const scale = size / Math.max(faceW, faceH);
+    const scaledW = imageW * scale;
+    const scaledH = imageH * scale;
+    const offsetX = -left * scale;
+    const offsetY = -top * scale;
 
+    return (
+      <div style={{ width: size, height: size }} className={containerClass}>
+        <img
+          src={imageUrl}
+          alt="cara"
+          style={{
+            position: 'absolute',
+            width: scaledW,
+            height: scaledH,
+            left: offsetX,
+            top: offsetY,
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Priority 2 — S3 face thumbnail
+  if (thumbnailUrl) {
+    return (
+      <div style={{ width: size, height: size }} className={containerClass}>
+        <img src={thumbnailUrl} alt="cara" className="w-full h-full object-cover" />
+      </div>
+    );
+  }
+
+  // Priority 3 — silhouette placeholder
   return (
     <div
       style={{ width: size, height: size }}
-      className="rounded-xl overflow-hidden bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark flex-shrink-0 relative"
+      className={`${containerClass} flex items-center justify-center`}
     >
-      <img
-        src={imageUrl}
-        alt="cara"
-        style={{
-          position: 'absolute',
-          width: scaledW,
-          height: scaledH,
-          left: offsetX,
-          top: offsetY,
-          objectFit: 'cover',
-        }}
-      />
+      <User size={size * 0.45} className="text-text-secondary-light dark:text-text-secondary-dark" />
     </div>
   );
 }

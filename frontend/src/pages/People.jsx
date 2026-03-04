@@ -143,8 +143,14 @@ function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onClick })
             {/* Avatar */}
             <div className="w-14 h-14 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 cursor-pointer" onClick={onClick}>
                 {person.thumbnail_url
-                    ? <img src={person.thumbnail_url} alt={person.name} className="w-full h-full object-cover" />
-                    : <User size={24} className="text-primary" />}
+                    ? <img
+                          src={person.thumbnail_url}
+                          alt={person.name}
+                          className="w-full h-full object-cover"
+                          onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                      />
+                    : null}
+                <User size={24} className="text-primary" style={{ display: person.thumbnail_url ? 'none' : 'flex' }} />
             </div>
 
             {/* Info */}
