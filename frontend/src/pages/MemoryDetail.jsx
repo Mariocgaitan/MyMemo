@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, MapPin, Trash2, Loader2, Brain, CheckCircle, Edit2, User } from 'lucide-react';
+import { ChevronLeft, MapPin, Trash2, Loader2, Brain, CheckCircle, Edit2, User, X, RefreshCw, Check } from 'lucide-react';
 import { Button, Chip } from '../components/ui';
-import { memoryAPI } from '../services/api';
+import { memoryAPI, peopleAPI } from '../services/api';
 
 // ─── Delete Confirmation Modal ───────────────────────────────────────────────
 function DeleteConfirmModal({ isOpen, onConfirm, onCancel, isDeleting }) {
@@ -126,6 +126,12 @@ export default function MemoryDetail() {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Face management state
+  const [renamingFaceId, setRenamingFaceId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [faceLoading, setFaceLoading] = useState(null); // person_id being actioned
+  const [rerunLoading, setRerunLoading] = useState(false);
+
   // AI processing polling
   const [jobs, setJobs] = useState([]);
   const [pollingActive, setPollingActive] = useState(false);
@@ -201,6 +207,64 @@ export default function MemoryDetail() {
     } catch {
       setDeleting(false);
       setShowDeleteModal(false);
+    }
+  };
+
+  const handleRerunFaces = async () => {
+    setRerunLoading(true);
+    try {
+      await memoryAPI.rerunFaces(id);
+      // Optimistically clear faces from local state
+      setMemory(prev => ({
+        ...prev,
+        ai_metadata: { ...(prev.ai_metadata || {}), faces: [] },
+        faces_processed: false,
+      }));
+      // Kick off polling (new job was created)
+      await fetchJobs();
+    } catch (e) {
+      console.error('rerunFaces error:', e);
+    } finally {
+      setRerunLoading(false);
+    }
+  };
+
+  const handleRemoveFace = async (personId) => {
+    setFaceLoading(personId);
+    try {
+      await memoryAPI.removePerson(id, personId);
+      setMemory(prev => {
+        const meta = { ...(prev.ai_metadata || {}) };
+        meta.faces = (meta.faces || []).filter(f => String(f.person_id) !== String(personId));
+        return { ...prev, ai_metadata: meta };
+      });
+    } catch (e) {
+      console.error('removeFace error:', e);
+    } finally {
+      setFaceLoading(null);
+    }
+  };
+
+  const handleSaveRename = async (face) => {
+    if (!renameValue.trim() || !face.person_id) return;
+    setFaceLoading(face.person_id);
+    try {
+      await peopleAPI.rename(face.person_id, renameValue.trim());
+      setMemory(prev => {
+        const meta = { ...(prev.ai_metadata || {}) };
+        meta.faces = (meta.faces || []).map(f =>
+          String(f.person_id) === String(face.person_id)
+            ? { ...f, person_name: renameValue.trim() }
+            : f
+        );
+        return { ...prev, ai_metadata: meta };
+      });
+      setRenamingFaceId(null);
+      setRenameValue('');
+    } catch (e) {
+      console.error('rename error:', e);
+    } finally {
+      setFaceLoading(null);
     }
   };
 
@@ -357,34 +421,118 @@ export default function MemoryDetail() {
             </div>
           )}
 
-          {/* People */}
-          {faces.filter(f => f?.person_name && f?.person_name !== 'Unknown Person').length > 0 && (
+          {/* Personas — all faces including Unknown, with rename/remove/rerun */}
+          {(faces.length > 0 || memory.faces_processed) && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                Personas
-              </h3>
-              <div className="flex gap-4 flex-wrap">
-                {faces
-                  .filter(f => f?.person_name && f?.person_name !== 'Unknown Person')
-                  .map((face, i) => (
-                    <div key={i} className="flex flex-col items-center gap-2">
-                      <div className="w-16 h-16 rounded-full overflow-hidden bg-primary/20 flex items-center justify-center">
-                        {face?.thumbnail_url
-                          ? <img
-                              src={face.thumbnail_url}
-                              alt={face.person_name}
-                              className="w-full h-full object-cover"
-                              onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                            />
-                          : null}
-                        <User size={20} className="text-primary" style={{ display: face?.thumbnail_url ? 'none' : 'block' }} />
-                      </div>
-                      <span className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
-                        {face?.person_name}
-                      </span>
-                    </div>
-                  ))}
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
+                  Personas
+                </h3>
+                <button
+                  onClick={handleRerunFaces}
+                  disabled={rerunLoading || jobs.some(j => j.status === 'pending' || j.status === 'processing')}
+                  className="flex items-center gap-1.5 text-xs text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors disabled:opacity-40"
+                  title="Volver a detectar caras"
+                >
+                  <RefreshCw size={12} className={rerunLoading ? 'animate-spin' : ''} />
+                  Volver a detectar
+                </button>
               </div>
+
+              {faces.length === 0 ? (
+                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                  No se detectaron caras en esta foto.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-4">
+                  {faces.map((face, i) => {
+                    const isUnknown = !face.person_name || face.person_name === 'Unknown Person';
+                    const isRenaming = renamingFaceId === face.person_id;
+                    const isLoading = faceLoading === face.person_id;
+                    return (
+                      <div key={face.person_id || i} className="flex flex-col items-center gap-1.5">
+                        {/* Avatar */}
+                        <div className="relative w-14 h-14 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          {face.thumbnail_url
+                            ? <img
+                                src={face.thumbnail_url}
+                                alt={face.person_name || 'persona'}
+                                className="w-full h-full object-cover"
+                                onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                              />
+                            : null}
+                          <User size={18} className="text-primary" style={{ display: face.thumbnail_url ? 'none' : 'block' }} />
+                          {isLoading && (
+                            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
+                              <Loader2 size={14} className="text-white animate-spin" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Name / rename input */}
+                        {isRenaming ? (
+                          <div className="flex flex-col items-center gap-1 w-20">
+                            <input
+                              autoFocus
+                              value={renameValue}
+                              onChange={e => setRenameValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleSaveRename(face);
+                                if (e.key === 'Escape') { setRenamingFaceId(null); setRenameValue(''); }
+                              }}
+                              className="w-full text-xs px-2 py-1 rounded-lg border border-primary bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark text-center focus:outline-none"
+                              placeholder="Nombre"
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleSaveRename(face)}
+                                disabled={!renameValue.trim() || isLoading}
+                                className="p-1 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors disabled:opacity-40"
+                              >
+                                <Check size={10} />
+                              </button>
+                              <button
+                                onClick={() => { setRenamingFaceId(null); setRenameValue(''); }}
+                                className="p-1 border border-border-light dark:border-border-dark rounded-md text-text-secondary-light dark:text-text-secondary-dark hover:bg-surface-light dark:hover:bg-surface-dark transition-colors"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className={`text-xs font-medium text-center max-w-[72px] truncate ${
+                              isUnknown
+                                ? 'text-text-secondary-light dark:text-text-secondary-dark italic'
+                                : 'text-text-primary-light dark:text-text-primary-dark'
+                            }`}>
+                              {isUnknown ? 'Sin nombre' : face.person_name}
+                            </span>
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                onClick={() => { setRenamingFaceId(face.person_id); setRenameValue(isUnknown ? '' : face.person_name); }}
+                                disabled={isLoading}
+                                className="p-1 hover:bg-primary/10 rounded-md text-primary transition-colors disabled:opacity-40"
+                                title={isUnknown ? 'Poner nombre' : 'Renombrar'}
+                              >
+                                <Edit2 size={10} />
+                              </button>
+                              <button
+                                onClick={() => handleRemoveFace(face.person_id)}
+                                disabled={isLoading}
+                                className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-md text-red-400 hover:text-red-500 transition-colors disabled:opacity-40"
+                                title="Quitar de este recuerdo"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

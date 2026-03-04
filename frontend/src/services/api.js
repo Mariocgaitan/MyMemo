@@ -76,6 +76,17 @@ export const memoryAPI = {
     const response = await api.get(`/api/v1/memories/${id}/jobs`);
     return response.data;
   },
+
+  // Re-run face recognition (resets faces, queues new Celery job)
+  rerunFaces: async (id) => {
+    const response = await api.post(`/api/v1/memories/${id}/rerun-faces`);
+    return response.data;
+  },
+
+  // Remove a specific person from a memory (unlinks; auto-deletes person if orphaned)
+  removePerson: async (memoryId, personId) => {
+    await api.delete(`/api/v1/memories/${memoryId}/people/${personId}`);
+  },
 };
 
 // ========== People Endpoints ==========

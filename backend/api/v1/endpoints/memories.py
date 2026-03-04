@@ -3,7 +3,7 @@ Memory management endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, delete as sa_delete
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from typing import List, Optional
@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 
 from core.database import get_db
-from models.database import Memory, User, ProcessingJob
+from models.database import Memory, User, ProcessingJob, MemoryPerson, Person
 from models.schemas import (
     MemoryCreate,
     MemoryResponse,
@@ -442,3 +442,139 @@ async def get_memory_jobs(
     jobs = jobs_result.scalars().all()
     
     return jobs
+
+
+@router.post(
+    "/{memory_id}/rerun-faces",
+    response_model=MessageResponse,
+    summary="Re-run face recognition",
+    description="Clear existing face data and queue a new face recognition job"
+)
+async def rerun_face_recognition(
+    memory_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Reset face data and re-queue face recognition for a memory"""
+    user = await get_default_user(db)
+
+    memory_result = await db.execute(
+        select(Memory).where(and_(Memory.id == memory_id, Memory.user_id == user.id))
+    )
+    memory = memory_result.scalar_one_or_none()
+    if not memory:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Memory not found")
+
+    # 1. Remove all MemoryPerson links for this memory and decrement counters
+    mp_result = await db.execute(
+        select(MemoryPerson).where(MemoryPerson.memory_id == memory_id)
+    )
+    mps = mp_result.scalars().all()
+    for mp in mps:
+        person_result = await db.execute(
+            select(Person).where(Person.id == mp.person_id)
+        )
+        person = person_result.scalar_one_or_none()
+        if person:
+            person.times_detected = max(0, person.times_detected - 1)
+    await db.execute(sa_delete(MemoryPerson).where(MemoryPerson.memory_id == memory_id))
+
+    # 2. Reset face metadata on the memory
+    meta = dict(memory.ai_metadata or {})
+    meta["faces"] = []
+    memory.ai_metadata = meta
+    memory.faces_processed = False
+    memory.updated_at = datetime.utcnow()
+
+    # 3. Cancel any previous pending/processing face jobs
+    jobs_result = await db.execute(
+        select(ProcessingJob).where(
+            and_(
+                ProcessingJob.memory_id == memory_id,
+                ProcessingJob.job_type == "face_recognition"
+            )
+        )
+    )
+    for old_job in jobs_result.scalars().all():
+        if old_job.status in ("pending", "processing"):
+            old_job.status = "cancelled"
+
+    # 4. Create fresh job
+    new_job = ProcessingJob(
+        id=uuid.uuid4(),
+        memory_id=memory_id,
+        job_type="face_recognition",
+        status="pending"
+    )
+    db.add(new_job)
+    await db.commit()
+
+    # 5. Trigger Celery task
+    from tasks.face_recognition import process_face_recognition
+    process_face_recognition.delay(str(memory_id))
+
+    return MessageResponse(message="Face recognition queued")
+
+
+@router.delete(
+    "/{memory_id}/people/{person_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove person from memory",
+    description="Unlink a person from this specific memory. Auto-deletes the person if no other memories reference them."
+)
+async def remove_person_from_memory(
+    memory_id: uuid.UUID,
+    person_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Remove a person from a specific memory without necessarily deleting them globally"""
+    user = await get_default_user(db)
+
+    memory_result = await db.execute(
+        select(Memory).where(and_(Memory.id == memory_id, Memory.user_id == user.id))
+    )
+    memory = memory_result.scalar_one_or_none()
+    if not memory:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Memory not found")
+
+    # Find the MemoryPerson link
+    mp_result = await db.execute(
+        select(MemoryPerson).where(
+            and_(
+                MemoryPerson.memory_id == memory_id,
+                MemoryPerson.person_id == person_id
+            )
+        )
+    )
+    mp = mp_result.scalar_one_or_none()
+    if not mp:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not associated with this memory")
+
+    # Decrement times_detected; auto-delete person if this was their only memory
+    person_result = await db.execute(
+        select(Person).where(and_(Person.id == person_id, Person.user_id == user.id))
+    )
+    person = person_result.scalar_one_or_none()
+    if person:
+        person.times_detected = max(0, person.times_detected - 1)
+        if person.times_detected == 0:
+            await db.delete(person)
+
+    # Delete the association row
+    await db.execute(
+        sa_delete(MemoryPerson).where(
+            and_(
+                MemoryPerson.memory_id == memory_id,
+                MemoryPerson.person_id == person_id
+            )
+        )
+    )
+
+    # Remove face entry from ai_metadata
+    meta = dict(memory.ai_metadata or {})
+    if "faces" in meta and isinstance(meta["faces"], list):
+        meta["faces"] = [f for f in meta["faces"] if str(f.get("person_id")) != str(person_id)]
+    memory.ai_metadata = meta
+    memory.updated_at = datetime.utcnow()
+
+    await db.commit()
+    return None
