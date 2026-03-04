@@ -131,17 +131,33 @@ export default function MemoryDetail() {
   const [renameValue, setRenameValue] = useState('');
   const [faceLoading, setFaceLoading] = useState(null); // person_id being actioned
   const [rerunLoading, setRerunLoading] = useState(false);
+  // Fresh person names from DB — overrides stale ai_metadata names after a rename
+  const [personNamesById, setPersonNamesById] = useState({});
 
   // AI processing polling
   const [jobs, setJobs] = useState([]);
   const [pollingActive, setPollingActive] = useState(false);
   const pollingRef = useRef(null);
 
+  // Fetch fresh person names for faces in this memory
+  const fetchPersonNames = useCallback(async () => {
+    try {
+      const people = await peopleAPI.getAll({ memory_id: id });
+      const map = {};
+      (people || []).forEach(p => { map[String(p.id)] = p.name; });
+      setPersonNamesById(map);
+    } catch {
+      // non-critical — fall back to ai_metadata names
+    }
+  }, [id]);
+
   // Fetch memory data
   const fetchMemory = useCallback(async () => {
     try {
       const data = await memoryAPI.getById(id);
       setMemory(data);
+      // Also refresh person names so renamed faces show the new name immediately
+      fetchPersonNames();
     } catch (err) {
       setError('No se pudo cargar el recuerdo');
     } finally {
@@ -248,8 +264,10 @@ export default function MemoryDetail() {
   const handleSaveRename = async (face) => {
     if (!renameValue.trim() || !face.person_id) return;
     setFaceLoading(face.person_id);
+
     try {
       await peopleAPI.rename(face.person_id, renameValue.trim());
+      // Optimistic update: ai_metadata faces (stale cache) + personNamesById (fresh source)
       setMemory(prev => {
         const meta = { ...(prev.ai_metadata || {}) };
         meta.faces = (meta.faces || []).map(f =>
@@ -259,6 +277,7 @@ export default function MemoryDetail() {
         );
         return { ...prev, ai_metadata: meta };
       });
+      setPersonNamesById(prev => ({ ...prev, [String(face.person_id)]: renameValue.trim() }));
       setRenamingFaceId(null);
       setRenameValue('');
     } catch (e) {
@@ -446,7 +465,9 @@ export default function MemoryDetail() {
               ) : (
                 <div className="flex flex-wrap gap-4">
                   {faces.map((face, i) => {
-                    const isUnknown = !face.person_name || face.person_name === 'Unknown Person';
+                    // Prefer fresh name from Person table; fall back to frozen ai_metadata name
+                    const liveName = personNamesById[String(face.person_id)] || face.person_name;
+                    const isUnknown = !liveName || liveName.startsWith('Unknown Person');
                     const isRenaming = renamingFaceId === face.person_id;
                     const isLoading = faceLoading === face.person_id;
                     return (
@@ -506,11 +527,11 @@ export default function MemoryDetail() {
                                 ? 'text-text-secondary-light dark:text-text-secondary-dark italic'
                                 : 'text-text-primary-light dark:text-text-primary-dark'
                             }`}>
-                              {isUnknown ? 'Sin nombre' : face.person_name}
+                              {isUnknown ? 'Sin nombre' : liveName}
                             </span>
                             <div className="flex items-center gap-0.5">
                               <button
-                                onClick={() => { setRenamingFaceId(face.person_id); setRenameValue(isUnknown ? '' : face.person_name); }}
+                                onClick={() => { setRenamingFaceId(face.person_id); setRenameValue(isUnknown ? '' : liveName); }}
                                 disabled={isLoading}
                                 className="p-1 hover:bg-primary/10 rounded-md text-primary transition-colors disabled:opacity-40"
                                 title={isUnknown ? 'Poner nombre' : 'Renombrar'}
