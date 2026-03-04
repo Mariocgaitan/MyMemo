@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronDown, ChevronUp, Plus, X, MapPin, Navigation } from 'lucide-react';
+import { Search, Plus, X, MapPin, Navigation, ArrowRight, Calendar } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
@@ -29,7 +29,6 @@ const parseMetadata = (metadata) => {
 
 export default function Home() {
   const navigate = useNavigate();
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedPeople, setSelectedPeople] = useState([]);
   const [memories, setMemories] = useState([]);
@@ -39,7 +38,6 @@ export default function Home() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [people, setPeople] = useState([]);
-  const [showAllTimeline, setShowAllTimeline] = useState(true); // Default to showing all
   const [locationModal, setLocationModal] = useState(null);
   const [nearbyResults, setNearbyResults] = useState(null); // null = not active
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -159,6 +157,20 @@ export default function Home() {
 
   const clearNearby = () => setNearbyResults(null);
 
+  // Sort categories by usage count across loaded memories
+  const sortedCategories = [...categories].sort((a, b) => {
+    const count = (val) => memories.filter(m => {
+      const meta = parseMetadata(m.ai_metadata);
+      return (meta.user_categories || []).includes(val);
+    }).length;
+    return count(b.value) - count(a.value);
+  });
+
+  // Sort people by times_detected (most seen first)
+  const sortedPeople = [...people].sort(
+    (a, b) => (b.times_detected || 0) - (a.times_detected || 0)
+  );
+
   const toggleCategory = (category) => {
     setSelectedCategories(prev =>
       prev.includes(category)
@@ -211,19 +223,6 @@ export default function Home() {
     }
 
     return true;
-  });
-
-  // Timeline: limit to last 7 days unless showAllTimeline is true
-  const timelineMemories = showAllTimeline
-    ? filteredMemories
-    : filteredMemories.filter(m => {
-      const diffDays = (Date.now() - new Date(m.created_at)) / 86400000;
-      return diffDays <= 7;
-    });
-
-  const hasMoreThanWeek = filteredMemories.some(m => {
-    const diffDays = (Date.now() - new Date(m.created_at)) / 86400000;
-    return diffDays > 7;
   });
 
   const addCategory = () => {
@@ -387,7 +386,8 @@ export default function Home() {
               {locationModal.memories.map(memory => (
                 <div
                   key={memory.id}
-                  className="bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden border border-border-light dark:border-border-dark hover:shadow-md transition-shadow"
+                  className="cursor-pointer bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden border border-border-light dark:border-border-dark hover:shadow-md transition-shadow"
+                  onClick={() => { setLocationModal(null); navigate(`/memory/${memory.id}`); }}
                 >
                   {/* Photo */}
                   <div className="relative h-48 bg-gray-100 dark:bg-gray-800">
@@ -415,7 +415,6 @@ export default function Home() {
                       </div>
                     )}
                     <button
-                      onClick={() => { setLocationModal(null); navigate(`/memory/${memory.id}`); }}
                       className="mt-3 flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-hover transition-colors"
                     >
                       Ver detalle <ArrowRight size={14} />
@@ -428,151 +427,20 @@ export default function Home() {
         )}
       </Modal>
 
-      {/* Timeline Container - 40% height */}
-      <div className="bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark p-4 flex-[2] overflow-hidden">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
-            📅 {showAllTimeline ? 'Todos los recuerdos' : 'Últimos 7 días'}
-            {searchQuery && (
-              <span className="ml-2 text-sm font-normal text-text-secondary-light dark:text-text-secondary-dark">
-                — {filteredMemories.length} resultado{filteredMemories.length !== 1 ? 's' : ''}
-              </span>
-            )}
-          </h2>
-          {hasMoreThanWeek && (
-            <button
-              onClick={() => setShowAllTimeline(prev => !prev)}
-              className="text-sm font-medium text-primary hover:text-primary-hover transition-colors"
-            >
-              {showAllTimeline ? 'Ver recientes' : 'Ver todo →'}
-            </button>
-          )}
+      {/* Timeline pill — compact, navigates to /timeline */}
+      <button
+        onClick={() => navigate('/timeline')}
+        className="bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark px-5 py-3 flex items-center justify-between hover:bg-primary/5 active:bg-primary/10 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Calendar size={16} className="text-primary" />
+          <span className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">Línea de tiempo</span>
+          <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+            {memories.length > 0 ? `${memories.length} recuerdo${memories.length !== 1 ? 's' : ''}` : ''}
+          </span>
         </div>
-
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto"></div>
-          </div>
-        ) : memories.length === 0 ? (
-          <div className="text-center py-12 text-text-secondary-light dark:text-text-secondary-dark">
-            <p className="text-3xl mb-2">📸</p>
-            <p className="font-medium">Aún no tienes recuerdos</p>
-            <p className="text-sm mt-1">Toca el botón <strong>+</strong> para crear tu primer recuerdo</p>
-          </div>
-        ) : timelineMemories.length === 0 ? (
-          <div className="text-center py-12 text-text-secondary-light dark:text-text-secondary-dark">
-            <p className="text-3xl mb-2">🔍</p>
-            <p className="font-medium">
-              {searchQuery ? `Sin resultados para "${searchQuery}"` : 'Sin recuerdos en los últimos 7 días'}
-            </p>
-            {(searchQuery || !showAllTimeline) && (
-              <button
-                onClick={searchQuery ? clearSearch : () => setShowAllTimeline(true)}
-                className="mt-2 text-sm text-primary hover:text-primary-hover"
-              >
-                {searchQuery ? 'Limpiar búsqueda' : 'Ver todos los recuerdos'}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4 overflow-y-auto h-[calc(100%-3rem)]">
-            {groupMemoriesByDay(timelineMemories).map(group => (
-              <div key={group.label}>
-                <h3 className="text-sm font-semibold text-text-secondary-light dark:text-text-secondary-dark mb-2">
-                  {group.label}
-                </h3>
-                <div className="flex gap-3 overflow-x-auto pb-2">
-                  {group.memories.map(memory => (
-                    <div
-                      key={memory.id}
-                      onClick={() => handleMemoryClick(memory)}
-                      className="flex-shrink-0 w-48 bg-white dark:bg-surface-dark rounded-xl shadow-card hover:shadow-card-hover overflow-hidden cursor-pointer transition-all duration-normal hover:-translate-y-1"
-                    >
-                      <img
-                        src={memory.thumbnail_url || memory.image_url}
-                        alt="Memory"
-                        className="w-full h-32 object-cover"
-                      />
-                      <div className="p-3">
-                        <p className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark line-clamp-2">
-                          {memory.description_raw?.substring(0, 60) || 'Sin descripción'}
-                        </p>
-                        <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1">
-                          🕐 {formatRelativeTime(memory.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-        )}
-      </div>
+        <ArrowRight size={16} className="text-text-secondary-light dark:text-text-secondary-dark" />
+      </button>
     </div>
   );
-}
-
-// Helper function to group memories by day
-function groupMemoriesByDay(memories) {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const groups = memories.reduce((acc, memory) => {
-    const memoryDate = new Date(memory.created_at);
-    const memoryDay = new Date(memoryDate.getFullYear(), memoryDate.getMonth(), memoryDate.getDate());
-
-    let label;
-    if (memoryDay.getTime() === today.getTime()) {
-      label = 'Hoy';
-    } else if (memoryDay.getTime() === yesterday.getTime()) {
-      label = 'Ayer';
-    } else {
-      const diffDays = Math.floor((today - memoryDay) / (1000 * 60 * 60 * 24));
-      if (diffDays < 7) {
-        label = `Hace ${diffDays} días`;
-      } else {
-        label = memoryDate.toLocaleDateString('es-MX', {
-          day: 'numeric',
-          month: 'short'
-        });
-      }
-    }
-
-    if (!acc[label]) {
-      acc[label] = [];
-    }
-    acc[label].push(memory);
-    return acc;
-  }, {});
-
-  return Object.entries(groups)
-    .map(([label, memories]) => ({ label, memories }))
-    .sort((a, b) => {
-      const orderMap = { 'Hoy': 0, 'Ayer': 1 };
-      const aOrder = orderMap[a.label] ?? 999;
-      const bOrder = orderMap[b.label] ?? 999;
-      return aOrder - bOrder;
-    });
-}
-
-// Helper function to format relative time
-function formatRelativeTime(dateString) {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-
-  if (diffMins < 60) return `Hace ${diffMins} min`;
-  if (diffHours < 24) return `Hace ${diffHours} hora${diffHours > 1 ? 's' : ''}`;
-
-  return date.toLocaleTimeString('es-MX', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
 }

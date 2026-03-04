@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Layout } from './components/layout';
-import { Home, CreateMemory, MemoryDetail, People, EditMemory } from './pages';
+import { Home, CreateMemory, MemoryDetail, People, EditMemory, Timeline } from './pages';
 import './App.css';
 
 function App() {
@@ -56,6 +56,11 @@ function App() {
                 <EditMemory />
               </Layout>
             }
+          />
+          {/* Timeline page */}
+          <Route
+            path="/timeline"
+            element={<Timeline />}
           />
         </Routes>
       </Router>
