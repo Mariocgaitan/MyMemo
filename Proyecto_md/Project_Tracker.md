@@ -1,6 +1,6 @@
 # MyMemo - Project Tracker & Development Log
 
-**Last Updated:** February 26, 2026  
+**Last Updated:** March 3, 2026  
 **Current Phase:** Phase 2 — Bug Fixing, UX Improvements & Feature Completion  
 **Project Status:** 🟢 Active Development
 
@@ -20,27 +20,26 @@
 | **Frontend (MVP)** | ✅ Deployed | 90% |
 | **AI/ML Integration** | ✅ Complete | 100% |
 | **Production Deployment** | ✅ Live | 100% |
-| **Phase 2: Bugs & UX** | 🔄 In Progress | 45% |
+| **Phase 2: Bugs & UX** | 🔄 In Progress | 70% |
 
-**Overall Project Progress:** 90% (Fase 2 en progreso activo)
+**Overall Project Progress:** 93%
 
 **Component Status:**
 - ✅ API Endpoints (23/23 working)
 - ✅ S3 Storage & Thumbnails (keys en lugar de URLs, presigned fresca en cada respuesta)
 - ✅ Database Persistence
-- ✅ Face Recognition (multi-encoding, upsample=2, threshold=0.55)
+- ✅ Face Recognition (HOG detector + EXIF transpose + per-crop encoding + tolerance 0.62)
 - ✅ NLP Extraction (gpt-4o-mini)
 - ✅ SSH desde máquina local (puerto 2222)
 - ✅ Swap en servidor (2GB — build de dlib estable)
 - ✅ Grupo A: búsqueda con API + fix tags path + timeline 7 días + empty states
 - ✅ Grupo B: photo markers en mapa + modal de ubicación
 - ✅ Grupo C: UX de flujos (overlay de subida, confirmación eliminar, polling de IA)
-- ⏳ Grupo D: FaceTagModal + pantalla de Personas
-- ✅ NLP Extraction (gpt-4o-mini)
-- ✅ Face Recognition (dlib with 2 faces detected)
-- ✅ Serverless-Ready Architecture (services/ + lambda/ prepared)
-- ⏳ Frontend (Not started)
-- ⏳ Deployment (Lightsail ready, not deployed)
+- ✅ Grupo D: FaceTagModal + pantalla de Personas + merge de duplicados
+- ✅ FaceCrop: cadena de fallback bbox → thumbnail S3 → silueta
+- ✅ Home: filtros compactos en fila scrollable, ordenados por uso
+- ✅ Página /timeline dedicada (mapa recupera 100% de pantalla)
+- ⏳ Face recognition: verificar en producción tras mejoras del 3 marzo
 
 ---
 
@@ -2149,10 +2148,11 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 ### Archivos frontend clave
 - `frontend/src/services/api.js` — cliente Axios
-- `frontend/src/pages/Home.jsx` — lista de memorias + mapa
+- `frontend/src/pages/Home.jsx` — mapa + filtros compactos + pill de timeline
+- `frontend/src/pages/Timeline.jsx` — línea de tiempo dedicada (ruta /timeline)
 - `frontend/src/pages/CreateMemory.jsx` — subida de memorias
 - `frontend/src/pages/MemoryDetail.jsx` — detalle de memoria
-- `frontend/src/components/FaceTagModal.jsx` — etiquetar caras (pendiente integrar)
+- `frontend/src/components/FaceTagModal.jsx` — etiquetar caras
 
 ### Archivos backend clave
 - `backend/api/v1/endpoints/memories.py` — CRUD de memorias
@@ -2160,6 +2160,59 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 - `backend/api/v1/endpoints/search.py` — busqueda (texto, geo, tags, fechas)
 - `backend/services/face_service.py` — reconocimiento facial portable
 - `backend/services/nlp_service.py` — extraccion NLP portable
+
+---
+
+## Session 13: March 3, 2026 — Face Recognition Fixes + Home UX Redesign
+
+**Participantes:** Mario + GitHub Copilot  
+**Commits:** `6502cee` (face backend), `97b1829` (face visual), `74edfe1` (home UX + timeline)
+
+### Face Recognition — Backend (`6502cee`)
+
+Problemas diagnosticados y corregidos en `backend/services/face_service.py`:
+
+| Problema | Causa | Fix |
+|---|---|---|
+| Fotos de cámara trasera no detectadas | Sin EXIF transpose: móvil enviaba foto rotada, Haar Cascade no la veía | `ImageOps.exif_transpose(pil)` antes de procesar |
+| Solo detecta caras perfectamente frontales | Haar Cascade frontal limitado a ~0° de ángulo | Reemplazado por `face_recognition.face_locations(model='hog', upsample=1)` |
+| Process muy lento (>30s) | `face_encodings()` recibía imagen completa 4K | Encodear solo el recorte de la cara (~400px) en lugar de la imagen completa |
+| No reconoce misma persona desde ángulo distinto | Tolerancia 0.55 demasiado estricta para variaciones de cámara | Subida a `MATCH_TOLERANCE = 0.62` |
+| Resize de referencia | 1000px | Reducido a 800px (suficiente para HOG, más rápido) |
+
+**Pendiente verificar en producción:** ejecutar `git pull && docker compose restart celery_worker backend` y subir foto con caras.
+
+### Face Recognition — Visual (`97b1829`)
+
+| Archivo | Cambio |
+|---|---|
+| `FaceTagModal.jsx` | `FaceCrop` reescrito con cadena de fallback: CSS crop (bbox) → thumbnail S3 → silueta. Antes crasheaba si `bbox` era null |
+| `MemoryDetail.jsx` | `onError` en `<img>` de avatar: si S3 devuelve 404, muestra `👤` en lugar de imagen rota |
+| `People.jsx` | Mismo `onError` para avatares en la pantalla de Personas |
+
+### Home UX — Redesign (`74edfe1`)
+
+**Problema raíz:** Los filtros se expandían tapando el mapa; la timeline ocupaba 40% de pantalla.
+
+| Cambio | Detalle |
+|---|---|
+| Filtros → fila scrollable compacta | Una sola línea horizontal con `overflow-x-auto`, ~42px fijos, siempre visible |
+| Ordenar categorías por uso | Calculado en runtime: cuántas memorias tienen cada `user_category`, más usadas primero |
+| Ordenar personas por `times_detected` | Las personas que más aparecen en memorias van al inicio del scroll |
+| Botón "Limpiar (N)" | Aparece cuando hay filtros activos, limpia categorías y personas de un clic |
+| Mapa → `flex-1` (100% disponible) | Antes `flex-[3]` (60%), ahora toma todo el espacio entre buscador y pill |
+| Timeline → pill compacta (~44px) | Reemplaza el bloque `flex-[2]` (40% pantalla). Un solo botón navega a `/timeline` |
+| Nueva página `/timeline` | Feed por día con scroll horizontal por fila, cards con foto+descripción+tags+hora |
+
+**Ruta nueva en App.jsx:** `/timeline` → `<Timeline />` (sin Layout wrapper, pantalla completa)
+
+### Deploy pendiente
+```bash
+cd /app/mymemo && git pull origin main
+cd frontend && npm run build
+docker compose -f docker-compose.prod.yml --env-file .env.prod restart celery_worker backend
+```
+
 
 ---
 
