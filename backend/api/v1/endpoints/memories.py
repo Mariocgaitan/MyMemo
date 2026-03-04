@@ -496,7 +496,8 @@ async def rerun_face_recognition(
     )
     for old_job in jobs_result.scalars().all():
         if old_job.status in ("pending", "processing"):
-            old_job.status = "cancelled"
+            old_job.status = "failed"
+            old_job.error_message = "Reemplazado por nuevo análisis"
 
     # 4. Create fresh job
     new_job = ProcessingJob(
