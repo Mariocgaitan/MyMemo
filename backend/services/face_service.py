@@ -25,8 +25,9 @@ from services.storage_service import storage_service
 
 # Store up to this many encodings per person for robust matching
 MAX_ENCODINGS_PER_PERSON = 5
-# Match threshold: lower = stricter. 0.55 reduces false positives vs 0.6
-MATCH_TOLERANCE = 0.55
+# Match threshold: lower = stricter.
+# 0.62 balances rear-camera / angle variability vs false positives
+MATCH_TOLERANCE = 0.62
 
 
 class FaceRecognitionService:
@@ -74,21 +75,26 @@ class FaceRecognitionService:
     def _preprocess_image(image_bytes: bytes) -> np.ndarray:
         """
         Normalize image before face detection:
-        - Slight contrast enhancement helps with uneven lighting
-        - Keeps original resolution (no downscale)
+        - Apply EXIF rotation so portrait/landscape mobile photos are upright
+        - Resize to max 800px for HOG detection (fast + accurate)
+        - Slight contrast/brightness enhancement for uneven lighting
+        - Preserve the original full-res copy for cropping face thumbnails
         """
+        from PIL import ImageOps
         pil = Image.open(BytesIO(image_bytes)).convert("RGB")
+        # Fix mobile photo orientation from EXIF metadata
+        pil = ImageOps.exif_transpose(pil)
         pil_original = pil.copy()
-        
-        # Performance optimization for EC2 t2.micro/small
-        # Resize image proportionally if larger than 1000px on either side
-        max_dimension = 1000
+
+        # Resize for detection: 800px is the sweet spot —
+        # large enough for HOG to catch distant faces, small enough to be fast
+        max_dimension = 800
         ratio = 1.0
         if pil.width > max_dimension or pil.height > max_dimension:
             ratio = max(pil.width / max_dimension, pil.height / max_dimension)
             new_size = (int(pil.width / ratio), int(pil.height / ratio))
             pil = pil.resize(new_size, Image.Resampling.LANCZOS)
-        
+
         pil = ImageEnhance.Contrast(pil).enhance(1.3)
         pil = ImageEnhance.Brightness(pil).enhance(1.05)
         return np.array(pil), pil, pil_original, ratio
@@ -140,31 +146,68 @@ class FaceRecognitionService:
             # Load and preprocess image
             image, pil_image, pil_original, ratio = self._preprocess_image(image_bytes)
 
-            # --- OpenCV Haar Cascades for Ultra-Fast Detection ---
-            # detectMultiScale scans the image in milliseconds vs HOG which takes minutes on EC2
-            import cv2
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            
-            # Load the pre-trained Haar Cascade model from cv2 data
-            cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-            face_cascade = cv2.CascadeClassifier(cascade_path)
-            
-            # scaleFactor=1.05 and minNeighbors=6 catch smaller/distant non-selfie faces safely
-            # minNeighbors=4 is optimal for preventing false positives without going blind
-            cv_faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=4, minSize=(20, 20))
-            
+            # --- HOG Face Detection (face_recognition library) ---
+            # HOG handles frontal + angled + rear-camera shots and works reliably
+            # on the 800px resized image. Much more robust than Haar Cascades for
+            # real-life group photos and non-selfie shots.
+            # upsample_num_times=1 catches faces down to ~40px on the 800px image
+            raw_locations = face_recognition.face_locations(image, model='hog', number_of_times_to_upsample=1)
+
             # Restore coordinates to ORIGINAL image dimensions by multiplying by ratio
-            # This fixes the UI tracking bug and the corrupted S3 thumbnail cropping
             face_locations = [
-                (int((y) * ratio), int((x + w) * ratio), int((y + h) * ratio), int((x) * ratio))
-                for (x, y, w, h) in cv_faces
+                (int(top * ratio), int(right * ratio), int(bottom * ratio), int(left * ratio))
+                for (top, right, bottom, left) in raw_locations
             ]
-            
-            # Switch back to original huge image for the actual identification encoding and cropping
+
             original_image_array = np.array(pil_original)
-            
-            # Extract identities ONLY for the exact boxes found by OpenCV
-            face_encodings = face_recognition.face_encodings(original_image_array, face_locations, num_jitters=1)
+
+            # --- Encode only the face crop, not the full 4K image ---
+            # Slicing each face region to ~400px before encoding avoids dlib
+            # processing megapixels of background, cutting encoding time dramatically.
+            ENCODE_SIZE = 400
+            face_encodings = []
+            adjusted_locations = []  # locations relative to the crop, re-mapped to original coords
+
+            for (top, right, bottom, left) in face_locations:
+                face_h = bottom - top
+                face_w = right - left
+                pad = int(max(face_h, face_w) * 0.4)
+                c_top    = max(0, top - pad)
+                c_left   = max(0, left - pad)
+                c_bottom = min(original_image_array.shape[0], bottom + pad)
+                c_right  = min(original_image_array.shape[1], right + pad)
+
+                crop_arr = original_image_array[c_top:c_bottom, c_left:c_right]
+
+                # Resize crop to ENCODE_SIZE if needed
+                crop_ratio = 1.0
+                if crop_arr.shape[0] > ENCODE_SIZE or crop_arr.shape[1] > ENCODE_SIZE:
+                    crop_ratio = max(crop_arr.shape[0] / ENCODE_SIZE, crop_arr.shape[1] / ENCODE_SIZE)
+                    from PIL import Image as PILImage
+                    crop_pil = PILImage.fromarray(crop_arr)
+                    crop_pil = crop_pil.resize(
+                        (int(crop_arr.shape[1] / crop_ratio), int(crop_arr.shape[0] / crop_ratio)),
+                        PILImage.Resampling.LANCZOS
+                    )
+                    crop_arr = np.array(crop_pil)
+
+                # face location relative to the (possibly resized) crop
+                rel_top    = int((top  - c_top)  / crop_ratio)
+                rel_right  = int((right - c_left) / crop_ratio)
+                rel_bottom = int((bottom - c_top) / crop_ratio)
+                rel_left   = int((left - c_left) / crop_ratio)
+
+                encs = face_recognition.face_encodings(
+                    crop_arr,
+                    [(rel_top, rel_right, rel_bottom, rel_left)],
+                    num_jitters=1
+                )
+                if encs:
+                    face_encodings.append(encs[0])
+                    adjusted_locations.append((top, right, bottom, left))
+
+            # Use only locations that produced a valid encoding
+            face_locations = adjusted_locations
             
             if not face_encodings:
                 # No faces found - mark as completed
