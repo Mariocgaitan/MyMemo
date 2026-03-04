@@ -441,7 +441,8 @@ export default function MemoryDetail() {
           )}
 
           {/* Personas — all faces including Unknown, with rename/remove/rerun */}
-          {(faces.length > 0 || memory.faces_processed) && (
+          {/* Show section if: faces detected, already processed, OR a job exists (even failed) so user can rerun */}
+          {(faces.length > 0 || memory.faces_processed || jobs.length > 0) && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
