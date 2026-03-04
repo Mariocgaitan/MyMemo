@@ -63,6 +63,7 @@ function AIProcessingBanner({ jobs }) {
   const completed = jobs.filter(j => j.status === 'completed');
   const failed = jobs.filter(j => j.status === 'failed');
 
+  // Nothing worth showing
   if (pending.length === 0 && completed.length === 0) return null;
 
   const allDone = pending.length === 0;
@@ -89,6 +90,7 @@ function AIProcessingBanner({ jobs }) {
     nlp_extraction: 'Análisis de texto (IA)',
   };
 
+  // While processing, only show actively pending jobs — skip historical failed noise
   return (
     <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-xl p-4">
       <Brain size={20} className="text-primary flex-shrink-0 animate-pulse" />
@@ -101,11 +103,6 @@ function AIProcessingBanner({ jobs }) {
             <span key={j.id} className="flex items-center gap-1 text-xs text-text-secondary-light dark:text-text-secondary-dark">
               <Loader2 size={10} className="animate-spin" />
               {jobLabels[j.job_type] || j.job_type}
-            </span>
-          ))}
-          {failed.map(j => (
-            <span key={j.id} className="text-xs text-red-500">
-              Error: {jobLabels[j.job_type] || j.job_type}
             </span>
           ))}
         </div>
