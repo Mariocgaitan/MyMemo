@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, X, MapPin, Navigation, ArrowRight, Calendar } from 'lucide-react';
+import { Search, X, MapPin, Navigation, ArrowRight, Calendar } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
@@ -284,13 +284,6 @@ export default function Home() {
               ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               : <Navigation size={16} />}
           </button>
-          <button
-            onClick={() => setFiltersExpanded(!filtersExpanded)}
-            className="px-4 py-2 rounded-xl border-2 border-border-light dark:border-border-dark hover:border-primary transition-colors flex items-center gap-2 text-sm font-medium text-text-primary-light dark:text-text-primary-dark"
-          >
-            {filtersExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            Filtros
-          </button>
         </div>
 
         {/* Nearby active banner */}
@@ -311,51 +304,37 @@ export default function Home() {
           <p className="text-xs text-red-500 px-1">{nearbyError}</p>
         )}
 
-        {/* Expandable filters */}
-        {filtersExpanded && (
-
-          <div className="space-y-3 animate-slide-up">
-            {/* Categories */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                Categorías:
-              </span>
-              {categories.map(cat => (
-                <Chip
-                  key={cat.id}
-                  selected={selectedCategories.includes(cat.value)}
-                  onClick={() => toggleCategory(cat.value)}
-                  onRemove={selectedCategories.includes(cat.value) ? () => toggleCategory(cat.value) : undefined}
-                >
-                  {cat.label}
-                </Chip>
-              ))}
-              <Chip variant="dashed" onClick={addCategory}>
-                <Plus size={14} /> Añadir
+        {/* Compact always-visible filter chips */}
+        {(sortedCategories.length > 0 || sortedPeople.length > 0) && (
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
+            {(selectedCategories.length > 0 || selectedPeople.length > 0) && (
+              <button
+                onClick={() => { setSelectedCategories([]); setSelectedPeople([]); }}
+                className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-primary text-white hover:bg-primary-hover transition-colors"
+              >
+                Limpiar ({selectedCategories.length + selectedPeople.length})
+              </button>
+            )}
+            {sortedCategories.map(cat => (
+              <Chip
+                key={cat.id}
+                selected={selectedCategories.includes(cat.value)}
+                onClick={() => toggleCategory(cat.value)}
+                className="flex-shrink-0"
+              >
+                {cat.label}
               </Chip>
-            </div>
-
-            {/* People */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                Personas:
-              </span>
-              {people.length === 0 && (
-                <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark italic">
-                  Aún no hay personas reconocidas
-                </span>
-              )}
-              {people.map(person => (
-                <Chip
-                  key={person.id}
-                  selected={selectedPeople.includes(person.id)}
-                  onClick={() => togglePerson(person.id)}
-                  onRemove={selectedPeople.includes(person.id) ? () => togglePerson(person.id) : undefined}
-                >
-                  {person.name}
-                </Chip>
-              ))}
-            </div>
+            ))}
+            {sortedPeople.map(person => (
+              <Chip
+                key={person.id}
+                selected={selectedPeople.includes(person.id)}
+                onClick={() => togglePerson(person.id)}
+                className="flex-shrink-0"
+              >
+                {person.name}
+              </Chip>
+            ))}
           </div>
         )}
       </div>
