@@ -1,11 +1,18 @@
-import { Menu, Moon, Sun, Users, RefreshCw, Map } from 'lucide-react';
+import { Menu, Moon, Sun, Users, RefreshCw, Map, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import Button from '../ui/Button';
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const handleClearCache = async () => {
     if (window.confirm("¿Forzar actualización profunda borrando todos los cachés? (Arregla problemas de PWA)")) {
@@ -82,6 +89,24 @@ export default function Header() {
               Personas
             </span>
           </button>
+
+          {/* User info + logout */}
+          {user && (
+            <div className="flex items-center gap-2 pl-2 border-l border-border-light dark:border-border-dark">
+              <span className="hidden sm:block text-sm text-text-secondary-light dark:text-text-secondary-dark max-w-[120px] truncate">
+                {user.name || user.email}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleLogout}
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut size={18} className="text-text-secondary-light dark:text-text-secondary-dark" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </header>
