@@ -3,7 +3,7 @@ Search endpoints - Search memories by various criteria
 """
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, text
+from sqlalchemy import select, func, and_, or_, text, cast, Text
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from typing import List, Optional
@@ -288,18 +288,18 @@ async def search_by_tags(
     """
     user = current_user
     
-    # Build JSONB query
+    # Build JSONB query using parameterized ORM expressions (safe from SQL injection)
     if match_all:
         # Memory must contain ALL tags
         tag_conditions = [
-            text(f"ai_metadata->>'tags' LIKE '%{tag}%'")
+            cast(Memory.ai_metadata['tags'], Text).ilike(f'%{tag}%')
             for tag in tags
         ]
         tag_filter = and_(*tag_conditions)
     else:
         # Memory must contain ANY tag
         tag_conditions = [
-            text(f"ai_metadata->>'tags' LIKE '%{tag}%'")
+            cast(Memory.ai_metadata['tags'], Text).ilike(f'%{tag}%')
             for tag in tags
         ]
         tag_filter = or_(*tag_conditions)
