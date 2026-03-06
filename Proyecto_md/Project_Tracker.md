@@ -1,6 +1,6 @@
 # MyMemo - Project Tracker & Development Log
 
-**Last Updated:** March 3, 2026  
+**Last Updated:** March 5, 2026  
 **Current Phase:** Phase 2 — Bug Fixing, UX Improvements & Feature Completion  
 **Project Status:** 🟢 Active Development
 
@@ -20,15 +20,14 @@
 | **Frontend (MVP)** | ✅ Deployed | 90% |
 | **AI/ML Integration** | ✅ Complete | 100% |
 | **Production Deployment** | ✅ Live | 100% |
-| **Phase 2: Bugs & UX** | 🔄 In Progress | 70% |
+| **Phase 2: Bugs & UX** | 🔄 In Progress | 90% |
 
-**Overall Project Progress:** 93%
+**Overall Project Progress:** 96%
 
 **Component Status:**
-- ✅ API Endpoints (23/23 working)
+- ✅ API Endpoints (25/25 working) — incluye rerun-faces y remove-person
 - ✅ S3 Storage & Thumbnails (keys en lugar de URLs, presigned fresca en cada respuesta)
 - ✅ Database Persistence
-- ✅ Face Recognition (HOG detector + EXIF transpose + per-crop encoding + tolerance 0.62)
 - ✅ NLP Extraction (gpt-4o-mini)
 - ✅ SSH desde máquina local (puerto 2222)
 - ✅ Swap en servidor (2GB — build de dlib estable)
@@ -39,7 +38,14 @@
 - ✅ FaceCrop: cadena de fallback bbox → thumbnail S3 → silueta
 - ✅ Home: filtros compactos en fila scrollable, ordenados por uso
 - ✅ Página /timeline dedicada (mapa recupera 100% de pantalla)
-- ⏳ Face recognition: verificar en producción tras mejoras del 3 marzo
+- ✅ Text/emoji cleanup — iconos Lucide en lugar de emojis decorativos
+- ✅ MemoryDetail: gestión inline de caras (renombrar, eliminar, volver a detectar)
+- ✅ FAB visible sobre mapa Leaflet (z-index 9999)
+- ✅ Home: crash filtersExpanded resuelto
+- ✅ Banner IA: solo muestra jobs activos, ignora histórico de fallos
+- ✅ Nombres de personas: se leen frescos de BD, no del JSONB congelado
+- ✅ Celery: MultipleResultsFound resuelto con _get_active_job()
+- ⏳ Face recognition detección en producción: pendiente prueba final tras rebuild (commit 7c5992b — numpy arrays contiguos para dlib)
 
 ---
 
@@ -2216,3 +2222,165 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod restart celery_wo
 
 ---
 
+## Session 14: March 4-5, 2026 — Deploy Sesión 13 + Face Recognition Pipeline
+
+**Participantes:** Mario + GitHub Copilot  
+**Commits:** `86175a5` (emoji cleanup), `452744b` (face mgmt endpoints + MemoryDetail UI), `e882bb6` (fix cancelled→failed), `6498e10` (face distance threshold), `96e44ef` (fix filtersExpanded crash), `2b6750c` (FAB z-index), `f14877b` (fix rerun + nombres), `5884421` (fix sección Personas oculta), `09b2f38` (fix banner IA), `298a41a` (fix dlib coords), `7c5992b` (fix numpy contiguous)
+
+### Cambios ✅ Deployados (frontend)
+
+#### Text/Emoji Cleanup (`86175a5`)
+Eliminados todos los emojis decorativos de 8 archivos. Reemplazados con texto limpio o iconos Lucide.
+
+| Archivo | Cambio |
+|---|---|
+| `CreateMemory.jsx` | Emojis → texto plano en steps de overlay |
+| `MemoryDetail.jsx` | Emojis → iconos lucide |
+| `FaceTagModal.jsx` | Emojis → texto |
+| `People.jsx` | Emojis → texto |
+| `Timeline.jsx` | Emojis → texto |
+| `Home.jsx` | Emojis → texto |
+| `Header.jsx` | Emojis → texto |
+| `MapView.jsx` | Emojis → texto |
+
+#### Gestión inline de caras en MemoryDetail (`452744b`)
+Nueva sección **Personas** en el detalle de memoria con:
+- Avatar de cada persona (thumbnail S3 con fallback a icono)
+- Nombre en vivo desde BD (no desde el JSONB congelado)
+- **Renombrar inline** — botón Edit2 abre input, Enter/✓ guarda via `PATCH /api/v1/people/{id}`
+- **Eliminar cara** — botón X llama a `DELETE /api/v1/memories/{id}/people/{person_id}`
+- **Volver a detectar** — botón RefreshCw dispara `POST /api/v1/memories/{id}/rerun-faces`
+- Includes desconocidos ("Sin nombre") también en la lista
+
+#### Fix crash filtersExpanded (`96e44ef`)
+`Home.jsx` tenía una referencia a `filtersExpanded` que fue eliminado en el redesign pero permanecía en el JSX. Causaba crash inmediato. Eliminado completamente el bloque obsoleto.
+
+#### Fix FAB oculto bajo mapa Leaflet (`2b6750c`)
+`Layout.jsx`: botón FAB `z-50` → `z-[9999]`. Leaflet crea su propio stacking context y cubría el botón `+`.
+
+#### Fix banner IA: Error spam eliminado (`09b2f38`)
+`AIProcessingBanner` mostraba todos los jobs fallidos históricos junto con el banner de "Procesando". Ahora solo muestra jobs activos (`pending`/`processing`). Los fallos históricos se ignoran silenciosamente.
+
+#### Fix sección Personas oculta tras rerun fallido (`5884421`)
+La sección "Personas" se ocultaba cuando `faces=[]` y `faces_processed=false` (estado tras rerun fallido). Nueva condición: también se muestra si `jobs.length > 0`, así el botón "Volver a detectar" siempre es accesible.
+
+### Cambios ✅ Deployados (backend — requirieron rebuild)
+
+#### Endpoints de gestión de caras (`452744b`, `e882bb6`)
+`backend/api/v1/endpoints/memories.py`:
+- `POST /memories/{id}/rerun-faces` — limpia MemoryPerson, resetea `ai_metadata.faces=[]`, cancela jobs anteriores (`status='failed'`), crea nuevo ProcessingJob, dispara Celery
+- `DELETE /memories/{id}/people/{person_id}` — elimina vínculo MemoryPerson, decrementa `times_detected`, auto-delete si llega a 0
+
+`frontend/src/services/api.js`:
+- `memoryAPI.rerunFaces(id)` → `POST /api/v1/memories/${id}/rerun-faces`
+- `memoryAPI.removePerson(memoryId, personId)` → `DELETE /api/v1/memories/${memoryId}/people/${personId}`
+
+#### Fix threshold de reconocimiento facial (`6498e10`)
+`MATCH_TOLERANCE = 0.62` (unidad: confianza) era en realidad `distance < 0.38` — demasiado estricto.  
+Renombrado a `MATCH_DISTANCE = 0.55` (unidad: distancia directa, como usa la librería).  
+`existing_people` query movido fuera del loop por cara (N queries → 1).
+
+#### Fix MultipleResultsFound en Celery (`f14877b`)
+`tasks/face_recognition.py`: `scalar_one_or_none()` tronaba cuando una memoria tenía múltiples jobs (tras rerun). Reemplazado por `_get_active_job()` helper que filtra por `status IN (pending, processing)` y usa `.scalars().first()`.
+
+#### Fix nombres congelados (`f14877b`)
+`MemoryDetail.jsx`: `personNamesById` state puebla llama a `peopleAPI.getAll({memory_id})` en cada load. El nombre mostrado siempre viene de la BD, no del JSONB congelado al momento de detección.
+
+### ⏳ Pendiente — Face recognition: detección no funciona aún
+
+**Estado actual:** El task llega a Celery, pero crashea con:
+```
+TypeError: compute_face_descriptor(): incompatible function arguments
+```
+
+**Historial de fixes intentados:**
+
+| Commit | Fix intentado | Resultado |
+|---|---|---|
+| `298a41a` | Quitar coordenadas relativas pasadas a `face_encodings()` — dejar que dlib las detecte solo en el crop | ❌ Mismo error |
+| `7c5992b` | `np.ascontiguousarray()` en el slice y tras resize PIL — dlib requiere arrays C-contiguos | ⏳ Pendiente probar en prod |
+
+**Commit `7c5992b`** es el último fix y está pusheado. Requiere rebuild para activarse:
+```bash
+cd /app/mymemo && git pull origin main
+docker compose -f docker-compose.prod.yml --env-file .env.prod build backend celery_worker
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps backend celery_worker
+docker exec mymemo_redis redis-cli FLUSHDB  # Limpiar retries en cola
+```
+
+**Después del rebuild — verificar con:**
+```bash
+docker compose -f docker-compose.prod.yml logs celery_worker --follow
+```
+
+Esperando ver:
+```
+[face_service] Processing N face(s) against M known people (threshold distance < 0.55)
+[face_service] Matched 'Mario' distance=0.4xx confidence=0.5xx
+```
+
+**Si sigue fallando:** el siguiente paso es simplificar radicalmente el encoding — usar `face_recognition.face_encodings(full_image, known_face_locations)` en lugar del pre-crop, para eliminar toda la complejidad de slices/resize como fuente del error.
+
+---
+
+## Session 15: March 5, 2026 — Multi-User Auth + Security Hardening
+
+**Participantes:** Mario + GitHub Copilot  
+**Branch creado:** `feature/auth` (mergeado a main)  
+**Commits:** `4447c3d`, `2293f3b`, `16e59c0`, `f9c57fb`, `3d737d4`, `417d41e`  
+**Push final:** `2662999` en main
+
+### Motivación
+Preparar la app para que amigos/conocidos la puedan usar → sistema multi-usuario con JWT.  
+La BD ya tenía `user_id` foreign keys en todas las tablas — solo faltaba el sistema de auth.
+
+### Backend — Auth JWT completo (`4447c3d`)
+
+**Nuevos archivos:**
+- `backend/core/security.py` — `hash_password`, `verify_password`, `create_access_token`, `decode_token` (python-jose + passlib/bcrypt)
+- `backend/core/deps.py` — `get_current_user` FastAPI dependency (valida JWT → devuelve User)
+- `backend/core/limiter.py` — instancia compartida de `slowapi.Limiter` (evita circular import)
+- `backend/api/v1/endpoints/auth.py` — `POST /register`, `POST /login`, `GET /me`
+
+**Archivos modificados:**
+- `models/database.py`: `email`/`hashed_password` → `nullable=False`, nuevo campo `name VARCHAR(255)`
+- `core/config.py`: `ACCESS_TOKEN_EXPIRE_MINUTES = 43200` (30 días), validador SECRET_KEY en prod
+- Los 4 endpoints (memories, people, search, usage): eliminado `get_default_user()`, todos usan `Depends(get_current_user)`
+
+### Security Hardening (`2293f3b`, `16e59c0`)
+
+| Vulnerabilidad | Fix |
+|---|---|
+| SQL injection en `search_by_tags` | `cast(Memory.ai_metadata['tags'], Text).ilike()` (ORM puro) |
+| Rate limiting | `/login` 10/min, `/register` 5/min via `slowapi` |
+| Timing attack en login | Siempre ejecutar bcrypt aunque el usuario no exista (dummy hash) |
+| SECRET_KEY débil en prod | Validator: raises ValueError si key es default + `ENVIRONMENT=production` |
+| Upload de SVG/archivos maliciosos | Magic bytes check: JPEG (`FF D8 FF`), PNG (`\x89PNG`), WebP (`RIFF...WEBP`) |
+
+### Frontend Auth (`f9c57fb`, `3d737d4`)
+
+**Nuevos archivos:**
+- `frontend/src/contexts/AuthContext.jsx` — estado global (user, isLoading, isAuthenticated), acciones login/register/logout, token persistido en localStorage, validación al arrancar via `/auth/me`
+- `frontend/src/components/ProtectedRoute.jsx` — spinner → redirect `/login` si no autenticado
+- `frontend/src/pages/Login.jsx` — formulario email + password
+- `frontend/src/pages/Register.jsx` — formulario nombre + email + password (mínimo 8 chars)
+
+**Archivos modificados:**
+- `services/api.js` — interceptor JWT activo, redirect 401 → `/login`, `authAPI` nuevo
+- `App.jsx` — `AuthProvider` wrapping, rutas públicas (`/login`, `/register`) vs protegidas
+- `components/layout/Header.jsx` — muestra nombre/email del usuario + botón logout
+
+### Script de migración (`417d41e`)
+`deployment/migrate_to_auth.sql` — script completo:
+1. `ALTER TABLE users ADD COLUMN IF NOT EXISTS name`
+2. Hace `email` y `hashed_password` NOT NULL
+3. Crea el usuario real de Mario (3 placeholders: `MARIO_EMAIL`, `BCRYPT_HASH`, `MARIO_NAME`)
+4. Reasigna todos los `memories`, `people`, `usage_metrics` del default user al nuevo
+5. Elimina `default@lifelogs.local`
+6. SELECT de verificación final
+
+### Estado al cierre de sesión
+- ✅ Código completo en `main`
+- ✅ Push a GitHub (`2662999`)
+- ⏳ **Pendiente: deploy en servidor** (ver `Proyecto_md/session_temp.md` para guía paso a paso)
+- ⏳ **Pendiente: face recognition** (numpy fix `7c5992b` sigue sin probar en prod — el rebuild del deploy de auth lo activará también)
