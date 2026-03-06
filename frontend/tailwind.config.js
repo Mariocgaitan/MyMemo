@@ -8,78 +8,62 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Primary: Warm Orange (Memories & Nostalgia)
+        // Primary accent: sepia/tobacco — warm, analog, personal
         primary: {
-          DEFAULT: '#F39C12',
-          hover: '#E67E22',
-          light: '#FFF3E0',
+          DEFAULT: '#8B6F47',
+          hover: '#7A5F3A',
+          light: '#F0E8DC',
           dark: '#2A1F0F',
         },
-        // Secondary: Blue Gray (Trust & Stability)
-        secondary: {
-          DEFAULT: '#2C3E50',
-          hover: '#1A252F',
-          light: '#E0E0E0',
-        },
-        // Neutral colors
+        // Neutral warm surfaces
         background: {
-          light: '#FAFAFA',
-          dark: '#121212',
+          light: '#F7F3EE',  // warm paper
+          dark: '#141110',   // dark room
         },
         surface: {
-          light: '#FFFFFF',
-          dark: '#1E1E1E',
+          light: '#FCFAF7',
+          dark: '#1E1A17',
         },
         border: {
-          light: '#E0E0E0',
-          dark: '#2C2C2C',
+          light: '#E8E0D5',
+          dark: '#2E2822',
         },
-        // Text colors
+        // Text — warm-toned, never pure black/white
         text: {
           primary: {
-            light: '#2C3E50',
-            dark: '#E0E0E0',
+            light: '#1C1714',  // warm near-black ink
+            dark: '#EDE8E3',
           },
           secondary: {
-            light: '#7F8C8D',
-            dark: '#9E9E9E',
+            light: '#7A6E64',  // aged ink
+            dark: '#8C8078',
           },
           tertiary: {
-            light: '#BDC3C7',
-            dark: '#5E5E5E',
+            light: '#C4B8AD',
+            dark: '#4A4038',
           },
         },
-        // Semantic colors
+        // Semantic colors (kept functional but warm-shifted)
         success: {
-          light: '#27AE60',
-          dark: '#4CAF50',
+          light: '#4A7C59',
+          dark: '#6BAF80',
         },
         warning: {
-          light: '#F39C12',
-          dark: '#FFA726',
+          light: '#8B6F47',
+          dark: '#C9A97A',
         },
         error: {
-          light: '#E74C3C',
-          dark: '#EF5350',
+          light: '#9B3A2E',
+          dark: '#D97060',
         },
         info: {
-          light: '#3498DB',
-          dark: '#42A5F5',
-        },
-        // Category/Mood colors
-        mood: {
-          exercise: '#9B59B6',
-          friends: '#E74C3C',
-          family: '#27AE60',
-          work: '#3498DB',
-          travel: '#F39C12',
-          food: '#E67E22',
-          nature: '#1ABC9C',
-          learning: '#9B59B6',
+          light: '#3D5A80',
+          dark: '#7A9CC0',
         },
       },
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['Geist', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        serif: ['Old Standard TT', 'Georgia', 'Times New Roman', 'serif'],
       },
       boxShadow: {
         'card': '0 2px 8px rgba(0, 0, 0, 0.1)',

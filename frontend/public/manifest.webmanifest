@@ -4,8 +4,8 @@
   "description": "Geo-spatial memory journal with AI-powered face recognition and NLP",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1a1a",
-  "theme_color": "#F39C12",
+  "background_color": "#141110",
+  "theme_color": "#8B6F47",
   "orientation": "portrait-primary",
   "icons": [
     {

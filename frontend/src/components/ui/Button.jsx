@@ -10,10 +10,10 @@ const variants = {
     disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
   `,
   secondary: `
-    border-2 border-secondary dark:border-secondary-light
-    text-secondary dark:text-secondary-light font-semibold
-    hover:bg-secondary hover:text-white
-    dark:hover:bg-secondary-light dark:hover:text-background-dark
+    border-2 border-border-light dark:border-border-dark
+    text-text-primary-light dark:text-text-primary-dark font-semibold
+    hover:border-primary hover:text-primary
+    dark:hover:border-primary dark:hover:text-primary
     disabled:opacity-50 disabled:cursor-not-allowed
   `,
   outline: `

@@ -299,7 +299,7 @@ export default function CreateMemory() {
                   />
                   <label
                     htmlFor="file-input"
-                    className="inline-flex items-center justify-center gap-2 px-6 py-3 text-base rounded-xl border-2 border-secondary dark:border-secondary-light text-secondary dark:text-secondary-light font-semibold hover:bg-secondary hover:text-white dark:hover:bg-secondary-light dark:hover:text-background-dark transition-all duration-normal cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 text-base rounded-xl border-2 border-border-light dark:border-border-dark text-text-primary-light dark:text-text-primary-dark font-semibold hover:border-primary hover:text-primary transition-all duration-normal cursor-pointer"
                   >
                     <Upload size={18} />
                     Cargar foto

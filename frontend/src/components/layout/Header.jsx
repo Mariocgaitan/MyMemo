@@ -1,4 +1,4 @@
-import { Menu, Moon, Sun, Users, RefreshCw, Map, LogOut } from 'lucide-react';
+import { Menu, Moon, Sun, Users, RefreshCw, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -42,10 +42,9 @@ export default function Header() {
 
           <h1
             onClick={() => navigate('/')}
-            className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
+            className="font-serif italic text-2xl tracking-tight text-text-primary-light dark:text-text-primary-dark cursor-pointer hover:text-primary transition-colors select-none"
           >
-            <Map size={20} className="text-primary" />
-            <span>LifeLog AI</span>
+            MyMemo
           </h1>
         </div>
 

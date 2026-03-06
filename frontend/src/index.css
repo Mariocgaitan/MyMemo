@@ -5,22 +5,24 @@
 @layer base {
   /* Light mode (default) */
   :root {
-    --color-background: #FAFAFA;
-    --color-surface: #FFFFFF;
-    --color-border: #E0E0E0;
-    --color-text-primary: #2C3E50;
-    --color-text-secondary: #7F8C8D;
-    --color-text-tertiary: #BDC3C7;
+    --color-background: #F7F3EE;
+    --color-surface: #FCFAF7;
+    --color-border: #E8E0D5;
+    --color-text-primary: #1C1714;
+    --color-text-secondary: #7A6E64;
+    --color-text-tertiary: #C4B8AD;
+    --color-accent: #8B6F47;
   }
 
   /* Dark mode */
   .dark {
-    --color-background: #121212;
-    --color-surface: #1E1E1E;
-    --color-border: #2C2C2C;
-    --color-text-primary: #E0E0E0;
-    --color-text-secondary: #9E9E9E;
-    --color-text-tertiary: #5E5E5E;
+    --color-background: #141110;
+    --color-surface: #1E1A17;
+    --color-border: #2E2822;
+    --color-text-primary: #EDE8E3;
+    --color-text-secondary: #8C8078;
+    --color-text-tertiary: #4A4038;
+    --color-accent: #C9A97A;
   }
 
   /* Global styles */
@@ -32,8 +34,7 @@
     @apply bg-background-light dark:bg-background-dark;
     @apply text-text-primary-light dark:text-text-primary-dark;
     margin: 0;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
