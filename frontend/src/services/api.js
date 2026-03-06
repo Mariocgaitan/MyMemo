@@ -11,32 +11,57 @@ const api = axios.create({
   },
 });
 
-// Request interceptor (for auth tokens in the future)
+// Request interceptor — inject JWT token on every request
 api.interceptors.request.use(
   (config) => {
-    // TODO: Add auth token when implemented
-    // const token = localStorage.getItem('token');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor (for error handling)
+// Response interceptor — on 401 clear token and redirect to login
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // TODO: Handle unauthorized (redirect to login)
-      console.error('Unauthorized access');
+      localStorage.removeItem('token');
+      // Only redirect if we're not already on an auth page
+      if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
 );
+
+// ========== Auth Endpoints ==========
+
+export const authAPI = {
+  register: async (email, password, name) => {
+    const response = await api.post('/api/v1/auth/register', { email, password, name });
+    return response.data; // { access_token, token_type }
+  },
+
+  login: async (email, password) => {
+    // OAuth2PasswordRequestForm expects form-encoded body
+    const params = new URLSearchParams();
+    params.append('username', email);
+    params.append('password', password);
+    const response = await api.post('/api/v1/auth/login', params, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    return response.data; // { access_token, token_type }
+  },
+
+  me: async () => {
+    const response = await api.get('/api/v1/auth/me');
+    return response.data; // { id, email, name }
+  },
+};
 
 // ========== Memory Endpoints ==========
 

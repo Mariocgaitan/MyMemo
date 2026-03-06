@@ -1,69 +1,83 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/layout';
-import { Home, CreateMemory, MemoryDetail, People, EditMemory, Timeline } from './pages';
+import ProtectedRoute from './components/ProtectedRoute';
+import { Home, CreateMemory, MemoryDetail, People, EditMemory, Timeline, Login, Register } from './pages';
 import './App.css';
 
 function App() {
   return (
     <ThemeProvider>
-      <Router>
-        <Routes>
-          {/* Home page with FAB */}
-          <Route
-            path="/"
-            element={
-              <Layout showFAB>
-                <Home />
-              </Layout>
-            }
-          />
+      <AuthProvider>
+        <Router>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* Create memory page */}
-          <Route
-            path="/create"
-            element={
-              <Layout>
-                <CreateMemory />
-              </Layout>
-            }
-          />
-
-          {/* Memory detail page */}
-          <Route
-            path="/memory/:id"
-            element={
-              <Layout>
-                <MemoryDetail />
-              </Layout>
-            }
-          />
-
-          {/* People page */}
-          <Route
-            path="/people"
-            element={
-              <Layout>
-                <People />
-              </Layout>
-            }
-          />
-          {/* Edit memory page */}
-          <Route
-            path="/memory/:id/edit"
-            element={
-              <Layout>
-                <EditMemory />
-              </Layout>
-            }
-          />
-          {/* Timeline page */}
-          <Route
-            path="/timeline"
-            element={<Timeline />}
-          />
-        </Routes>
-      </Router>
+            {/* Protected routes */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Layout showFAB>
+                    <Home />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/create"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <CreateMemory />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/memory/:id"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <MemoryDetail />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/people"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <People />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/memory/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <EditMemory />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/timeline"
+              element={
+                <ProtectedRoute>
+                  <Timeline />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

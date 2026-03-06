@@ -64,24 +64,35 @@ class MemoryCreate(BaseModel):
     @field_validator('image_base64')
     @classmethod
     def validate_image_base64(cls, v: str) -> str:
-        """Validate base64 image format and size"""
+        """Validate base64 image format, size, and MIME type (JPEG/PNG/WebP only)"""
+        import base64
+
         # Remove data URI prefix if present
         if ',' in v:
             header, data = v.split(',', 1)
             if not header.startswith('data:image/'):
                 raise ValueError("Invalid image data URI header")
             v = data
-        
-        # Basic base64 validation (check if it's valid base64)
-        import base64
+
+        # Decode and check size
         try:
             decoded = base64.b64decode(v)
-            # Max 10MB image size
-            if len(decoded) > 10 * 1024 * 1024:
-                raise ValueError("Image size exceeds 10MB limit")
         except Exception:
             raise ValueError("Invalid base64 image data")
-        
+
+        if len(decoded) > 10 * 1024 * 1024:
+            raise ValueError("Image size exceeds 10MB limit")
+
+        # Validate magic bytes — only allow JPEG, PNG, WebP
+        # JPEG: FF D8 FF
+        # PNG:  89 50 4E 47
+        # WebP: 52 49 46 46 ... 57 45 42 50
+        is_jpeg = decoded[:3] == b'\xff\xd8\xff'
+        is_png = decoded[:4] == b'\x89PNG'
+        is_webp = decoded[:4] == b'RIFF' and decoded[8:12] == b'WEBP'
+        if not (is_jpeg or is_png or is_webp):
+            raise ValueError("Only JPEG, PNG, and WebP images are allowed")
+
         return v
     
     model_config = ConfigDict(

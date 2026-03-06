@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 
 from core.database import get_db
+from core.deps import get_current_user
 from models.database import Memory, User, ProcessingJob, MemoryPerson, Person
 from models.schemas import (
     MemoryCreate,
@@ -88,22 +89,6 @@ def memory_to_response(memory: Memory) -> MemoryResponse:
     )
 
 
-async def get_default_user(db: AsyncSession) -> User:
-    """Get the default user (temporary until auth is implemented)"""
-    result = await db.execute(
-        select(User).where(User.email == "default@lifelogs.local")
-    )
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Default user not found. Please run init_db.py"
-        )
-    
-    return user
-
-
 # ============================================================
 # ENDPOINTS
 # ============================================================
@@ -117,7 +102,8 @@ async def get_default_user(db: AsyncSession) -> User:
 )
 async def create_memory(
     memory_data: MemoryCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create a new memory with image upload to S3
@@ -130,8 +116,7 @@ async def create_memory(
     Returns the created memory with a 201 status code.
     AI processing (face recognition, NLP) happens in the background.
     """
-    # Get default user (until auth is implemented)
-    user = await get_default_user(db)
+    user = current_user
     
     # Generate memory ID
     memory_id = uuid.uuid4()
@@ -226,7 +211,8 @@ async def list_memories(
     page: int = 1,
     page_size: int = 20,
     visibility: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     List memories with pagination
@@ -235,8 +221,7 @@ async def list_memories(
     - **page_size**: Number of items per page (max 100)
     - **visibility**: Filter by visibility (visible, archived, hidden)
     """
-    # Get default user
-    user = await get_default_user(db)
+    user = current_user
     
     # Validate pagination
     if page < 1:
@@ -292,10 +277,11 @@ async def list_memories(
 )
 async def get_memory(
     memory_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a single memory by ID"""
-    user = await get_default_user(db)
+    user = current_user
     
     result = await db.execute(
         select(Memory).where(
@@ -325,10 +311,11 @@ async def get_memory(
 async def update_memory(
     memory_id: uuid.UUID,
     update_data: MemoryUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update a memory's editable fields"""
-    user = await get_default_user(db)
+    user = current_user
     
     result = await db.execute(
         select(Memory).where(
@@ -370,10 +357,11 @@ async def update_memory(
 )
 async def delete_memory(
     memory_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a memory and its S3 images"""
-    user = await get_default_user(db)
+    user = current_user
     
     result = await db.execute(
         select(Memory).where(
@@ -413,10 +401,11 @@ async def delete_memory(
 )
 async def get_memory_jobs(
     memory_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get all processing jobs for a memory"""
-    user = await get_default_user(db)
+    user = current_user
     
     # Verify memory exists and belongs to user
     memory_result = await db.execute(
@@ -452,10 +441,11 @@ async def get_memory_jobs(
 )
 async def rerun_face_recognition(
     memory_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Reset face data and re-queue face recognition for a memory"""
-    user = await get_default_user(db)
+    user = current_user
 
     memory_result = await db.execute(
         select(Memory).where(and_(Memory.id == memory_id, Memory.user_id == user.id))
@@ -525,10 +515,11 @@ async def rerun_face_recognition(
 async def remove_person_from_memory(
     memory_id: uuid.UUID,
     person_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Remove a person from a specific memory without necessarily deleting them globally"""
-    user = await get_default_user(db)
+    user = current_user
 
     memory_result = await db.execute(
         select(Memory).where(and_(Memory.id == memory_id, Memory.user_id == user.id))

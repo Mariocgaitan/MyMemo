@@ -3,12 +3,17 @@ LifeLog AI - FastAPI Main Application
 Personal Geo-Spatial Memory System
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from core.config import settings
 from core.database import engine, Base
+from core.limiter import limiter
 from api.v1 import api_router
 
 # Lifespan context manager for startup/shutdown events
@@ -44,6 +49,11 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+# Rate limiter state + handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # CORS Configuration
 app.add_middleware(

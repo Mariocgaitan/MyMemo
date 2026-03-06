@@ -8,9 +8,9 @@ from typing import Optional
 from datetime import datetime, date, timedelta
 
 from core.database import get_db
+from core.deps import get_current_user
 from models.database import UsageMetric, User
 from models.schemas import UsageMetricResponse, UsageSummaryResponse
-from api.v1.endpoints.memories import get_default_user
 
 
 router = APIRouter(prefix="/usage", tags=["usage"])
@@ -29,7 +29,8 @@ router = APIRouter(prefix="/usage", tags=["usage"])
 async def get_usage_summary(
     start_date: Optional[date] = Query(None, description="Start date (defaults to 30 days ago)"),
     end_date: Optional[date] = Query(None, description="End date (defaults to today)"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get usage summary with total costs and API calls
@@ -37,7 +38,7 @@ async def get_usage_summary(
     - **start_date**: Start of period (YYYY-MM-DD)
     - **end_date**: End of period (YYYY-MM-DD)
     """
-    user = await get_default_user(db)
+    user = current_user
     
     # Default to last 30 days if not specified
     if not end_date:
@@ -98,7 +99,8 @@ async def get_usage_metrics(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get detailed usage metric records
@@ -107,7 +109,7 @@ async def get_usage_metrics(
     - **start_date/end_date**: Date range filter
     - **limit**: Maximum records to return
     """
-    user = await get_default_user(db)
+    user = current_user
     
     # Build query
     query = select(UsageMetric).where(UsageMetric.user_id == user.id)
@@ -141,14 +143,15 @@ async def get_usage_metrics(
 async def get_usage_by_type(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get usage breakdown grouped by metric type
     
     Returns aggregated stats per metric type (useful for cost analysis)
     """
-    user = await get_default_user(db)
+    user = current_user
     
     # Default to last 30 days
     if not end_date:
@@ -199,14 +202,15 @@ async def get_usage_by_type(
 )
 async def get_daily_usage(
     days: int = Query(30, ge=1, le=365, description="Number of days to retrieve"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get daily usage statistics for the last N days
     
     Useful for charts and tracking usage over time
     """
-    user = await get_default_user(db)
+    user = current_user
     
     end_date = date.today()
     start_date = end_date - timedelta(days=days)
@@ -250,14 +254,15 @@ async def get_daily_usage(
     description="Get usage for the current calendar month"
 )
 async def get_current_month_usage(
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get usage statistics for the current calendar month
     
     Useful for monthly budget tracking
     """
-    user = await get_default_user(db)
+    user = current_user
     
     # Calculate first and last day of current month
     today = date.today()

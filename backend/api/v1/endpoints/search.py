@@ -3,16 +3,17 @@ Search endpoints - Search memories by various criteria
 """
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, text
+from sqlalchemy import select, func, and_, or_, text, cast, Text
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from typing import List, Optional
 from datetime import datetime, date
 
 from core.database import get_db
+from core.deps import get_current_user
 from models.database import Memory, User
 from models.schemas import MemoryListResponse
-from api.v1.endpoints.memories import get_default_user, memory_to_response
+from api.v1.endpoints.memories import memory_to_response
 
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -32,7 +33,8 @@ async def search_by_text(
     q: str = Query(..., min_length=2, description="Search query"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Search memories using PostgreSQL full-text search
@@ -41,7 +43,7 @@ async def search_by_text(
     - **page**: Page number
     - **page_size**: Results per page
     """
-    user = await get_default_user(db)
+    user = current_user
     
     # Build full-text search query across multiple fields:
     # description_raw + location_name + ai_metadata tags/themes/summary
@@ -139,7 +141,8 @@ async def search_nearby(
     radius_km: float = Query(10.0, ge=0.1, le=1000, description="Search radius in kilometers"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Search memories by proximity to coordinates
@@ -147,7 +150,7 @@ async def search_nearby(
     - **latitude/longitude**: Center point of search
     - **radius_km**: Search radius in kilometers
     """
-    user = await get_default_user(db)
+    user = current_user
     
     # Create search point
     search_point = Point(longitude, latitude)
@@ -208,7 +211,8 @@ async def search_by_date_range(
     end_date: date = Query(..., description="End date (inclusive)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Search memories by date range
@@ -216,7 +220,7 @@ async def search_by_date_range(
     - **start_date**: Start date (YYYY-MM-DD)
     - **end_date**: End date (YYYY-MM-DD)
     """
-    user = await get_default_user(db)
+    user = current_user
     
     # Convert dates to datetime
     start_datetime = datetime.combine(start_date, datetime.min.time())
@@ -273,7 +277,8 @@ async def search_by_tags(
     match_all: bool = Query(False, description="If true, memory must have ALL tags. If false, ANY tag."),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Search memories by AI-extracted tags
@@ -281,20 +286,20 @@ async def search_by_tags(
     - **tags**: List of tags (e.g., ?tags=beach&tags=sunset)
     - **match_all**: Require all tags (AND) vs any tag (OR)
     """
-    user = await get_default_user(db)
+    user = current_user
     
-    # Build JSONB query
+    # Build JSONB query using parameterized ORM expressions (safe from SQL injection)
     if match_all:
         # Memory must contain ALL tags
         tag_conditions = [
-            text(f"ai_metadata->>'tags' LIKE '%{tag}%'")
+            cast(Memory.ai_metadata['tags'], Text).ilike(f'%{tag}%')
             for tag in tags
         ]
         tag_filter = and_(*tag_conditions)
     else:
         # Memory must contain ANY tag
         tag_conditions = [
-            text(f"ai_metadata->>'tags' LIKE '%{tag}%'")
+            cast(Memory.ai_metadata['tags'], Text).ilike(f'%{tag}%')
             for tag in tags
         ]
         tag_filter = or_(*tag_conditions)
