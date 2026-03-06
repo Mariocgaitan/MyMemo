@@ -2,7 +2,7 @@
 Auth endpoints: register, login, me.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy import select
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.deps import get_current_user
+from core.limiter import limiter
 from core.security import create_access_token, hash_password, verify_password
 from models.database import User
 
@@ -47,7 +48,8 @@ class UserResponse(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Create a new user account and return an access token."""
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none():
@@ -70,7 +72,9 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
@@ -78,7 +82,13 @@ async def login(
     result = await db.execute(select(User).where(User.email == form_data.username))
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(form_data.password, user.hashed_password or ""):
+    # Always run bcrypt verify to prevent timing-based user enumeration.
+    # If no user found, verify against a dummy hash (constant time).
+    _DUMMY_HASH = "$2b$12$eImiTXuWVxfM37uY4JANjQ..."
+    candidate_hash = user.hashed_password if user else _DUMMY_HASH
+    password_ok = verify_password(form_data.password, candidate_hash)
+
+    if not user or not password_ok:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",

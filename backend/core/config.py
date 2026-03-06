@@ -44,6 +44,18 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def secret_key_must_be_strong(cls, v: str, info) -> str:
+        import os
+        env = os.environ.get("ENVIRONMENT", "development")
+        if env == "production" and v == "dev-secret-key-change-in-production":
+            raise ValueError(
+                "SECRET_KEY must be changed from the default value in production. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+        return v
     
     # Application
     ENVIRONMENT: str = "development"
