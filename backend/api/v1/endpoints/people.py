@@ -9,9 +9,10 @@ from typing import List
 import uuid
 
 from core.database import get_db
+from core.deps import get_current_user
 from models.database import Person, User, MemoryPerson, Memory
 from models.schemas import PersonCreate, PersonResponse, MemoryResponse
-from api.v1.endpoints.memories import get_default_user, memory_to_response
+from api.v1.endpoints.memories import memory_to_response
 from services.storage_service import storage_service
 
 
@@ -50,10 +51,11 @@ router = APIRouter(prefix="/people", tags=["people"])
 )
 async def list_people(
     memory_id: uuid.UUID | None = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all people for the current user, optionally filtered by memory"""
-    user = await get_default_user(db)
+    user = current_user
     
     # If memory_id provided, get only people in that memory
     if memory_id:
@@ -88,10 +90,11 @@ async def list_people(
 )
 async def get_person(
     person_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a single person by ID"""
-    user = await get_default_user(db)
+    user = current_user
     
     result = await db.execute(
         select(Person).where(
@@ -120,10 +123,11 @@ async def get_person(
 )
 async def get_person_memories(
     person_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get all memories containing this person"""
-    user = await get_default_user(db)
+    user = current_user
     
     # Verify person exists and belongs to user
     person_result = await db.execute(
@@ -163,10 +167,11 @@ async def get_person_memories(
 async def update_person(
     person_id: uuid.UUID,
     person_data: PersonCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update person's name"""
-    user = await get_default_user(db)
+    user = current_user
     
     result = await db.execute(
         select(Person).where(
@@ -227,10 +232,11 @@ async def update_person(
 )
 async def delete_person(
     person_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a person"""
-    user = await get_default_user(db)
+    user = current_user
     
     result = await db.execute(
         select(Person).where(
@@ -264,14 +270,15 @@ async def delete_person(
 async def merge_people(
     person_id: uuid.UUID,
     target_person_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Merge person_id into target_person_id
     - All memories associated with person_id will be reassigned to target_person_id
     - person_id will be deleted
     """
-    user = await get_default_user(db)
+    user = current_user
     
     # Get both people
     result = await db.execute(
