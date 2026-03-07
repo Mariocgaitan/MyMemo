@@ -23,7 +23,7 @@ COPY pyproject.toml ./
 # face_recognition requires setuptools with pkg_resources, and the model package from git
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir 'setuptools==69.5.1' wheel
-RUN uv pip install --system -e . --no-build-isolation
+RUN uv pip install --system -e .
 RUN uv pip install --system git+https://github.com/ageitgey/face_recognition_models
 
 # Copy application code
