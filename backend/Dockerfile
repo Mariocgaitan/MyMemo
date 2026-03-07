@@ -43,7 +43,8 @@ RUN uv pip install --system \
     geoalchemy2>=0.15.2 \
     shapely>=2.0.0 \
     slowapi>=0.1.9 \
-    httpx>=0.28.0
+    httpx>=0.28.0 \
+    email-validator>=2.2.0
 
 # Install git and setuptools with pkg_resources for face_recognition_models
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
