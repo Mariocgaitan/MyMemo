@@ -62,6 +62,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SECRET_KEY=${SECRET_KEY}
     depends_on:
+      - backend
+      - redis
     restart: unless-stopped
 
   nginx:
