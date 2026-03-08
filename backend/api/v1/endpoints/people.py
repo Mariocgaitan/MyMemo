@@ -7,6 +7,31 @@ from sqlalchemy import select, func, and_, delete, update
 from sqlalchemy.exc import IntegrityError
 from typing import List
 import uuid
+import json
+
+MAX_ENCODINGS_PER_PERSON = 5
+
+
+def _merge_encodings(source_embedding: str, target_embedding: str) -> str:
+    """Combine face embeddings from two Person records, keeping up to MAX_ENCODINGS_PER_PERSON.
+    Merging preserves the target's encodings first, then appends the source's.
+    This ensures the stable/named person's encodings stay dominant."""
+    def _parse(raw):
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+            if parsed and isinstance(parsed[0], list):
+                return parsed
+            return [parsed]  # flat single encoding (edge case)
+        except Exception:
+            # Legacy comma-separated format
+            return [[float(x) for x in raw.split(",")]]
+
+    target_encs = _parse(target_embedding)
+    source_encs = _parse(source_embedding)
+    combined = (target_encs + source_encs)[:MAX_ENCODINGS_PER_PERSON]
+    return json.dumps(combined)
 
 from core.database import get_db
 from core.deps import get_current_user
@@ -214,6 +239,17 @@ async def update_person(
         if not existing_person:
             raise HTTPException(status_code=500, detail="Error al actualizar nombre")
 
+        # Merge face encodings from the renamed person into the existing one
+        # This preserves all known face data instead of losing the source encodings
+        existing_person.face_embedding = _merge_encodings(
+            person.face_embedding, existing_person.face_embedding
+        )
+        # Copy thumbnail if existing person has none
+        if not existing_person.thumbnail_url and person.thumbnail_url:
+            existing_person.thumbnail_url = person.thumbnail_url
+        # Update detection count
+        existing_person.times_detected += person.times_detected
+
         # Reasigna las memorias de la persona duplicada a la existente
         await db.execute(
             update(MemoryPerson)
@@ -311,10 +347,19 @@ async def merge_people(
         .where(MemoryPerson.person_id == person_id)
         .values(person_id=target_person_id)
     )
-    
+
+    # Merge face encodings so the target person gains the source's encodings.
+    # More encodings = better matching for future photos from different angles.
+    target_person.face_embedding = _merge_encodings(
+        source_person.face_embedding, target_person.face_embedding
+    )
+    # Copy thumbnail if target has none
+    if not target_person.thumbnail_url and source_person.thumbnail_url:
+        target_person.thumbnail_url = source_person.thumbnail_url
+
     # Update target person stats
     target_person.times_detected += source_person.times_detected
-    
+
     # Delete source person
     await db.delete(source_person)
     
