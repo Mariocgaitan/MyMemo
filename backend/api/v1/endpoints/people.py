@@ -55,6 +55,7 @@ async def list_people(
     current_user: User = Depends(get_current_user),
 ):
     """List all people for the current user, optionally filtered by memory"""
+    user_id = current_user.id
     user = current_user
     
     # If memory_id provided, get only people in that memory
@@ -94,6 +95,7 @@ async def get_person(
     current_user: User = Depends(get_current_user),
 ):
     """Get a single person by ID"""
+    user_id = current_user.id
     user = current_user
     
     result = await db.execute(
@@ -127,6 +129,7 @@ async def get_person_memories(
     current_user: User = Depends(get_current_user),
 ):
     """Get all memories containing this person"""
+    user_id = current_user.id
     user = current_user
     
     # Verify person exists and belongs to user
@@ -171,24 +174,24 @@ async def update_person(
     current_user: User = Depends(get_current_user),
 ):
     """Update person's name"""
-    user = current_user
-    
+    user_id = current_user.id  # capture before any await to avoid session expiry
+
     result = await db.execute(
         select(Person).where(
             and_(
                 Person.id == person_id,
-                Person.user_id == user.id
+                Person.user_id == user_id
             )
         )
     )
     person = result.scalar_one_or_none()
-    
+
     if not person:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Person not found"
         )
-    
+
     # Update name — si ya existe una persona con ese nombre, hacer merge
     # (reasignar las memorias al existente y eliminar el duplicado)
     try:
@@ -202,7 +205,7 @@ async def update_person(
         existing_result = await db.execute(
             select(Person).where(
                 and_(
-                    Person.user_id == user.id,
+                    Person.user_id == user_id,
                     Person.name == person_data.name
                 )
             )
@@ -236,6 +239,7 @@ async def delete_person(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a person"""
+    user_id = current_user.id
     user = current_user
     
     result = await db.execute(
@@ -278,6 +282,7 @@ async def merge_people(
     - All memories associated with person_id will be reassigned to target_person_id
     - person_id will be deleted
     """
+    user_id = current_user.id
     user = current_user
     
     # Get both people

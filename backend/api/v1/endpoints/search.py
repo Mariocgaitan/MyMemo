@@ -43,6 +43,7 @@ async def search_by_text(
     - **page**: Page number
     - **page_size**: Results per page
     """
+    user_id = current_user.id
     user = current_user
     
     # Build full-text search query across multiple fields:
@@ -150,6 +151,7 @@ async def search_nearby(
     - **latitude/longitude**: Center point of search
     - **radius_km**: Search radius in kilometers
     """
+    user_id = current_user.id
     user = current_user
     
     # Create search point
@@ -220,6 +222,7 @@ async def search_by_date_range(
     - **start_date**: Start date (YYYY-MM-DD)
     - **end_date**: End date (YYYY-MM-DD)
     """
+    user_id = current_user.id
     user = current_user
     
     # Convert dates to datetime
@@ -286,6 +289,7 @@ async def search_by_tags(
     - **tags**: List of tags (e.g., ?tags=beach&tags=sunset)
     - **match_all**: Require all tags (AND) vs any tag (OR)
     """
+    user_id = current_user.id
     user = current_user
     
     # Build JSONB query using parameterized ORM expressions (safe from SQL injection)

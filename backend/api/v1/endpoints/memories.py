@@ -116,6 +116,7 @@ async def create_memory(
     Returns the created memory with a 201 status code.
     AI processing (face recognition, NLP) happens in the background.
     """
+    user_id = current_user.id
     user = current_user
     
     # Generate memory ID
@@ -221,6 +222,7 @@ async def list_memories(
     - **page_size**: Number of items per page (max 100)
     - **visibility**: Filter by visibility (visible, archived, hidden)
     """
+    user_id = current_user.id
     user = current_user
     
     # Validate pagination
@@ -281,6 +283,7 @@ async def get_memory(
     current_user: User = Depends(get_current_user),
 ):
     """Get a single memory by ID"""
+    user_id = current_user.id
     user = current_user
     
     result = await db.execute(
@@ -315,6 +318,7 @@ async def update_memory(
     current_user: User = Depends(get_current_user),
 ):
     """Update a memory's editable fields"""
+    user_id = current_user.id
     user = current_user
     
     result = await db.execute(
@@ -361,6 +365,7 @@ async def delete_memory(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a memory and its S3 images"""
+    user_id = current_user.id
     user = current_user
     
     result = await db.execute(
@@ -405,6 +410,7 @@ async def get_memory_jobs(
     current_user: User = Depends(get_current_user),
 ):
     """Get all processing jobs for a memory"""
+    user_id = current_user.id
     user = current_user
     
     # Verify memory exists and belongs to user
@@ -445,6 +451,7 @@ async def rerun_face_recognition(
     current_user: User = Depends(get_current_user),
 ):
     """Reset face data and re-queue face recognition for a memory"""
+    user_id = current_user.id
     user = current_user
 
     memory_result = await db.execute(
@@ -519,6 +526,7 @@ async def remove_person_from_memory(
     current_user: User = Depends(get_current_user),
 ):
     """Remove a person from a specific memory without necessarily deleting them globally"""
+    user_id = current_user.id
     user = current_user
 
     memory_result = await db.execute(

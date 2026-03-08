@@ -38,6 +38,7 @@ async def get_usage_summary(
     - **start_date**: Start of period (YYYY-MM-DD)
     - **end_date**: End of period (YYYY-MM-DD)
     """
+    user_id = current_user.id
     user = current_user
     
     # Default to last 30 days if not specified
@@ -109,6 +110,7 @@ async def get_usage_metrics(
     - **start_date/end_date**: Date range filter
     - **limit**: Maximum records to return
     """
+    user_id = current_user.id
     user = current_user
     
     # Build query
@@ -151,6 +153,7 @@ async def get_usage_by_type(
     
     Returns aggregated stats per metric type (useful for cost analysis)
     """
+    user_id = current_user.id
     user = current_user
     
     # Default to last 30 days
@@ -210,6 +213,7 @@ async def get_daily_usage(
     
     Useful for charts and tracking usage over time
     """
+    user_id = current_user.id
     user = current_user
     
     end_date = date.today()
@@ -262,6 +266,7 @@ async def get_current_month_usage(
     
     Useful for monthly budget tracking
     """
+    user_id = current_user.id
     user = current_user
     
     # Calculate first and last day of current month
