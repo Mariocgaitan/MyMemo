@@ -136,8 +136,9 @@ export const peopleAPI = {
   },
 
   // Rename person
-  rename: async (id, name) => {
-    const response = await api.patch(`/api/v1/people/${id}`, { name });
+  rename: async (id, name, memoryId = null) => {
+    const body = memoryId ? { name, memory_id: memoryId } : { name };
+    const response = await api.patch(`/api/v1/people/${id}`, body);
     return response.data;
   },
 

@@ -187,7 +187,9 @@ class MemoryUpdate(BaseModel):
 class PersonCreate(BaseModel):
     """Request schema for creating/updating a person"""
     name: str = Field(..., min_length=1, max_length=255, description="Name of the person")
-    
+    # Optional: memory_id the face belongs to — used to re-create orphaned person records
+    memory_id: Optional[str] = Field(None, description="Memory ID where this face was detected")
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {

@@ -212,10 +212,53 @@ async def update_person(
     person = result.scalar_one_or_none()
 
     if not person:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Person not found"
-        )
+        # Person record is missing (orphaned ai_metadata face reference).
+        # Auto-create it so the user can name faces detected before migration.
+        try:
+            person = Person(
+                id=person_id,
+                user_id=user_id,
+                name=person_data.name,
+                face_embedding=json.dumps([]),  # no encoding — will be rebuilt on rerun
+                times_detected=1,
+            )
+            db.add(person)
+            # Link to memory if provided
+            if person_data.memory_id:
+                try:
+                    mem_uuid = uuid.UUID(person_data.memory_id)
+                except ValueError:
+                    mem_uuid = None
+                if mem_uuid:
+                    # Only add link if not already present
+                    existing_link = await db.execute(
+                        select(MemoryPerson).where(
+                            and_(
+                                MemoryPerson.memory_id == mem_uuid,
+                                MemoryPerson.person_id == person_id,
+                            )
+                        )
+                    )
+                    if not existing_link.scalar_one_or_none():
+                        db.add(MemoryPerson(
+                            memory_id=mem_uuid,
+                            person_id=person_id,
+                            confidence_score=1.0,
+                        ))
+            await db.commit()
+            await db.refresh(person)
+            return person_to_response(person)
+        except IntegrityError:
+            await db.rollback()
+            # Name collision — fall through to merge logic below by re-fetching
+            result2 = await db.execute(
+                select(Person).where(
+                    and_(Person.id == person_id, Person.user_id == user_id)
+                )
+            )
+            person = result2.scalar_one_or_none()
+            if not person:
+                raise HTTPException(status_code=500, detail="Error al crear persona")
 
     # Update name — si ya existe una persona con ese nombre, hacer merge
     # (reasignar las memorias al existente y eliminar el duplicado)

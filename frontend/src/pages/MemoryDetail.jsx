@@ -263,7 +263,7 @@ export default function MemoryDetail() {
     setFaceLoading(face.person_id);
 
     try {
-      await peopleAPI.rename(face.person_id, renameValue.trim());
+      await peopleAPI.rename(face.person_id, renameValue.trim(), id);
       // Optimistic update: ai_metadata faces (stale cache) + personNamesById (fresh source)
       setMemory(prev => {
         const meta = { ...(prev.ai_metadata || {}) };
