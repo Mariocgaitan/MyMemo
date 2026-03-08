@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Camera, Upload, MapPin, Loader2 } from 'lucide-react';
+import { ChevronLeft, Camera, Upload, MapPin, Loader2, Map } from 'lucide-react';
 import { Button, Input, Textarea, Chip } from '../components/ui';
-import { memoryAPI } from '../services/api';
+import { memoryAPI, categoriesAPI } from '../services/api';
 import FaceTagModal from '../components/FaceTagModal';
+import LocationPickerModal from '../components/LocationPickerModal';
 
 // Upload progress steps for the overlay
 const UPLOAD_STEPS = [
@@ -48,17 +49,7 @@ function UploadOverlay({ step }) {
   );
 }
 
-// Import initial categories from same source as Home
-const INITIAL_CATEGORIES = [
-  { id: 'cat_1', label: 'GeitanVida', value: 'geitanvida' },
-  { id: 'cat_2', label: 'ComidaBienRica', value: 'comidabienrica' },
-  { id: 'cat_3', label: 'ConLasGuarras', value: 'conlasguarras' },
-  { id: 'cat_4', label: 'Onichans', value: 'onichans' },
-  { id: 'cat_5', label: 'Fititit', value: 'fititit' },
-  { id: 'cat_6', label: 'Aestetik?', value: 'aestetik' },
-  { id: 'cat_7', label: 'NerdBoy', value: 'nerdboy' },
-  { id: 'cat_8', label: 'Famituki', value: 'famituki' },
-];
+
 
 export default function CreateMemory() {
   const navigate = useNavigate();
@@ -68,6 +59,7 @@ export default function CreateMemory() {
   const [error, setError] = useState('');
   const [gpsStatus, setGpsStatus] = useState('loading'); // 'loading', 'success', 'error'
   const [showFaceTagModal, setShowFaceTagModal] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [createdMemoryId, setCreatedMemoryId] = useState(null);
   const [createdMemoryUrl, setCreatedMemoryUrl] = useState(null);
   const [formData, setFormData] = useState({
@@ -81,14 +73,11 @@ export default function CreateMemory() {
     people: '', // Comma-separated names
   });
 
-  // Load categories from localStorage
+  // Load categories from API
   useEffect(() => {
-    const savedCategories = localStorage.getItem('mymemo_categories');
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
-    } else {
-      setCategories(INITIAL_CATEGORIES);
-    }
+    categoriesAPI.getAll().then(cats => {
+      if (cats && cats.length) setCategories(cats);
+    }).catch(() => {});
 
     // Try to get GPS location
     if (navigator.geolocation) {
@@ -311,33 +300,46 @@ export default function CreateMemory() {
 
           {/* Location */}
           <div className="space-y-2">
-            <Input
-              label="Ubicación"
-              value={formData.location}
-              onChange={(e) => {
-                const value = e.target.value;
-                // Intenta parsear coordenadas del texto (ej: "19.4348, -99.1891" o "📍 GPS: 19.4348, -99.1891")
-                const coordMatch = value.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
-                if (coordMatch) {
-                  const lat = parseFloat(coordMatch[1]);
-                  const lng = parseFloat(coordMatch[2]);
-                  if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-                    setFormData(prev => ({ ...prev, location: value, latitude: lat, longitude: lng }));
-                    return;
-                  }
-                }
-                setFormData(prev => ({ ...prev, location: value }));
-              }}
-              placeholder="Taquería de canasta, CDMX  ó  19.4348, -99.1891"
-              startIcon={<MapPin size={18} />}
-            />
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Input
+                  label="Ubicación"
+                  value={formData.location}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Intenta parsear coordenadas del texto (ej: "19.4348, -99.1891" o "📍 GPS: 19.4348, -99.1891")
+                    const coordMatch = value.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+                    if (coordMatch) {
+                      const lat = parseFloat(coordMatch[1]);
+                      const lng = parseFloat(coordMatch[2]);
+                      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                        setFormData(prev => ({ ...prev, location: value, latitude: lat, longitude: lng }));
+                        return;
+                      }
+                    }
+                    setFormData(prev => ({ ...prev, location: value }));
+                  }}
+                  placeholder="Taquería de canasta, CDMX  ó  19.4348, -99.1891"
+                  startIcon={<MapPin size={18} />}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLocationPicker(true)}
+                title="Seleccionar en mapa"
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border-2 border-border-light dark:border-border-dark hover:border-primary hover:text-primary text-text-secondary-light dark:text-text-secondary-dark transition-colors text-sm font-medium flex-shrink-0 mb-[1px]"
+              >
+                <Map size={16} />
+                <span className="hidden sm:inline">Mapa</span>
+              </button>
+            </div>
             <p className={`text-xs ${gpsStatus === 'success' ? 'text-green-600 dark:text-green-400' :
               gpsStatus === 'error' ? 'text-yellow-600 dark:text-yellow-400' :
                 'text-text-secondary-light dark:text-text-secondary-dark'
               }`}>
               {gpsStatus === 'loading' && 'Obteniendo ubicación...'}
               {gpsStatus === 'success' && `GPS: ${formData.latitude?.toFixed(4)}, ${formData.longitude?.toFixed(4)}`}
-              {gpsStatus === 'error' && 'GPS no disponible — puedes escribir coordenadas manualmente (ej: 19.4348, -99.1891)'}
+              {gpsStatus === 'error' && 'GPS no disponible — toca el botón Mapa para elegir el punto'}
             </p>
           </div>
 
@@ -402,6 +404,24 @@ export default function CreateMemory() {
           </Button>
         </form>
       </div>
+
+      {/* Location Picker Modal */}
+      <LocationPickerModal
+        isOpen={showLocationPicker}
+        onClose={() => setShowLocationPicker(false)}
+        onConfirm={(lat, lng) => {
+          setFormData(prev => ({
+            ...prev,
+            latitude: lat,
+            longitude: lng,
+            location: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+          }));
+          setGpsStatus('success');
+          setShowLocationPicker(false);
+        }}
+        initialLat={formData.latitude}
+        initialLng={formData.longitude}
+      />
 
       {/* Face Tagging Modal */}
       <FaceTagModal
