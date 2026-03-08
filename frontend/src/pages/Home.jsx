@@ -1,22 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, MapPin, Navigation, ArrowRight, Calendar } from 'lucide-react';
+import { Search, X, MapPin, Navigation, ArrowRight, ChevronDown, Users, Tag, Plus } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
-import { memoryAPI, peopleAPI, searchAPI } from '../services/api';
-
-// Initial categories
-const INITIAL_CATEGORIES = [
-  { id: 'cat_1', label: 'GeitanVida', value: 'geitanvida' },
-  { id: 'cat_2', label: 'ComidaBienRica', value: 'comidabienrica' },
-  { id: 'cat_3', label: 'ConLasGuarras', value: 'conlasguarras' },
-  { id: 'cat_4', label: 'Onichans', value: 'onichans' },
-  { id: 'cat_5', label: 'Fititit', value: 'fititit' },
-  { id: 'cat_6', label: 'Aestetik?', value: 'aestetik' },
-  { id: 'cat_7', label: 'NerdBoy', value: 'nerdboy' },
-  { id: 'cat_8', label: 'Famituki', value: 'famituki' },
-];
+import { memoryAPI, peopleAPI, searchAPI, categoriesAPI } from '../services/api';
 
 // Helper to safely parse ai_metadata which might come as a string
 const parseMetadata = (metadata) => {
@@ -42,17 +30,37 @@ export default function Home() {
   const [nearbyResults, setNearbyResults] = useState(null); // null = not active
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbyError, setNearbyError] = useState('');
+  const [catsExpanded, setCatsExpanded] = useState(false);
+  const [peopleExpanded, setPeopleExpanded] = useState(false);
+  const [newCatLabel, setNewCatLabel] = useState('');
+  const [addingCat, setAddingCat] = useState(false);
   const searchDebounceRef = useRef(null);
 
-  // Load categories from localStorage on mount
+  // Load categories from backend on mount; migrate from localStorage if needed
   useEffect(() => {
-    const savedCategories = localStorage.getItem('mymemo_categories');
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
-    } else {
-      setCategories(INITIAL_CATEGORIES);
-      localStorage.setItem('mymemo_categories', JSON.stringify(INITIAL_CATEGORIES));
-    }
+    const load = async () => {
+      try {
+        const cats = await categoriesAPI.getAll();
+        if (cats.length > 0) {
+          setCategories(cats);
+          localStorage.removeItem('mymemo_categories'); // clean up old key
+        } else {
+          // Try to migrate from localStorage on first load
+          const saved = localStorage.getItem('mymemo_categories');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            await categoriesAPI.save(parsed);
+            setCategories(parsed);
+            localStorage.removeItem('mymemo_categories');
+          }
+        }
+      } catch {
+        // Fallback: use localStorage if API is unreachable
+        const saved = localStorage.getItem('mymemo_categories');
+        if (saved) setCategories(JSON.parse(saved));
+      }
+    };
+    load();
   }, []);
 
   // Fetch memories AND people from backend
@@ -225,16 +233,30 @@ export default function Home() {
     return true;
   });
 
-  const addCategory = () => {
-    const label = prompt('Nombre de la categoría:');
-    if (!label || !label.trim()) return;
-
+  const addCategory = async () => {
+    if (!newCatLabel.trim()) return;
+    const label = newCatLabel.trim();
     const value = label.toLowerCase().replace(/\s+/g, '_');
-    const newCategory = { id: `cat_${Date.now()}`, label: label.trim(), value };
+    const newCat = { id: `cat_${Date.now()}`, label, value };
+    const updated = [...categories, newCat];
+    setCategories(updated);
+    setNewCatLabel('');
+    setAddingCat(false);
+    try {
+      await categoriesAPI.save(updated);
+    } catch (e) {
+      console.error('Error saving category:', e);
+    }
+  };
 
-    const updatedCategories = [...categories, newCategory];
-    setCategories(updatedCategories);
-    localStorage.setItem('mymemo_categories', JSON.stringify(updatedCategories));
+  const removeCategory = async (catId) => {
+    const updated = categories.filter(c => c.id !== catId);
+    setCategories(updated);
+    try {
+      await categoriesAPI.save(updated);
+    } catch (e) {
+      console.error('Error saving category:', e);
+    }
   };
 
   const handleMemoryClick = (memory) => {
@@ -304,39 +326,117 @@ export default function Home() {
           <p className="text-xs text-red-500 px-1">{nearbyError}</p>
         )}
 
-        {/* Compact always-visible filter chips */}
-        {(sortedCategories.length > 0 || sortedPeople.length > 0) && (
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
-            {(selectedCategories.length > 0 || selectedPeople.length > 0) && (
-              <button
-                onClick={() => { setSelectedCategories([]); setSelectedPeople([]); }}
-                className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-primary text-white hover:bg-primary-hover transition-colors"
-              >
-                Limpiar ({selectedCategories.length + selectedPeople.length})
-              </button>
+        {/* Compact always-visible filter chips — two separate rows */}
+        <div className="space-y-1.5">
+          {/* ── Categorías row ── */}
+          <div className="rounded-xl border border-border-light dark:border-border-dark overflow-hidden">
+            <button
+              onClick={() => setCatsExpanded(p => !p)}
+              className="w-full flex items-center gap-2 px-3 py-2 bg-surface-light dark:bg-surface-dark hover:bg-primary/5 transition-colors"
+            >
+              <Tag size={13} className="text-primary flex-shrink-0" />
+              <span className="text-xs font-semibold text-text-primary-light dark:text-text-primary-dark flex-1 text-left">
+                Categorías
+                {selectedCategories.length > 0 && (
+                  <span className="ml-1.5 text-white bg-primary rounded-full px-1.5 py-0.5 text-[10px]">{selectedCategories.length}</span>
+                )}
+              </span>
+              <ChevronDown size={13} className={`text-text-secondary-light dark:text-text-secondary-dark transition-transform ${catsExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            {catsExpanded && (
+              <div className="px-3 py-2 border-t border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark">
+                <div className="flex flex-wrap gap-1.5">
+                  {sortedCategories.map(cat => (
+                    <div key={cat.id} className="relative group flex items-center">
+                      <Chip
+                        selected={selectedCategories.includes(cat.value)}
+                        onClick={() => toggleCategory(cat.value)}
+                      >
+                        {cat.label}
+                      </Chip>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removeCategory(cat.id); }}
+                        className="ml-0.5 opacity-0 group-hover:opacity-100 text-text-secondary-light dark:text-text-secondary-dark hover:text-red-500 transition-opacity"
+                        title="Eliminar categoría"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                  {/* Add new category inline */}
+                  {addingCat ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        value={newCatLabel}
+                        onChange={e => setNewCatLabel(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') addCategory();
+                          if (e.key === 'Escape') { setAddingCat(false); setNewCatLabel(''); }
+                        }}
+                        placeholder="Nombre..."
+                        className="text-xs px-2 py-1 rounded-full border border-primary bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark focus:outline-none w-28"
+                      />
+                      <button onClick={addCategory} className="text-xs text-primary font-medium hover:text-primary-hover">OK</button>
+                      <button onClick={() => { setAddingCat(false); setNewCatLabel(''); }} className="text-xs text-text-secondary-light"><X size={12} /></button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAddingCat(true)}
+                      className="flex items-center gap-0.5 text-xs text-primary hover:text-primary-hover font-medium px-2 py-1 rounded-full border border-dashed border-primary/40 hover:border-primary transition-colors"
+                    >
+                      <Plus size={11} /> Nueva
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
-            {sortedCategories.map(cat => (
-              <Chip
-                key={cat.id}
-                selected={selectedCategories.includes(cat.value)}
-                onClick={() => toggleCategory(cat.value)}
-                className="flex-shrink-0"
-              >
-                {cat.label}
-              </Chip>
-            ))}
-            {sortedPeople.map(person => (
-              <Chip
-                key={person.id}
-                selected={selectedPeople.includes(person.id)}
-                onClick={() => togglePerson(person.id)}
-                className="flex-shrink-0"
-              >
-                {person.name}
-              </Chip>
-            ))}
           </div>
-        )}
+
+          {/* ── Personas row ── */}
+          {sortedPeople.length > 0 && (
+            <div className="rounded-xl border border-border-light dark:border-border-dark overflow-hidden">
+              <button
+                onClick={() => setPeopleExpanded(p => !p)}
+                className="w-full flex items-center gap-2 px-3 py-2 bg-surface-light dark:bg-surface-dark hover:bg-primary/5 transition-colors"
+              >
+                <Users size={13} className="text-primary flex-shrink-0" />
+                <span className="text-xs font-semibold text-text-primary-light dark:text-text-primary-dark flex-1 text-left">
+                  Personas
+                  {selectedPeople.length > 0 && (
+                    <span className="ml-1.5 text-white bg-primary rounded-full px-1.5 py-0.5 text-[10px]">{selectedPeople.length}</span>
+                  )}
+                </span>
+                <ChevronDown size={13} className={`text-text-secondary-light dark:text-text-secondary-dark transition-transform ${peopleExpanded ? 'rotate-180' : ''}`} />
+              </button>
+              {peopleExpanded && (
+                <div className="px-3 py-2 border-t border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark">
+                  <div className="flex flex-wrap gap-1.5">
+                    {sortedPeople.map(person => (
+                      <Chip
+                        key={person.id}
+                        selected={selectedPeople.includes(person.id)}
+                        onClick={() => togglePerson(person.id)}
+                      >
+                        {person.name}
+                      </Chip>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Clear all active filters */}
+          {(selectedCategories.length > 0 || selectedPeople.length > 0) && (
+            <button
+              onClick={() => { setSelectedCategories([]); setSelectedPeople([]); }}
+              className="text-xs text-primary hover:text-primary-hover font-medium flex items-center gap-1"
+            >
+              <X size={11} /> Limpiar filtros ({selectedCategories.length + selectedPeople.length})
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Map Container - 60% height */}

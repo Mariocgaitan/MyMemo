@@ -28,6 +28,8 @@ class User(Base):
     email = Column(String(320), unique=True, nullable=False, index=True)
     hashed_password = Column(Text, nullable=False)
     name = Column(String(255), nullable=True)
+    # Per-user JSON settings (e.g. categories list)
+    preferences = Column(JSONB, nullable=True, default={})
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

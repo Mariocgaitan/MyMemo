@@ -114,6 +114,19 @@ export const memoryAPI = {
   },
 };
 
+// ========== Categories Endpoints ==========
+
+export const categoriesAPI = {
+  getAll: async () => {
+    const response = await api.get('/api/v1/auth/categories');
+    return response.data.categories || [];
+  },
+  save: async (categories) => {
+    const response = await api.put('/api/v1/auth/categories', { categories });
+    return response.data.categories || [];
+  },
+};
+
 // ========== People Endpoints ==========
 
 export const peopleAPI = {

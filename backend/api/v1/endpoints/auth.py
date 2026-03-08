@@ -7,6 +7,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
+from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
 from core.deps import get_current_user
@@ -107,3 +109,47 @@ async def me(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         name=current_user.name,
     )
+
+
+# ── Categories ────────────────────────────────────────────────────────────────
+
+class CategoryItem(BaseModel):
+    id: str
+    label: str
+    value: str
+
+
+class CategoriesPayload(BaseModel):
+    categories: List[CategoryItem]
+
+
+@router.get("/categories", response_model=CategoriesPayload)
+async def get_categories(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's custom categories."""
+    user_id = current_user.id
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one()
+    prefs = user.preferences or {}
+    cats = prefs.get("categories", [])
+    return CategoriesPayload(categories=cats)
+
+
+@router.put("/categories", response_model=CategoriesPayload)
+async def save_categories(
+    payload: CategoriesPayload,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Replace the current user's categories list."""
+    user_id = current_user.id
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one()
+    prefs = dict(user.preferences or {})
+    prefs["categories"] = [c.model_dump() for c in payload.categories]
+    user.preferences = prefs
+    flag_modified(user, "preferences")
+    await db.commit()
+    return CategoriesPayload(categories=payload.categories)
