@@ -39,6 +39,30 @@ from models.database import Person, User, MemoryPerson, Memory
 from models.schemas import PersonCreate, PersonResponse, MemoryResponse
 from api.v1.endpoints.memories import memory_to_response
 from services.storage_service import storage_service
+from sqlalchemy.orm.attributes import flag_modified
+
+
+async def _patch_ai_metadata_face_id(
+    db: AsyncSession,
+    memory_id: uuid.UUID,
+    old_person_id: uuid.UUID,
+    new_person_id: uuid.UUID,
+):
+    """Replace person_id in ai_metadata.faces so client-side filtering works correctly."""
+    mem_result = await db.execute(select(Memory).where(Memory.id == memory_id))
+    mem = mem_result.scalar_one_or_none()
+    if not mem or not mem.ai_metadata:
+        return
+    faces = mem.ai_metadata.get("faces", [])
+    if not isinstance(faces, list):
+        return
+    changed = False
+    for face in faces:
+        if str(face.get("person_id")) == str(old_person_id):
+            face["person_id"] = str(new_person_id)
+            changed = True
+    if changed:
+        flag_modified(mem, "ai_metadata")
 
 
 def person_to_response(person: Person) -> PersonResponse:
@@ -246,7 +270,15 @@ async def update_person(
 
         if named_person:
             # A person with that name already exists — link this memory to them
+            # Also rewrite ai_metadata so the face points to the real person_id
             await _ensure_memory_link(named_person.id)
+            if person_data.memory_id:
+                try:
+                    await _patch_ai_metadata_face_id(
+                        db, uuid.UUID(person_data.memory_id), person_id, named_person.id
+                    )
+                except ValueError:
+                    pass
             await db.commit()
             return person_to_response(named_person)
 
@@ -296,6 +328,13 @@ async def update_person(
             existing_person.thumbnail_url = person.thumbnail_url
         # Update detection count
         existing_person.times_detected += person.times_detected
+
+        # Patch ai_metadata.faces in all memories that reference the old person_id
+        affected_mems = await db.execute(
+            select(MemoryPerson.memory_id).where(MemoryPerson.person_id == person_id)
+        )
+        for (mem_id,) in affected_mems.fetchall():
+            await _patch_ai_metadata_face_id(db, mem_id, person_id, existing_person.id)
 
         # Reasigna las memorias de la persona duplicada a la existente
         await db.execute(
@@ -389,6 +428,13 @@ async def merge_people(
     target_person = next(p for p in people if p.id == target_person_id)
     
     # Update all memory_people associations
+    # First patch ai_metadata so filters work correctly after merge
+    affected_mems = await db.execute(
+        select(MemoryPerson.memory_id).where(MemoryPerson.person_id == person_id)
+    )
+    for (mem_id,) in affected_mems.fetchall():
+        await _patch_ai_metadata_face_id(db, mem_id, person_id, target_person_id)
+
     await db.execute(
         MemoryPerson.__table__.update()
         .where(MemoryPerson.person_id == person_id)
