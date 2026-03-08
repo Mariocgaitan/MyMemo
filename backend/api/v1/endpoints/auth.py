@@ -102,4 +102,8 @@ async def login(
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)):
     """Return the currently authenticated user's profile."""
-    return current_user
+    return UserResponse(
+        id=str(current_user.id),
+        email=current_user.email,
+        name=current_user.name,
+    )
