@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, MapPin, Navigation, ArrowRight, ChevronDown, Users, Tag, Plus } from 'lucide-react';
+import { Search, X, MapPin, Navigation, ArrowRight, ChevronDown, Users, Tag, Plus, Calendar } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
