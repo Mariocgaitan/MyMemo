@@ -60,9 +60,8 @@ services:
       - S3_BUCKET_IMAGES=${S3_BUCKET_IMAGES}
       - S3_BUCKET_THUMBNAILS=${S3_BUCKET_THUMBNAILS}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
     depends_on:
-      - backend
-      - redis
     restart: unless-stopped
 
   nginx:
