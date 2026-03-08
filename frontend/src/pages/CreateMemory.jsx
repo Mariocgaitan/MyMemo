@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Camera, Upload, MapPin, Loader2, Map } from 'lucide-react';
+import { ChevronLeft, Camera, Upload, MapPin, Loader2 } from 'lucide-react';
 import { Button, Input, Textarea, Chip } from '../components/ui';
 import { memoryAPI, categoriesAPI } from '../services/api';
 import FaceTagModal from '../components/FaceTagModal';
@@ -300,46 +300,54 @@ export default function CreateMemory() {
 
           {/* Location */}
           <div className="space-y-2">
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Input
-                  label="Ubicación"
-                  value={formData.location}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    // Intenta parsear coordenadas del texto (ej: "19.4348, -99.1891" o "📍 GPS: 19.4348, -99.1891")
-                    const coordMatch = value.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
-                    if (coordMatch) {
-                      const lat = parseFloat(coordMatch[1]);
-                      const lng = parseFloat(coordMatch[2]);
-                      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-                        setFormData(prev => ({ ...prev, location: value, latitude: lat, longitude: lng }));
-                        return;
-                      }
-                    }
-                    setFormData(prev => ({ ...prev, location: value }));
-                  }}
-                  placeholder="Taquería de canasta, CDMX  ó  19.4348, -99.1891"
-                  startIcon={<MapPin size={18} />}
-                />
-              </div>
+            <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
+              Ubicación
+            </label>
+
+            {/* Clickable location row — tap pin or field to open map picker */}
+            <div className="flex gap-2 items-stretch">
+              {/* Pin button — main trigger */}
               <button
                 type="button"
                 onClick={() => setShowLocationPicker(true)}
-                title="Seleccionar en mapa"
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border-2 border-border-light dark:border-border-dark hover:border-primary hover:text-primary text-text-secondary-light dark:text-text-secondary-dark transition-colors text-sm font-medium flex-shrink-0 mb-[1px]"
+                title="Elegir en mapa"
+                className="flex items-center justify-center w-11 rounded-xl border-2 border-border-light dark:border-border-dark hover:border-primary hover:text-primary text-text-secondary-light dark:text-text-secondary-dark transition-colors flex-shrink-0 bg-surface-light dark:bg-surface-dark"
               >
-                <Map size={16} />
-                <span className="hidden sm:inline">Mapa</span>
+                <MapPin size={20} />
               </button>
+
+              {/* Text field — also opens map on focus if empty */}
+              <input
+                type="text"
+                value={formData.location}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const coordMatch = value.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+                  if (coordMatch) {
+                    const lat = parseFloat(coordMatch[1]);
+                    const lng = parseFloat(coordMatch[2]);
+                    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                      setFormData(prev => ({ ...prev, location: value, latitude: lat, longitude: lng }));
+                      return;
+                    }
+                  }
+                  setFormData(prev => ({ ...prev, location: value }));
+                }}
+                onFocus={() => {
+                  if (!formData.location) setShowLocationPicker(true);
+                }}
+                placeholder="Toca el 📍 o escribe: 19.4348, -99.1891"
+                className="flex-1 px-4 py-3 rounded-xl bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark text-text-primary-light dark:text-text-primary-dark placeholder:text-text-tertiary-light placeholder:dark:text-text-tertiary-dark focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none text-sm"
+              />
             </div>
+
             <p className={`text-xs ${gpsStatus === 'success' ? 'text-green-600 dark:text-green-400' :
               gpsStatus === 'error' ? 'text-yellow-600 dark:text-yellow-400' :
                 'text-text-secondary-light dark:text-text-secondary-dark'
               }`}>
-              {gpsStatus === 'loading' && 'Obteniendo ubicación...'}
-              {gpsStatus === 'success' && `GPS: ${formData.latitude?.toFixed(4)}, ${formData.longitude?.toFixed(4)}`}
-              {gpsStatus === 'error' && 'GPS no disponible — toca el botón Mapa para elegir el punto'}
+              {gpsStatus === 'loading' && 'Obteniendo ubicación GPS...'}
+              {gpsStatus === 'success' && `✅ GPS: ${formData.latitude?.toFixed(4)}, ${formData.longitude?.toFixed(4)}`}
+              {gpsStatus === 'error' && 'GPS no disponible — toca 📍 para elegir el punto en el mapa'}
             </p>
           </div>
 

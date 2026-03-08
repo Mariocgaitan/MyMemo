@@ -4,13 +4,19 @@
  * Has a "Use my GPS" button as shortcut.
  */
 import { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { Navigation, X, Check, Loader2 } from 'lucide-react';
 
 // Default center: Mexico City
 const DEFAULT_CENTER = [19.4326, -99.1332];
 const DEFAULT_ZOOM = 13;
+const MAP_HEIGHT = 360; // explicit px — Leaflet requires this
+
+// Lazily load Leaflet so it only runs in the browser
+async function loadLeaflet() {
+  const L = (await import('leaflet')).default;
+  await import('leaflet/dist/leaflet.css');
+  return L;
+}
 
 export default function LocationPickerModal({ isOpen, onClose, onConfirm, initialLat, initialLng }) {
   const mapRef = useRef(null);
@@ -19,14 +25,19 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
   const [coords, setCoords] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState('');
+  const [mapReady, setMapReady] = useState(false);
 
   // initialise map when opened
   useEffect(() => {
     if (!isOpen) return;
+    let cancelled = false;
 
-    // Small delay so the modal DOM is rendered
-    const tid = setTimeout(() => {
-      if (!mapRef.current || mapInstanceRef.current) return;
+    // Wait for the DOM to paint, then initialise Leaflet
+    const tid = setTimeout(async () => {
+      if (cancelled || !mapRef.current || mapInstanceRef.current) return;
+
+      const L = await loadLeaflet();
+      if (cancelled || !mapRef.current || mapInstanceRef.current) return;
 
       const startLat = initialLat || DEFAULT_CENTER[0];
       const startLng = initialLng || DEFAULT_CENTER[1];
@@ -35,6 +46,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
         center: [startLat, startLng],
         zoom: DEFAULT_ZOOM,
         zoomControl: true,
+        scrollWheelZoom: true,
       });
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -80,10 +92,15 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
         const ll = marker.getLatLng();
         updateCoords(ll.lat, ll.lng);
       });
-    }, 50);
 
-    return () => clearTimeout(tid);
-  }, [isOpen]);
+      setMapReady(true);
+    }, 80);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(tid);
+    };
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clean up map when closed
   useEffect(() => {
@@ -93,6 +110,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
       markerRef.current = null;
       setCoords(null);
       setGpsError('');
+      setMapReady(false);
     }
   }, [isOpen]);
 
@@ -134,46 +152,69 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Sheet */}
-      <div className="relative z-10 w-full sm:max-w-lg bg-surface-light dark:bg-surface-dark rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl flex flex-col"
-           style={{ maxHeight: '90dvh' }}>
+      {/* Sheet — no overflow-hidden so Leaflet controls render correctly */}
+      <div
+        className="relative z-10 w-full sm:max-w-lg bg-surface-light dark:bg-surface-dark rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col"
+        style={{ maxHeight: '90vh' }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-light dark:border-border-dark flex-shrink-0">
           <h2 className="font-bold text-text-primary-light dark:text-text-primary-dark">
             Elige la ubicación
           </h2>
-          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-primary/10 text-text-secondary-light dark:text-text-secondary-dark">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl hover:bg-primary/10 text-text-secondary-light dark:text-text-secondary-dark"
+          >
             <X size={18} />
           </button>
         </div>
 
-        {/* GPS button */}
+        {/* GPS row */}
         <div className="px-4 py-2 flex items-center gap-3 border-b border-border-light dark:border-border-dark flex-shrink-0 bg-background-light dark:bg-background-dark">
           <button
             onClick={handleUseGPS}
             disabled={gpsLoading}
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50"
           >
-            {gpsLoading
-              ? <Loader2 size={14} className="animate-spin" />
-              : <Navigation size={14} />}
-            {gpsLoading ? 'Buscando...' : 'Usar mi ubicación GPS'}
+            {gpsLoading ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+            {gpsLoading ? 'Buscando...' : 'Usar mi GPS'}
           </button>
-          <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark flex-1">
-            {gpsError
-              ? <span className="text-yellow-600 dark:text-yellow-400">{gpsError}</span>
-              : coords
-              ? `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
-              : 'O toca el mapa para fijar un punto'}
+          <span className="text-xs flex-1">
+            {gpsError ? (
+              <span className="text-yellow-600 dark:text-yellow-400">{gpsError}</span>
+            ) : coords ? (
+              <span className="text-green-600 dark:text-green-400">
+                {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+              </span>
+            ) : (
+              <span className="text-text-secondary-light dark:text-text-secondary-dark">
+                Toca el mapa para fijar el punto
+              </span>
+            )}
           </span>
         </div>
 
-        {/* Map */}
-        <div ref={mapRef} className="flex-1" style={{ minHeight: 320 }} />
+        {/* Map container — explicit height so Leaflet can measure it */}
+        <div style={{ position: 'relative', height: MAP_HEIGHT, flexShrink: 0 }}>
+          {/* Loading placeholder while Leaflet loads */}
+          {!mapReady && (
+            <div
+              style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--color-surface, #f5f5f5)',
+              }}
+            >
+              <Loader2 size={28} className="animate-spin text-primary" />
+            </div>
+          )}
+          <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+        </div>
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-border-light dark:border-border-dark flex gap-3 flex-shrink-0">
