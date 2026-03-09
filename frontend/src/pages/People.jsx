@@ -167,10 +167,10 @@ function LinkModal({ initialPerson, allPeople, onSend, onCancel }) {
                 </p>
 
                 <Input
-                    label="Nombre de usuario"
+                    label="Correo del usuario"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
-                    placeholder="Ej: Diego"
+                    placeholder="Ej: diego@gmail.com"
                     autoFocus
                     onKeyDown={e => e.key === 'Enter' && handleSend()}
                 />

@@ -57,13 +57,13 @@ async def send_connection_request(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Find target user by name (case-insensitive)
+    # Find target user by email (exact, case-insensitive)
     result = await db.execute(
-        select(User).where(User.name.ilike(body.username))
+        select(User).where(User.email.ilike(body.username))
     )
     target = result.scalar_one_or_none()
     if not target:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="No se encontró ningún usuario con ese correo")
 
     if target.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot connect with yourself")
