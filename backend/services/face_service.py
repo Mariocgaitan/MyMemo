@@ -353,8 +353,12 @@ class FaceRecognitionService:
                     except Exception as e:
                         print(f"[face_service] ERROR uploading thumbnail for {matched_person.id}: {e}")
                 
-                # Link to memory (skip if this person is already linked — two faces matched same person)
-                if matched_person.id not in linked_person_ids:
+                # If this person is already linked (another face matched the same person),
+                # treat this face as unknown so the user can assign it manually.
+                if matched_person.id in linked_person_ids:
+                    print(f"[face_service] '{matched_person.name}' already linked — creating Unknown for duplicate face.")
+                    matched_person = None  # fall through to Unknown creation below
+                else:
                     db.execute(
                         pg_insert(MemoryPerson.__table__).values(
                             memory_id=memory.id,
@@ -363,24 +367,23 @@ class FaceRecognitionService:
                         ).on_conflict_do_nothing()
                     )
                     linked_person_ids.add(matched_person.id)
-                
-                detected_faces.append({
-                    "person_id": str(matched_person.id),
-                    "person_name": matched_person.name,
-                    "name": matched_person.name,
-                    "confidence": float(best_match_confidence),
-                    "is_new": False,
-                    "thumbnail_url": matched_person.thumbnail_url,
-                    "bbox": {
-                        "top": top, "right": right,
-                        "bottom": bottom, "left": left
-                    },
-                    "image_w": image_w,
-                    "image_h": image_h,
-                })
-            else:
+                    detected_faces.append({
+                        "person_id": str(matched_person.id),
+                        "person_name": matched_person.name,
+                        "name": matched_person.name,
+                        "confidence": float(best_match_confidence),
+                        "is_new": False,
+                        "thumbnail_url": matched_person.thumbnail_url,
+                        "bbox": {
+                            "top": top, "right": right,
+                            "bottom": bottom, "left": left
+                        },
+                        "image_w": image_w,
+                        "image_h": image_h,
+                    })
+
+            if not matched_person:
                 print(f"[face_service] No match found (best distance={best_match_distance:.3f}, threshold={MATCH_DISTANCE}). Creating Unknown.")
-                # Create new unknown person — store encoding in new JSON format
                 new_person = Person(
                     id=uuid.uuid4(),
                     user_id=memory.user_id,
