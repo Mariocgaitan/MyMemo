@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, MapPin, Navigation, ArrowRight, ChevronDown, Users, Tag, Plus, Calendar } from 'lucide-react';
+import { Search, X, MapPin, Navigation, ArrowRight, Users, Tag, Plus, Calendar } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
@@ -30,8 +30,6 @@ export default function Home() {
   const [nearbyResults, setNearbyResults] = useState(null); // null = not active
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbyError, setNearbyError] = useState('');
-  const [catsExpanded, setCatsExpanded] = useState(false);
-  const [peopleExpanded, setPeopleExpanded] = useState(false);
   const [newCatLabel, setNewCatLabel] = useState('');
   const [addingCat, setAddingCat] = useState(false);
   const searchDebounceRef = useRef(null);
@@ -308,114 +306,107 @@ export default function Home() {
           <p className="text-xs text-red-500 px-1">{nearbyError}</p>
         )}
 
-        {/* Compact always-visible filter chips — two separate rows */}
-        <div className="space-y-1.5">
+        {/* Horizontal scroll filter rows */}
+        <div className="space-y-1">
           {/* ── Categorías row ── */}
-          <div className="rounded-xl border border-border-light dark:border-border-dark overflow-hidden">
-            <button
-              onClick={() => setCatsExpanded(p => !p)}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-surface-light dark:bg-surface-dark hover:bg-primary/5 transition-colors"
-            >
-              <Tag size={13} className="text-primary flex-shrink-0" />
-              <span className="text-xs font-semibold text-text-primary-light dark:text-text-primary-dark flex-1 text-left">
-                Categorías
-                {selectedCategories.length > 0 && (
-                  <span className="ml-1.5 text-white bg-primary rounded-full px-1.5 py-0.5 text-[10px]">{selectedCategories.length}</span>
-                )}
+          <div className="flex items-center gap-2">
+            {/* Fixed label */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Tag size={12} className="text-primary" />
+              <span className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark">
+                Cats
               </span>
-              <ChevronDown size={13} className={`text-text-secondary-light dark:text-text-secondary-dark transition-transform ${catsExpanded ? 'rotate-180' : ''}`} />
-            </button>
-            {catsExpanded && (
-              <div className="px-3 py-2 border-t border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark">
-                <div className="flex flex-wrap gap-1.5">
-                  {sortedCategories.map(cat => (
-                    <div key={cat.id} className="relative group flex items-center">
-                      <Chip
-                        selected={selectedCategories.includes(cat.value)}
-                        onClick={() => toggleCategory(cat.value)}
-                      >
-                        {cat.label}
-                      </Chip>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeCategory(cat.id); }}
-                        className="ml-0.5 opacity-0 group-hover:opacity-100 text-text-secondary-light dark:text-text-secondary-dark hover:text-red-500 transition-opacity"
-                        title="Eliminar categoría"
-                      >
-                        <X size={10} />
-                      </button>
-                    </div>
-                  ))}
-                  {/* Add new category inline */}
-                  {addingCat ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        autoFocus
-                        value={newCatLabel}
-                        onChange={e => setNewCatLabel(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') addCategory();
-                          if (e.key === 'Escape') { setAddingCat(false); setNewCatLabel(''); }
-                        }}
-                        placeholder="Nombre..."
-                        className="text-xs px-2 py-1 rounded-full border border-primary bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark focus:outline-none w-28"
-                      />
-                      <button onClick={addCategory} className="text-xs text-primary font-medium hover:text-primary-hover">OK</button>
-                      <button onClick={() => { setAddingCat(false); setNewCatLabel(''); }} className="text-xs text-text-secondary-light"><X size={12} /></button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setAddingCat(true)}
-                      className="flex items-center gap-0.5 text-xs text-primary hover:text-primary-hover font-medium px-2 py-1 rounded-full border border-dashed border-primary/40 hover:border-primary transition-colors"
+              {selectedCategories.length > 0 && (
+                <span className="text-white bg-primary rounded-full px-1.5 py-0.5 text-[10px] leading-none">{selectedCategories.length}</span>
+              )}
+            </div>
+            {/* Scrollable chips */}
+            <div className="flex-1 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-1.5 pb-0.5" style={{ width: 'max-content' }}>
+                {sortedCategories.map(cat => (
+                  <div key={cat.id} className="relative group flex items-center flex-shrink-0">
+                    <Chip
+                      selected={selectedCategories.includes(cat.value)}
+                      onClick={() => toggleCategory(cat.value)}
                     >
-                      <Plus size={11} /> Nueva
+                      {cat.label}
+                    </Chip>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeCategory(cat.id); }}
+                      className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      title="Eliminar"
+                    >
+                      <X size={8} />
                     </button>
-                  )}
-                </div>
+                  </div>
+                ))}
+                {/* Add new category */}
+                {addingCat ? (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <input
+                      autoFocus
+                      value={newCatLabel}
+                      onChange={e => setNewCatLabel(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') addCategory();
+                        if (e.key === 'Escape') { setAddingCat(false); setNewCatLabel(''); }
+                      }}
+                      placeholder="Nombre..."
+                      className="text-xs px-2 py-1 rounded-full border border-primary bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark focus:outline-none w-24"
+                    />
+                    <button onClick={addCategory} className="text-xs text-primary font-medium hover:text-primary-hover flex-shrink-0">OK</button>
+                    <button onClick={() => { setAddingCat(false); setNewCatLabel(''); }} className="flex-shrink-0 text-text-secondary-light dark:text-text-secondary-dark"><X size={12} /></button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingCat(true)}
+                    className="flex-shrink-0 flex items-center gap-0.5 text-xs text-primary hover:text-primary-hover font-medium px-2 py-1 rounded-full border border-dashed border-primary/40 hover:border-primary transition-colors"
+                  >
+                    <Plus size={11} /> Nueva
+                  </button>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* ── Personas row ── */}
           {sortedPeople.length > 0 && (
-            <div className="rounded-xl border border-border-light dark:border-border-dark overflow-hidden">
-              <button
-                onClick={() => setPeopleExpanded(p => !p)}
-                className="w-full flex items-center gap-2 px-3 py-2 bg-surface-light dark:bg-surface-dark hover:bg-primary/5 transition-colors"
-              >
-                <Users size={13} className="text-primary flex-shrink-0" />
-                <span className="text-xs font-semibold text-text-primary-light dark:text-text-primary-dark flex-1 text-left">
-                  Personas
-                  {selectedPeople.length > 0 && (
-                    <span className="ml-1.5 text-white bg-primary rounded-full px-1.5 py-0.5 text-[10px]">{selectedPeople.length}</span>
-                  )}
+            <div className="flex items-center gap-2">
+              {/* Fixed label */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Users size={12} className="text-primary" />
+                <span className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark">
+                  Gente
                 </span>
-                <ChevronDown size={13} className={`text-text-secondary-light dark:text-text-secondary-dark transition-transform ${peopleExpanded ? 'rotate-180' : ''}`} />
-              </button>
-              {peopleExpanded && (
-                <div className="px-3 py-2 border-t border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark">
-                  <div className="flex flex-wrap gap-1.5">
-                    {sortedPeople.map(person => (
-                      <Chip
-                        key={person.id}
-                        selected={selectedPeople.includes(person.id)}
-                        onClick={() => togglePerson(person.id)}
-                      >
-                        {person.name}
-                      </Chip>
-                    ))}
-                  </div>
+                {selectedPeople.length > 0 && (
+                  <span className="text-white bg-primary rounded-full px-1.5 py-0.5 text-[10px] leading-none">{selectedPeople.length}</span>
+                )}
+              </div>
+              {/* Scrollable chips */}
+              <div className="flex-1 overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-1.5 pb-0.5" style={{ width: 'max-content' }}>
+                  {sortedPeople.map(person => (
+                    <Chip
+                      key={person.id}
+                      selected={selectedPeople.includes(person.id)}
+                      onClick={() => togglePerson(person.id)}
+                      className="flex-shrink-0"
+                    >
+                      {person.name}
+                    </Chip>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
-          {/* Clear all active filters */}
+          {/* Clear filters */}
           {(selectedCategories.length > 0 || selectedPeople.length > 0) && (
             <button
               onClick={() => { setSelectedCategories([]); setSelectedPeople([]); }}
               className="text-xs text-primary hover:text-primary-hover font-medium flex items-center gap-1"
             >
-              <X size={11} /> Limpiar filtros ({selectedCategories.length + selectedPeople.length})
+              <X size={11} /> Limpiar ({selectedCategories.length + selectedPeople.length})
             </button>
           )}
         </div>
