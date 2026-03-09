@@ -21,6 +21,7 @@ from sqlalchemy import select
 
 from models.database import Memory, Person, MemoryPerson, ProcessingJob
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from services.storage_service import storage_service
 
 # Store up to this many encodings per person for robust matching
@@ -354,12 +355,13 @@ class FaceRecognitionService:
                 
                 # Link to memory (skip if this person is already linked — two faces matched same person)
                 if matched_person.id not in linked_person_ids:
-                    memory_person = MemoryPerson(
-                        memory_id=memory.id,
-                        person_id=matched_person.id,
-                        confidence_score=float(best_match_confidence)
+                    db.execute(
+                        pg_insert(MemoryPerson.__table__).values(
+                            memory_id=memory.id,
+                            person_id=matched_person.id,
+                            confidence_score=float(best_match_confidence)
+                        ).on_conflict_do_nothing()
                     )
-                    db.add(memory_person)
                     linked_person_ids.add(matched_person.id)
                 
                 detected_faces.append({
