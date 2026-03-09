@@ -287,6 +287,7 @@ class FaceRecognitionService:
         detected_faces = []
         image_w = img_w
         image_h = img_h
+        linked_person_ids: set = set()  # deduplicate: same person can't appear twice in one memory
 
         # Load all known people once (not per-face)
         existing_people = db.execute(
@@ -351,13 +352,15 @@ class FaceRecognitionService:
                     except Exception as e:
                         print(f"[face_service] ERROR uploading thumbnail for {matched_person.id}: {e}")
                 
-                # Link to memory
-                memory_person = MemoryPerson(
-                    memory_id=memory.id,
-                    person_id=matched_person.id,
-                    confidence_score=float(best_match_confidence)
-                )
-                db.add(memory_person)
+                # Link to memory (skip if this person is already linked — two faces matched same person)
+                if matched_person.id not in linked_person_ids:
+                    memory_person = MemoryPerson(
+                        memory_id=memory.id,
+                        person_id=matched_person.id,
+                        confidence_score=float(best_match_confidence)
+                    )
+                    db.add(memory_person)
+                    linked_person_ids.add(matched_person.id)
                 
                 detected_faces.append({
                     "person_id": str(matched_person.id),
