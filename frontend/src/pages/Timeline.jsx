@@ -144,7 +144,7 @@ export default function Timeline() {
                               {memory.location_name}
                             </p>
                           )}
-                          {tags.length > 0 && (
+                          {!shared && tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
                               {tags.slice(0, 3).map(tag => (
                                 <span key={tag} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">

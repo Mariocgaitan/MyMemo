@@ -463,6 +463,7 @@ export default function People() {
         await connectionsAPI.accept(connectionId, personId);
         setAcceptingRequest(null);
         showToast('success', 'Conexión aceptada ✨');
+        window.dispatchEvent(new CustomEvent('connection-updated'));
         await fetchConnections();
     };
 
@@ -470,6 +471,7 @@ export default function People() {
         await connectionsAPI.reject(connectionId);
         setPendingRequests(prev => prev.filter(r => r.id !== connectionId));
         showToast('success', 'Solicitud rechazada');
+        window.dispatchEvent(new CustomEvent('connection-updated'));
     };
 
     const handleDisconnect = async (connectionId) => {

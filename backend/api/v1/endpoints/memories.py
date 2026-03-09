@@ -416,13 +416,52 @@ async def get_memory(
         )
     )
     memory = result.scalar_one_or_none()
-    
+
+    # If not own memory, check if it's a shared memory the user has access to
+    if not memory:
+        conn_result = await db.execute(
+            select(UserConnection).where(
+                and_(
+                    UserConnection.status == "accepted",
+                    or_(
+                        UserConnection.requester_id == user.id,
+                        UserConnection.addressee_id == user.id,
+                    ),
+                )
+            )
+        )
+        connections = conn_result.scalars().all()
+
+        for conn in connections:
+            am_requester = conn.requester_id == user.id
+            my_person_in_partner = conn.person_id_in_addressee if am_requester else conn.person_id_in_requester
+            partner_id = conn.addressee_id if am_requester else conn.requester_id
+
+            if not my_person_in_partner:
+                continue
+
+            shared_check = await db.execute(
+                select(Memory)
+                .join(MemoryPerson, MemoryPerson.memory_id == Memory.id)
+                .where(
+                    and_(
+                        Memory.id == memory_id,
+                        Memory.user_id == partner_id,
+                        Memory.visibility == "visible",
+                        MemoryPerson.person_id == my_person_in_partner,
+                    )
+                )
+            )
+            memory = shared_check.scalar_one_or_none()
+            if memory:
+                break
+
     if not memory:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Memory not found"
         )
-    
+
     return memory_to_response(memory)
 
 

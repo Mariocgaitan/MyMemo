@@ -4,7 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { connectionsAPI } from '../../services/api';
 import Button from '../ui/Button';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
@@ -12,20 +12,25 @@ export default function Header() {
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
 
-  useEffect(() => {
+  const fetchPending = useCallback(async () => {
     if (!user) return;
-    const fetchPending = async () => {
-      try {
-        const data = await connectionsAPI.pending();
-        setPendingCount(Array.isArray(data) ? data.length : 0);
-      } catch {
-        // silently ignore
-      }
-    };
+    try {
+      const data = await connectionsAPI.pending();
+      setPendingCount(Array.isArray(data) ? data.length : 0);
+    } catch {
+      // silently ignore
+    }
+  }, [user]);
+
+  useEffect(() => {
     fetchPending();
     const interval = setInterval(fetchPending, 60_000);
-    return () => clearInterval(interval);
-  }, [user]);
+    window.addEventListener('connection-updated', fetchPending);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('connection-updated', fetchPending);
+    };
+  }, [fetchPending]);
 
   const handleLogout = () => {
     logout();
