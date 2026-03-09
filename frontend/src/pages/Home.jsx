@@ -482,16 +482,20 @@ export default function Home() {
       {/* Timeline pill — compact, navigates to /timeline */}
       <button
         onClick={() => navigate('/timeline')}
-        className="bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark px-5 py-3 flex items-center justify-between hover:bg-primary/5 active:bg-primary/10 transition-colors"
+        className="bg-surface-light dark:bg-surface-dark border-t-2 border-border-light dark:border-border-dark px-5 py-5 flex items-center justify-between hover:bg-primary/5 active:bg-primary/10 transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <Calendar size={16} className="text-primary" />
-          <span className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">Línea de tiempo</span>
-          <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-            {memories.length > 0 ? `${memories.length} recuerdo${memories.length !== 1 ? 's' : ''}` : ''}
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Calendar size={16} className="text-primary" />
+          </div>
+          <div className="flex flex-col items-start">
+            <span className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark leading-tight">Línea de tiempo</span>
+            <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+              {memories.length > 0 ? `${memories.length} recuerdo${memories.length !== 1 ? 's' : ''}` : 'Ver todos los recuerdos'}
+            </span>
+          </div>
         </div>
-        <ArrowRight size={16} className="text-text-secondary-light dark:text-text-secondary-dark" />
+        <ArrowRight size={18} className="text-primary" />
       </button>
     </div>
   );
