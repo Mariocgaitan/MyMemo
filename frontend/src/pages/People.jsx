@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, User, Edit2, Trash2, ChevronRight, Loader2, GitMerge } from 'lucide-react';
+import { ChevronLeft, User, Edit2, Trash2, ChevronRight, Loader2, GitMerge, Link2, Unlink, Check, X, UserPlus } from 'lucide-react';
 import { Input } from '../components/ui';
-import { peopleAPI } from '../services/api';
+import { peopleAPI, connectionsAPI } from '../services/api';
 
 // ─── Rename Modal ──────────────────────────────────────────────────────────────
 function RenameModal({ person, onSave, onCancel }) {
@@ -135,8 +135,137 @@ function MergeModal({ sourcePerson, allPeople, onConfirm, onCancel, isMerging })
     );
 }
 
+// ─── Link Modal (send connection request) ─────────────────────────────────────
+function LinkModal({ initialPerson, allPeople, onSend, onCancel }) {
+    const [username, setUsername] = useState('');
+    const [personId, setPersonId] = useState(initialPerson?.id || '');
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleSend = async () => {
+        if (!username.trim()) return;
+        setSending(true);
+        setError('');
+        try {
+            await onSend(username.trim(), personId || null);
+        } catch (e) {
+            setError(e?.response?.data?.detail || 'No se encontró ese usuario');
+            setSending(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative z-10 bg-surface-light dark:bg-surface-dark rounded-2xl shadow-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <Link2 size={24} className="text-primary" />
+                </div>
+                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark text-center mb-1">Vincular usuario</h2>
+                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark text-center mb-5">
+                    Comparte recuerdos donde ambos aparecen.
+                </p>
+
+                <Input
+                    label="Nombre de usuario"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    placeholder="Ej: Diego"
+                    autoFocus
+                    onKeyDown={e => e.key === 'Enter' && handleSend()}
+                />
+
+                <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark mt-4 mb-2">
+                    ¿Cuál cara es él/ella en tus fotos? (opcional)
+                </label>
+                <select
+                    value={personId}
+                    onChange={e => setPersonId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark focus:border-primary focus:outline-none transition-colors"
+                >
+                    <option value="">-- No sé / lo asigno después --</option>
+                    {allPeople.filter(p => !p.name?.startsWith('Unknown Person')).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </select>
+
+                {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+
+                <div className="flex gap-3 mt-5">
+                    <button onClick={onCancel}
+                        className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors">
+                        Cancelar
+                    </button>
+                    <button onClick={handleSend} disabled={sending || !username.trim()}
+                        className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        {sending && <Loader2 size={16} className="animate-spin" />} Enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Accept Modal ─────────────────────────────────────────────────────────────
+function AcceptModal({ request, allPeople, onAccept, onCancel }) {
+    const [personId, setPersonId] = useState('');
+    const [accepting, setAccepting] = useState(false);
+    const requesterName = request.requester?.name || 'Alguien';
+
+    const handleAccept = async () => {
+        setAccepting(true);
+        try {
+            await onAccept(request.id, personId || null);
+        } finally {
+            setAccepting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative z-10 bg-surface-light dark:bg-surface-dark rounded-2xl shadow-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark">
+                <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
+                    <UserPlus size={24} className="text-green-600 dark:text-green-400" />
+                </div>
+                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark text-center mb-1">
+                    {requesterName} quiere vincularse
+                </h2>
+                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark text-center mb-5">
+                    Podrán ver los recuerdos del otro donde aparezcan.
+                </p>
+
+                <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark mb-2">
+                    ¿Cuál cara es {requesterName} en tus fotos? (opcional)
+                </label>
+                <select
+                    value={personId}
+                    onChange={e => setPersonId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark focus:border-primary focus:outline-none transition-colors"
+                >
+                    <option value="">-- No sé / lo asigno después --</option>
+                    {allPeople.filter(p => !p.name?.startsWith('Unknown Person')).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </select>
+
+                <div className="flex gap-3 mt-5">
+                    <button onClick={onCancel}
+                        className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors">
+                        Rechazar
+                    </button>
+                    <button onClick={handleAccept} disabled={accepting}
+                        className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        {accepting && <Loader2 size={16} className="animate-spin" />} Aceptar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Person Card ──────────────────────────────────────────────────────────────
-function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onClick }) {
+function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onLink, onClick }) {
     const isUnknown = person.name?.startsWith('Unknown Person');
     return (
         <div className="bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark p-4 flex items-center gap-4 hover:shadow-md transition-shadow">
@@ -165,6 +294,12 @@ function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onClick })
 
             {/* Actions */}
             <div className="flex items-center gap-1 flex-shrink-0">
+                {!isUnknown && (
+                    <button onClick={() => onLink(person)}
+                        className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Vincular con usuario">
+                        <Link2 size={16} />
+                    </button>
+                )}
                 <button onClick={() => onRename(person)}
                     className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Renombrar">
                     <Edit2 size={16} />
@@ -250,8 +385,12 @@ export default function People() {
     const [renamingPerson, setRenamingPerson] = useState(null);
     const [deletingPerson, setDeletingPerson] = useState(null);
     const [mergingPerson, setMergingPerson] = useState(null);
+    const [linkingPerson, setLinkingPerson] = useState(null);
+    const [acceptingRequest, setAcceptingRequest] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isMerging, setIsMerging] = useState(false);
+    const [connections, setConnections] = useState([]);
+    const [pendingRequests, setPendingRequests] = useState([]);
 
     const fetchPeople = async () => {
         try {
@@ -262,7 +401,18 @@ export default function People() {
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchPeople(); }, []);
+    const fetchConnections = async () => {
+        try {
+            const [accepted, pending] = await Promise.all([
+                connectionsAPI.list(),
+                connectionsAPI.pending(),
+            ]);
+            setConnections(Array.isArray(accepted) ? accepted : []);
+            setPendingRequests(Array.isArray(pending) ? pending : []);
+        } catch (e) { console.error(e); }
+    };
+
+    useEffect(() => { fetchPeople(); fetchConnections(); }, []);
 
     const handleRename = async (newName) => {
         try {
@@ -288,12 +438,34 @@ export default function People() {
         setIsMerging(true);
         try {
             await peopleAPI.merge(mergingPerson.id, targetId);
-            // Remove source person, keep target
             setPeople(prev => prev.filter(p => p.id !== mergingPerson.id));
             setMergingPerson(null);
             if (selectedPerson?.id === mergingPerson.id) setSelectedPerson(null);
         } catch (e) { console.error(e); }
         finally { setIsMerging(false); }
+    };
+
+    const handleSendLink = async (username, personId) => {
+        await connectionsAPI.send(username, personId);
+        setLinkingPerson(null);
+        await fetchConnections();
+    };
+
+    const handleAcceptRequest = async (connectionId, personId) => {
+        await connectionsAPI.accept(connectionId, personId);
+        setAcceptingRequest(null);
+        await fetchConnections();
+    };
+
+    const handleRejectRequest = async (connectionId) => {
+        await connectionsAPI.reject(connectionId);
+        setPendingRequests(prev => prev.filter(r => r.id !== connectionId));
+    };
+
+    const handleDisconnect = async (connectionId) => {
+        if (!window.confirm('¿Desvincular esta conexión?')) return;
+        await connectionsAPI.remove(connectionId);
+        setConnections(prev => prev.filter(c => c.id !== connectionId));
     };
 
     const named = people.filter(p => !p.name?.startsWith('Unknown Person'));
@@ -313,6 +485,7 @@ export default function People() {
                         onRename={setRenamingPerson}
                         onDelete={setDeletingPerson}
                         onMerge={setMergingPerson}
+                        onLink={setLinkingPerson}
                         onClick={() => setSelectedPerson(p)}
                     />
                 ))}
@@ -357,6 +530,73 @@ export default function People() {
                         />
                     ) : (
                         <div className="space-y-6">
+                            {/* Pending requests */}
+                            {pendingRequests.length > 0 && (
+                                <div className="space-y-3">
+                                    <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
+                                        Solicitudes pendientes ({pendingRequests.length})
+                                    </h2>
+                                    <div className="space-y-2">
+                                        {pendingRequests.map(req => (
+                                            <div key={req.id} className="bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark p-4 flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                                    <UserPlus size={18} className="text-primary" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-semibold text-text-primary-light dark:text-text-primary-dark truncate">
+                                                        {req.requester?.name || 'Usuario'}
+                                                    </p>
+                                                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">quiere vincularse contigo</p>
+                                                </div>
+                                                <button onClick={() => setAcceptingRequest(req)}
+                                                    className="p-2 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 rounded-lg transition-colors" title="Aceptar">
+                                                    <Check size={16} className="text-green-600 dark:text-green-400" />
+                                                </button>
+                                                <button onClick={() => handleRejectRequest(req.id)}
+                                                    className="p-2 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 rounded-lg transition-colors" title="Rechazar">
+                                                    <X size={16} className="text-red-500" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Accepted connections */}
+                            {connections.length > 0 && (
+                                <div className="space-y-3">
+                                    <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
+                                        Compañeros de recuerdos ({connections.length})
+                                    </h2>
+                                    <div className="space-y-2">
+                                        {connections.map(conn => {
+                                            const partner = conn.requester?.id === conn.addressee?.id
+                                                ? conn.requester
+                                                : (conn.requester?.name ? conn.requester : conn.addressee);
+                                            // Determine which side is the current user
+                                            const partnerUser = conn.addressee;
+                                            return (
+                                                <div key={conn.id} className="bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark p-4 flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                                        <Link2 size={18} className="text-primary" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-semibold text-text-primary-light dark:text-text-primary-dark truncate">
+                                                            {conn.requester?.name} &amp; {conn.addressee?.name}
+                                                        </p>
+                                                        <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Recuerdos compartidos activos</p>
+                                                    </div>
+                                                    <button onClick={() => handleDisconnect(conn.id)}
+                                                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Desvincular">
+                                                        <Unlink size={16} className="text-red-500" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
                             {renderSection(named, 'Reconocidas')}
                             {renderSection(unknown, 'Sin nombre')}
                         </div>
@@ -378,6 +618,22 @@ export default function People() {
                     onConfirm={handleMerge}
                     onCancel={() => setMergingPerson(null)}
                     isMerging={isMerging}
+                />
+            )}
+            {linkingPerson && (
+                <LinkModal
+                    initialPerson={linkingPerson}
+                    allPeople={people}
+                    onSend={handleSendLink}
+                    onCancel={() => setLinkingPerson(null)}
+                />
+            )}
+            {acceptingRequest && (
+                <AcceptModal
+                    request={acceptingRequest}
+                    allPeople={people}
+                    onAccept={handleAcceptRequest}
+                    onCancel={() => setAcceptingRequest(null)}
                 />
             )}
         </>

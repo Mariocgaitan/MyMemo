@@ -105,11 +105,17 @@ export default function Timeline() {
                   {group.memories.map(memory => {
                     const meta = parseMetadata(memory.ai_metadata);
                     const tags = meta.nlp?.tags || [];
+                    const shared = memory.shared_by;
+                    const cardStyle = shared ? {
+                      border: `2px ${shared.border_style === 'glow' ? 'solid' : (shared.border_style || 'solid')} ${shared.border_color || '#6366f1'}`,
+                      boxShadow: shared.border_style === 'glow' ? `0 0 10px ${shared.border_color}80` : undefined,
+                    } : {};
                     return (
                       <div
                         key={memory.id}
                         onClick={() => navigate(`/memory/${memory.id}`)}
-                        className="flex-shrink-0 w-52 bg-surface-light dark:bg-surface-dark rounded-2xl overflow-hidden border border-border-light dark:border-border-dark cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all"
+                        className={`flex-shrink-0 w-52 bg-surface-light dark:bg-surface-dark rounded-2xl overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all${!shared ? ' border border-border-light dark:border-border-dark' : ''}`}
+                        style={shared ? cardStyle : undefined}
                       >
                         <div className="relative h-36">
                           <img
@@ -120,6 +126,14 @@ export default function Timeline() {
                           <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
                             {formatTime(memory.created_at)}
                           </div>
+                          {shared && (
+                            <div
+                              className="absolute top-2 left-2 flex items-center gap-1 text-white text-xs font-semibold px-2 py-0.5 rounded-full shadow"
+                              style={{ backgroundColor: shared.border_color || '#6366f1' }}
+                            >
+                              📎 {shared.name}
+                            </div>
+                          )}
                         </div>
                         <div className="p-3">
                           <p className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark line-clamp-2">

@@ -1,13 +1,31 @@
-import { Menu, Moon, Sun, Users, RefreshCw, LogOut } from 'lucide-react';
+import { Menu, Moon, Sun, Users, RefreshCw, LogOut, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { connectionsAPI } from '../../services/api';
 import Button from '../ui/Button';
+import { useState, useEffect } from 'react';
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchPending = async () => {
+      try {
+        const data = await connectionsAPI.pending();
+        setPendingCount(Array.isArray(data) ? data.length : 0);
+      } catch {
+        // silently ignore
+      }
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 60_000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -74,6 +92,21 @@ export default function Header() {
               <Sun className="text-text-secondary-light dark:text-text-secondary-dark" size={20} />
             )}
           </Button>
+
+          {/* Connections requests badge */}
+          <button
+            onClick={() => navigate('/people')}
+            className="relative p-2 rounded-lg hover:bg-primary/10 transition-colors"
+            aria-label="Solicitudes de conexión"
+            title="Solicitudes de conexión"
+          >
+            <UserPlus size={20} className="text-text-secondary-light dark:text-text-secondary-dark" />
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                {pendingCount > 9 ? '9+' : pendingCount}
+              </span>
+            )}
+          </button>
 
           {/* People link */}
           <button

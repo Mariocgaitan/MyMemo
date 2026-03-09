@@ -435,10 +435,17 @@ export default function Home() {
               {locationModal.memories.length} {locationModal.memories.length === 1 ? 'recuerdo' : 'recuerdos'} en este lugar
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {locationModal.memories.map(memory => (
+              {locationModal.memories.map(memory => {
+                const shared = memory.shared_by;
+                const cardStyle = shared ? {
+                  border: `2px ${shared.border_style === 'glow' ? 'solid' : (shared.border_style || 'solid')} ${shared.border_color || '#6366f1'}`,
+                  boxShadow: shared.border_style === 'glow' ? `0 0 10px ${shared.border_color}80` : undefined,
+                } : {};
+                return (
                 <div
                   key={memory.id}
-                  className="cursor-pointer bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden border border-border-light dark:border-border-dark hover:shadow-md transition-shadow"
+                  className={`cursor-pointer bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden hover:shadow-md transition-shadow${!shared ? ' border border-border-light dark:border-border-dark' : ''}`}
+                  style={shared ? cardStyle : undefined}
                   onClick={() => { setLocationModal(null); navigate(`/memory/${memory.id}`); }}
                 >
                   {/* Photo */}
@@ -451,6 +458,14 @@ export default function Home() {
                     <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
                       {new Date(memory.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </div>
+                    {shared && (
+                      <div
+                        className="absolute top-2 left-2 flex items-center gap-1 text-white text-xs font-semibold px-2 py-0.5 rounded-full shadow"
+                        style={{ backgroundColor: shared.border_color || '#6366f1' }}
+                      >
+                        📎 {shared.name}
+                      </div>
+                    )}
                   </div>
                   {/* Info */}
                   <div className="p-4">
@@ -473,7 +488,8 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

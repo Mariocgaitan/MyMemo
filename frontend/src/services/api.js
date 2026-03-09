@@ -241,4 +241,53 @@ export const usageAPI = {
   },
 };
 
+// ========== Connections Endpoints ==========
+
+export const connectionsAPI = {
+  // Send connection request (username = name of target user, personId = optional)
+  send: async (username, personId = null) => {
+    const response = await api.post('/api/v1/connections', { username, person_id: personId });
+    return response.data;
+  },
+
+  // List accepted connections
+  list: async () => {
+    const response = await api.get('/api/v1/connections');
+    return response.data;
+  },
+
+  // Pending requests received by me
+  pending: async () => {
+    const response = await api.get('/api/v1/connections/pending');
+    return response.data;
+  },
+
+  // Accept a pending request
+  accept: async (connectionId, personId = null) => {
+    const response = await api.put(`/api/v1/connections/${connectionId}/accept`, { person_id: personId });
+    return response.data;
+  },
+
+  // Reject a pending request
+  reject: async (connectionId) => {
+    const response = await api.put(`/api/v1/connections/${connectionId}/reject`);
+    return response.data;
+  },
+
+  // Remove an accepted connection
+  remove: async (connectionId) => {
+    const response = await api.delete(`/api/v1/connections/${connectionId}`);
+    return response.data;
+  },
+
+  // Update border color/style for your side
+  updateStyle: async (connectionId, borderColor, borderStyle) => {
+    const response = await api.patch(`/api/v1/connections/${connectionId}/style`, {
+      border_color: borderColor,
+      border_style: borderStyle,
+    });
+    return response.data;
+  },
+};
+
 export default api;
