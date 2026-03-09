@@ -391,6 +391,7 @@ export default function People() {
     const [isMerging, setIsMerging] = useState(false);
     const [connections, setConnections] = useState([]);
     const [pendingRequests, setPendingRequests] = useState([]);
+    const [toast, setToast] = useState(null); // { type: 'success'|'error', msg: string }
 
     const fetchPeople = async () => {
         try {
@@ -445,27 +446,37 @@ export default function People() {
         finally { setIsMerging(false); }
     };
 
+    const showToast = (type, msg) => {
+        setToast({ type, msg });
+        setTimeout(() => setToast(null), 4000);
+    };
+
     const handleSendLink = async (username, personId) => {
+        // Let the error bubble up to LinkModal so it can show the message inline
         await connectionsAPI.send(username, personId);
         setLinkingPerson(null);
+        showToast('success', `Solicitud enviada a @${username}`);
         await fetchConnections();
     };
 
     const handleAcceptRequest = async (connectionId, personId) => {
         await connectionsAPI.accept(connectionId, personId);
         setAcceptingRequest(null);
+        showToast('success', 'Conexión aceptada ✨');
         await fetchConnections();
     };
 
     const handleRejectRequest = async (connectionId) => {
         await connectionsAPI.reject(connectionId);
         setPendingRequests(prev => prev.filter(r => r.id !== connectionId));
+        showToast('success', 'Solicitud rechazada');
     };
 
     const handleDisconnect = async (connectionId) => {
         if (!window.confirm('¿Desvincular esta conexión?')) return;
         await connectionsAPI.remove(connectionId);
         setConnections(prev => prev.filter(c => c.id !== connectionId));
+        showToast('success', 'Desvinculado');
     };
 
     const named = people.filter(p => !p.name?.startsWith('Unknown Person'));
@@ -495,6 +506,12 @@ export default function People() {
 
     return (
         <>
+            {/* Toast notification */}
+            {toast && (
+                <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 transition-all ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+                    {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
+                </div>
+            )}
             <div className="min-h-[calc(100vh-80px)] bg-background-light dark:bg-background-dark pb-8">
                 {/* Header */}
                 <div className="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark px-6 py-4">
