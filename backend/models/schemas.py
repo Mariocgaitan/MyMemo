@@ -125,6 +125,8 @@ class MemoryResponse(BaseModel):
     visibility: VisibilityEnum
     created_at: datetime
     updated_at: datetime
+    # Populated only for memories shared by a connected user
+    shared_by: Optional["SharedByInfo"] = None
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -374,3 +376,68 @@ class ErrorResponse(BaseModel):
             }
         }
     )
+
+
+# ============================================================
+# CONNECTION SCHEMAS
+# ============================================================
+
+class ConnectionStatusEnum(str, Enum):
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
+
+
+class ConnectionCreate(BaseModel):
+    """Send a connection request to another user"""
+    username: str = Field(..., min_length=1, max_length=255, description="Username (name) of the target user")
+    person_id: Optional[UUID] = Field(None, description="Person record in your DB that represents this user")
+
+
+class ConnectionStyleUpdate(BaseModel):
+    """Update border color/style for shared memory cards"""
+    border_color: str = Field(..., pattern=r"^#[0-9A-Fa-f]{6}$", description="Hex color, e.g. #8B6F47")
+    border_style: str = Field(..., pattern=r"^(solid|dashed|glow)$", description="Border style")
+
+
+class ConnectionAccept(BaseModel):
+    """Accept a connection and optionally link the requester's Person record"""
+    person_id: Optional[UUID] = Field(None, description="Person record in your DB that represents the requester")
+
+
+class ConnectionUserInfo(BaseModel):
+    """Minimal user info exposed in connection responses"""
+    id: UUID
+    name: Optional[str]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConnectionResponse(BaseModel):
+    """Full connection record"""
+    id: UUID
+    requester: ConnectionUserInfo
+    addressee: ConnectionUserInfo
+    person_id_in_requester: Optional[UUID]
+    person_id_in_addressee: Optional[UUID]
+    status: ConnectionStatusEnum
+    border_color_requester: str
+    border_style_requester: str
+    border_color_addressee: str
+    border_style_addressee: str
+    created_at: datetime
+    accepted_at: Optional[datetime]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SharedByInfo(BaseModel):
+    """Metadata attached to a shared memory"""
+    user_id: UUID
+    name: Optional[str]
+    border_color: str
+    border_style: str
+
+
+# Resolve forward reference in MemoryResponse.shared_by
+MemoryResponse.model_rebuild()

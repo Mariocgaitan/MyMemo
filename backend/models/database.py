@@ -30,13 +30,15 @@ class User(Base):
     name = Column(String(255), nullable=True)
     # Per-user JSON settings (e.g. categories list)
     preferences = Column(JSONB, nullable=True, default={})
+    # Reference to this user's own Person record (for face recognition self-matching)
+    self_person_id = Column(UUID(as_uuid=True), ForeignKey("people.id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     # Relationships
     memories = relationship("Memory", back_populates="user", cascade="all, delete-orphan")
-    people = relationship("Person", back_populates="user", cascade="all, delete-orphan")
+    people = relationship("Person", back_populates="user", cascade="all, delete-orphan", foreign_keys="Person.user_id")
 
 
 class Memory(Base):
@@ -125,7 +127,7 @@ class Person(Base):
     )
     
     # Relationships
-    user = relationship("User", back_populates="people")
+    user = relationship("User", back_populates="people", foreign_keys="Person.user_id")
     memory_associations = relationship("MemoryPerson", back_populates="person", cascade="all, delete-orphan")
 
 
@@ -215,3 +217,47 @@ class MemoryVersion(Base):
     ai_metadata_snapshot = Column(JSONB, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class UserConnection(Base):
+    """
+    Bidirectional friend connections between users.
+    Allows sharing memories where both users appear.
+    """
+    __tablename__ = "user_connections"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # The user who sent the connection request
+    requester_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # The user who received it
+    addressee_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    # Which Person record in each user's DB represents the other person
+    person_id_in_requester = Column(UUID(as_uuid=True), ForeignKey("people.id", ondelete="SET NULL"), nullable=True)
+    person_id_in_addressee = Column(UUID(as_uuid=True), ForeignKey("people.id", ondelete="SET NULL"), nullable=True)
+
+    # Connection lifecycle: pending → accepted | rejected
+    status = Column(String(20), nullable=False, default="pending")
+
+    # Per-side border styling for shared memory cards
+    border_color_requester = Column(String(20), nullable=False, default="#8B6F47")
+    border_style_requester = Column(String(20), nullable=False, default="solid")
+    border_color_addressee = Column(String(20), nullable=False, default="#8B6F47")
+    border_style_addressee = Column(String(20), nullable=False, default="solid")
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'accepted', 'rejected')",
+            name="valid_connection_status",
+        ),
+        # Each pair can only have one connection row
+        Index("idx_unique_connection", "requester_id", "addressee_id", unique=True),
+    )
+
+    # Relationships
+    requester = relationship("User", foreign_keys=[requester_id])
+    addressee = relationship("User", foreign_keys=[addressee_id])

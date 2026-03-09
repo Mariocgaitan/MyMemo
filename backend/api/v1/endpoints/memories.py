@@ -3,7 +3,7 @@ Memory management endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, delete as sa_delete
+from sqlalchemy import select, func, and_, or_, delete as sa_delete
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from typing import List, Optional
@@ -12,14 +12,15 @@ from datetime import datetime
 
 from core.database import get_db
 from core.deps import get_current_user
-from models.database import Memory, User, ProcessingJob, MemoryPerson, Person
+from models.database import Memory, User, ProcessingJob, MemoryPerson, Person, UserConnection
 from models.schemas import (
     MemoryCreate,
     MemoryResponse,
     MemoryListResponse,
     MemoryUpdate,
     MessageResponse,
-    ProcessingJobResponse
+    ProcessingJobResponse,
+    SharedByInfo,
 )
 from services.storage_service import storage_service
 from tasks.celery_app import celery_app
@@ -216,58 +217,149 @@ async def list_memories(
     current_user: User = Depends(get_current_user),
 ):
     """
-    List memories with pagination
+    List memories with pagination, including memories shared by connected users.
+    Own memories and shared memories are merged and sorted by creation date.
     
     - **page**: Page number (starts at 1)
     - **page_size**: Number of items per page (max 100)
-    - **visibility**: Filter by visibility (visible, archived, hidden)
+    - **visibility**: Filter by visibility (visible, archived, hidden). Only applies to own memories.
     """
-    user_id = current_user.id
     user = current_user
-    
+
     # Validate pagination
     if page < 1:
         page = 1
     if page_size < 1 or page_size > 100:
         page_size = 20
-    
-    # Build query
-    query = select(Memory).where(Memory.user_id == user.id)
-    
+
+    # ------------------------------------------------------------------
+    # 1. Own memories: (memory_id, created_at, shared_by=None)
+    # ------------------------------------------------------------------
+    own_query = select(Memory.id, Memory.created_at).where(Memory.user_id == user.id)
     if visibility:
-        query = query.where(Memory.visibility == visibility)
-    
-    # Order by creation date (newest first)
-    query = query.order_by(Memory.created_at.desc())
-    
-    # Get total count
-    count_query = select(func.count()).select_from(Memory).where(Memory.user_id == user.id)
-    if visibility:
-        count_query = count_query.where(Memory.visibility == visibility)
-    
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
-    
-    # Apply pagination
+        own_query = own_query.where(Memory.visibility == visibility)
+    own_result = await db.execute(own_query)
+    own_rows = own_result.all()  # list of (id, created_at)
+
+    # ------------------------------------------------------------------
+    # 2. Shared memories from accepted connections
+    # ------------------------------------------------------------------
+    conn_result = await db.execute(
+        select(UserConnection).where(
+            and_(
+                UserConnection.status == "accepted",
+                or_(
+                    UserConnection.requester_id == user.id,
+                    UserConnection.addressee_id == user.id,
+                ),
+            )
+        )
+    )
+    connections = conn_result.scalars().all()
+
+    # Build a map of memory_id → SharedByInfo for shared memories
+    shared_info_map: dict[uuid.UUID, SharedByInfo] = {}
+
+    for conn in connections:
+        am_requester = conn.requester_id == user.id
+        # The person_id that represents ME in the partner's DB
+        my_person_in_partner = conn.person_id_in_addressee if am_requester else conn.person_id_in_requester
+        partner_id = conn.addressee_id if am_requester else conn.requester_id
+        # My border prefs for this connection
+        border_color = conn.border_color_requester if am_requester else conn.border_color_addressee
+        border_style = conn.border_style_requester if am_requester else conn.border_style_addressee
+
+        if not my_person_in_partner:
+            # Connection has no linked person yet — skip shared memories for this pair
+            continue
+
+        # Find partner's memories where my_person_in_partner appears as a face
+        shared_q = (
+            select(Memory.id, Memory.created_at)
+            .join(MemoryPerson, MemoryPerson.memory_id == Memory.id)
+            .where(
+                and_(
+                    Memory.user_id == partner_id,
+                    Memory.visibility == "visible",
+                    MemoryPerson.person_id == my_person_in_partner,
+                )
+            )
+        )
+        shared_res = await db.execute(shared_q)
+        for mem_id, mem_created_at in shared_res.all():
+            if mem_id not in shared_info_map:
+                # Load partner's name lazily
+                partner_res = await db.execute(select(User).where(User.id == partner_id))
+                partner = partner_res.scalar_one_or_none()
+                partner_name = partner.name if partner else None
+                shared_info_map[mem_id] = SharedByInfo(
+                    user_id=partner_id,
+                    name=partner_name,
+                    border_color=border_color,
+                    border_style=border_style,
+                )
+
+    # ------------------------------------------------------------------
+    # 3. Merge + sort by created_at descending → paginate
+    # ------------------------------------------------------------------
+    all_entries = [(ts, mid) for mid, ts in own_rows]
+
+    # Add shared (need their created_at)
+    if shared_info_map:
+        shared_ids = list(shared_info_map.keys())
+        shared_mem_res = await db.execute(
+            select(Memory.id, Memory.created_at).where(Memory.id.in_(shared_ids))
+        )
+        for mem_id, ts in shared_mem_res.all():
+            all_entries.append((ts, mem_id))
+
+    # Deduplicate (own memory that also appears in shared → keep as own)
+    own_ids = {mid for _, mid in [(ts, mid) for mid, ts in own_rows]}
+    deduped: list[tuple] = []
+    seen: set[uuid.UUID] = set()
+    for ts, mid in all_entries:
+        if mid in seen:
+            continue
+        # If it's a shared memory that the user also owns, skip the shared copy
+        if mid in shared_info_map and mid in own_ids:
+            seen.add(mid)
+            continue
+        seen.add(mid)
+        deduped.append((ts, mid))
+
+    # Sort newest first
+    deduped.sort(key=lambda x: x[0], reverse=True)
+
+    total = len(deduped)
     offset = (page - 1) * page_size
-    query = query.offset(offset).limit(page_size)
-    
-    # Execute query
-    result = await db.execute(query)
-    memories = result.scalars().all()
-    
-    # Convert to response schemas
-    memory_responses = [memory_to_response(m) for m in memories]
-    
-    # Calculate if there are more pages
+    page_entries = deduped[offset: offset + page_size]
     has_more = (offset + page_size) < total
-    
+
+    # ------------------------------------------------------------------
+    # 4. Load full Memory objects for this page
+    # ------------------------------------------------------------------
+    page_ids = [mid for _, mid in page_entries]
+    if not page_ids:
+        return MemoryListResponse(memories=[], total=total, page=page, page_size=page_size, has_more=False)
+
+    mem_result = await db.execute(select(Memory).where(Memory.id.in_(page_ids)))
+    memories_map: dict[uuid.UUID, Memory] = {m.id: m for m in mem_result.scalars().all()}
+
+    memory_responses: list[MemoryResponse] = []
+    for _, mid in page_entries:
+        mem = memories_map.get(mid)
+        if not mem:
+            continue
+        resp = memory_to_response(mem)
+        resp.shared_by = shared_info_map.get(mid)
+        memory_responses.append(resp)
+
     return MemoryListResponse(
         memories=memory_responses,
         total=total,
         page=page,
         page_size=page_size,
-        has_more=has_more
+        has_more=has_more,
     )
 
 
