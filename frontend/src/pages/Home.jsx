@@ -36,31 +36,13 @@ export default function Home() {
   const [addingCat, setAddingCat] = useState(false);
   const searchDebounceRef = useRef(null);
 
-  // Load categories from backend on mount; migrate from localStorage if needed
+  // Load categories from backend on mount
   useEffect(() => {
-    const load = async () => {
-      try {
-        const cats = await categoriesAPI.getAll();
-        if (cats.length > 0) {
-          setCategories(cats);
-          localStorage.removeItem('mymemo_categories'); // clean up old key
-        } else {
-          // Try to migrate from localStorage on first load
-          const saved = localStorage.getItem('mymemo_categories');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            await categoriesAPI.save(parsed);
-            setCategories(parsed);
-            localStorage.removeItem('mymemo_categories');
-          }
-        }
-      } catch {
-        // Fallback: use localStorage if API is unreachable
-        const saved = localStorage.getItem('mymemo_categories');
-        if (saved) setCategories(JSON.parse(saved));
-      }
-    };
-    load();
+    categoriesAPI.getAll()
+      .then(cats => { if (cats.length > 0) setCategories(cats); })
+      .catch(() => {});
+    // Clean up any leftover localStorage key from old version
+    localStorage.removeItem('mymemo_categories');
   }, []);
 
   // Fetch memories AND people from backend
