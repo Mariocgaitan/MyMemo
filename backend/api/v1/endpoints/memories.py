@@ -8,8 +8,9 @@ from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from typing import List, Optional
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
+from core.config import settings
 from core.database import get_db
 from core.deps import get_current_user
 from models.database import Memory, User, ProcessingJob, MemoryPerson, Person, UserConnection
@@ -119,7 +120,35 @@ async def create_memory(
     """
     user_id = current_user.id
     user = current_user
-    
+
+    # ── Per-user rate limit guard ─────────────────────────────────────────────
+    now = datetime.now(timezone.utc)
+    hour_ago = now - timedelta(hours=1)
+    day_ago  = now - timedelta(hours=24)
+
+    count_hour = await db.scalar(
+        select(func.count()).where(
+            and_(Memory.user_id == user_id, Memory.created_at >= hour_ago)
+        )
+    )
+    if count_hour >= settings.MEMORY_CREATION_LIMIT_PER_HOUR:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Límite por hora alcanzado ({settings.MEMORY_CREATION_LIMIT_PER_HOUR} recuerdos/hora). Intenta más tarde."
+        )
+
+    count_day = await db.scalar(
+        select(func.count()).where(
+            and_(Memory.user_id == user_id, Memory.created_at >= day_ago)
+        )
+    )
+    if count_day >= settings.MEMORY_CREATION_LIMIT_PER_DAY:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Límite diario alcanzado ({settings.MEMORY_CREATION_LIMIT_PER_DAY} recuerdos/día). Intenta mañana."
+        )
+    # ─────────────────────────────────────────────────────────────────────────
+
     # Generate memory ID
     memory_id = uuid.uuid4()
     
