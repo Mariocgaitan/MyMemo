@@ -531,14 +531,6 @@ export default function People() {
                         <div className="flex justify-center py-16">
                             <Loader2 size={36} className="animate-spin text-primary" />
                         </div>
-                    ) : people.length === 0 ? (
-                        <div className="text-center py-16 text-text-secondary-light dark:text-text-secondary-dark">
-                            <User size={48} className="text-primary/30 mx-auto mb-4" />
-                            <p className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark">
-                                Aún no hay personas reconocidas
-                            </p>
-                            <p className="text-sm mt-2">Sube una memoria con personas para que la IA las detecte automáticamente.</p>
-                        </div>
                     ) : selectedPerson ? (
                         <PersonMemories
                             person={selectedPerson}
@@ -616,6 +608,17 @@ export default function People() {
 
                             {renderSection(named, 'Reconocidas')}
                             {renderSection(unknown, 'Sin nombre')}
+
+                            {/* Empty state: only when no people AND no connections */}
+                            {people.length === 0 && connections.length === 0 && pendingRequests.length === 0 && (
+                                <div className="text-center py-16 text-text-secondary-light dark:text-text-secondary-dark">
+                                    <User size={48} className="text-primary/30 mx-auto mb-4" />
+                                    <p className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark">
+                                        Aún no hay personas reconocidas
+                                    </p>
+                                    <p className="text-sm mt-2">Sube una memoria con personas para que la IA las detecte automáticamente.</p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
