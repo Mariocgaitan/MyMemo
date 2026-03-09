@@ -4,19 +4,14 @@
  * Has a "Use my GPS" button as shortcut.
  */
 import { useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Navigation, X, Check, Loader2 } from 'lucide-react';
 
 // Default center: Mexico City
 const DEFAULT_CENTER = [19.4326, -99.1332];
 const DEFAULT_ZOOM = 13;
-const MAP_HEIGHT = 360; // explicit px — Leaflet requires this
-
-// Lazily load Leaflet so it only runs in the browser
-async function loadLeaflet() {
-  const L = (await import('leaflet')).default;
-  await import('leaflet/dist/leaflet.css');
-  return L;
-}
+const MAP_HEIGHT = 360;
 
 export default function LocationPickerModal({ isOpen, onClose, onConfirm, initialLat, initialLng }) {
   const mapRef = useRef(null);
@@ -32,11 +27,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
     if (!isOpen) return;
     let cancelled = false;
 
-    // Wait for the DOM to paint, then initialise Leaflet
-    const tid = setTimeout(async () => {
-      if (cancelled || !mapRef.current || mapInstanceRef.current) return;
-
-      const L = await loadLeaflet();
+    const tid = setTimeout(() => {
       if (cancelled || !mapRef.current || mapInstanceRef.current) return;
 
       const startLat = initialLat || DEFAULT_CENTER[0];
