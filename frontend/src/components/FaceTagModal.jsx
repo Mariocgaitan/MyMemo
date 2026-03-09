@@ -5,15 +5,24 @@ import { memoryAPI, peopleAPI } from '../services/api';
 
 /**
  * FaceCrop — shows a face using the best available source:
- *  1. CSS crop from the full memory image using bbox coordinates (most accurate)
- *  2. Pre-cropped S3 thumbnail (fallback for legacy memories without bbox)
+ *  1. Pre-cropped S3 thumbnail (backend already crops + pads correctly)
+ *  2. CSS crop from the full memory image using bbox coordinates (fallback)
  *  3. User silhouette icon (last resort)
  */
 function FaceCrop({ imageUrl, bbox, imageW, imageH, thumbnailUrl, size = 120 }) {
   const containerClass =
     'rounded-xl overflow-hidden bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark flex-shrink-0 relative';
 
-  // Priority 1 — CSS crop from original image using bbox
+  // Priority 1 — pre-cropped S3 face thumbnail (most reliable)
+  if (thumbnailUrl) {
+    return (
+      <div style={{ width: size, height: size }} className={containerClass}>
+        <img src={thumbnailUrl} alt="cara" className="w-full h-full object-cover" />
+      </div>
+    );
+  }
+
+  // Priority 2 — CSS crop from original image using bbox (fallback when no thumbnail yet)
   const hasCrop = bbox && bbox.top != null && imageW && imageH && imageUrl;
   if (hasCrop) {
     const { top, right, bottom, left } = bbox;
@@ -38,15 +47,6 @@ function FaceCrop({ imageUrl, bbox, imageW, imageH, thumbnailUrl, size = 120 }) 
             top: offsetY,
           }}
         />
-      </div>
-    );
-  }
-
-  // Priority 2 — S3 face thumbnail
-  if (thumbnailUrl) {
-    return (
-      <div style={{ width: size, height: size }} className={containerClass}>
-        <img src={thumbnailUrl} alt="cara" className="w-full h-full object-cover" />
       </div>
     );
   }
