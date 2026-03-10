@@ -17,6 +17,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const searchDebounceRef = useRef(null);
+  const mapCenterRef = useRef({ lat: initialLat || DEFAULT_CENTER[0], lng: initialLng || DEFAULT_CENTER[1] });
   const [coords, setCoords] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState('');
@@ -31,6 +32,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
       mapInstanceRef.current.setView(ll, mapInstanceRef.current.getZoom() < 14 ? 15 : mapInstanceRef.current.getZoom());
       markerRef.current.setLatLng(ll);
     }
+    mapCenterRef.current = { lat, lng };
     setCoords({ lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)) });
   }, []);
 
@@ -41,10 +43,18 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
     }
     setSearchLoading(true);
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`;
+      // Build a viewbox of ±1° around the current map center so nearby results appear first
+      const { lat, lng } = mapCenterRef.current;
+      const delta = 1.0;
+      const viewbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=6&addressdetails=1&viewbox=${viewbox}&bounded=0`;
       const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
       const data = await res.json();
-      setSearchResults(data);
+      // Sort: results inside the viewbox (closer to center) first
+      const centerLat = lat, centerLng = lng;
+      const dist = (r) => Math.hypot(parseFloat(r.lat) - centerLat, parseFloat(r.lon) - centerLng);
+      data.sort((a, b) => dist(a) - dist(b));
+      setSearchResults(data.slice(0, 5));
     } catch {
       setSearchResults([]);
     } finally {
@@ -126,6 +136,11 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
       marker.on('dragend', () => {
         const ll = marker.getLatLng();
         updateCoords(ll.lat, ll.lng);
+      });
+      // Track map center for proximity-biased search
+      map.on('moveend', () => {
+        const c = map.getCenter();
+        mapCenterRef.current = { lat: c.lat, lng: c.lng };
       });
 
       setMapReady(true);
