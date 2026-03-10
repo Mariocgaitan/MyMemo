@@ -330,13 +330,14 @@ export default function MemoryDetail() {
   const activity = nlp.activity || null;
   const summary = nlp.summary || null;
 
-  const date = memory.created_at
-    ? new Date(memory.created_at).toLocaleDateString('es-MX', {
+  const displayDate = memory.memory_date || memory.created_at;
+  const date = displayDate
+    ? new Date(displayDate).toLocaleDateString('es-MX', {
       day: 'numeric', month: 'long', year: 'numeric'
     })
     : null;
-  const time = memory.created_at
-    ? new Date(memory.created_at).toLocaleTimeString('es-MX', {
+  const time = displayDate
+    ? new Date(displayDate).toLocaleTimeString('es-MX', {
       hour: '2-digit', minute: '2-digit'
     })
     : null;

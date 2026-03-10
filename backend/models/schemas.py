@@ -60,6 +60,7 @@ class MemoryCreate(BaseModel):
     image_base64: str = Field(..., description="Base64-encoded image data (JPEG/PNG)")
     categories: str | None = Field(None, description="Comma-separated list of categories")
     tagged_people: str | None = Field(None, description="Comma-separated list of people names (for manual tagging)")
+    memory_date: Optional[datetime] = Field(None, description="Custom date for the memory (defaults to now if not set)")
     
     @field_validator('image_base64')
     @classmethod
@@ -123,6 +124,7 @@ class MemoryResponse(BaseModel):
     ai_metadata: Dict[str, Any]
     faces_processed: bool
     visibility: VisibilityEnum
+    memory_date: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     # Populated only for memories shared by a connected user
@@ -180,6 +182,7 @@ class MemoryUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=1, max_length=5000)
     location_name: Optional[str] = Field(None, min_length=1, max_length=255)
     visibility: Optional[VisibilityEnum] = None
+    memory_date: Optional[datetime] = None
 
 
 # ============================================================

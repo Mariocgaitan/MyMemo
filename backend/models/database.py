@@ -72,6 +72,7 @@ class Memory(Base):
     )
     
     # Timestamps
+    memory_date = Column(DateTime(timezone=True), nullable=True)  # User-set date; falls back to created_at if None
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     

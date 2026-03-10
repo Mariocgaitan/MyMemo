@@ -456,7 +456,7 @@ export default function Home() {
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-                      {new Date(memory.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {new Date(memory.memory_date || memory.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </div>
                     {shared && (
                       <div

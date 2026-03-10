@@ -86,6 +86,7 @@ def memory_to_response(memory: Memory) -> MemoryResponse:
         ai_metadata=safe_metadata,
         faces_processed=memory.faces_processed,
         visibility=memory.visibility,
+        memory_date=memory.memory_date,
         created_at=memory.created_at,
         updated_at=memory.updated_at
     )
@@ -186,7 +187,8 @@ async def create_memory(
         thumbnail_url=thumbnail_url,
         ai_metadata=initial_metadata,
         faces_processed=False,
-        visibility="visible"
+        visibility="visible",
+        memory_date=memory_data.memory_date,
     )
     
     db.add(new_memory)
@@ -504,6 +506,8 @@ async def update_memory(
         memory.location_name = update_data.location_name
     if update_data.visibility is not None:
         memory.visibility = update_data.visibility
+    if update_data.memory_date is not None:
+        memory.memory_date = update_data.memory_date
     
     memory.updated_at = datetime.utcnow()
     

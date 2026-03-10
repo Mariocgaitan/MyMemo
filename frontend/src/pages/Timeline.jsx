@@ -34,10 +34,10 @@ export default function Timeline() {
 
   const displayMemories = showAll
     ? memories
-    : memories.filter(m => (Date.now() - new Date(m.created_at)) / 86400000 <= 7);
+    : memories.filter(m => (Date.now() - new Date(m.memory_date || m.created_at)) / 86400000 <= 7);
 
   const hasOlderThanWeek = memories.some(
-    m => (Date.now() - new Date(m.created_at)) / 86400000 > 7
+    m => (Date.now() - new Date(m.memory_date || m.created_at)) / 86400000 > 7
   );
 
   return (
@@ -124,7 +124,7 @@ export default function Timeline() {
                             className="w-full h-full object-cover"
                           />
                           <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
-                            {formatTime(memory.created_at)}
+                            {formatTime(memory.memory_date || memory.created_at)}
                           </div>
                           {shared && (
                             <div
@@ -174,7 +174,7 @@ function groupByDay(memories) {
   yesterday.setDate(yesterday.getDate() - 1);
 
   const groups = memories.reduce((acc, memory) => {
-    const d = new Date(memory.created_at);
+    const d = new Date(memory.memory_date || memory.created_at);
     const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     let label;
     if (day.getTime() === today.getTime()) label = 'Hoy';

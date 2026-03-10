@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Camera, Upload, MapPin, Loader2 } from 'lucide-react';
+import { ChevronLeft, Camera, Upload, MapPin, Loader2, Calendar } from 'lucide-react';
 import { Button, Input, Textarea, Chip } from '../components/ui';
 import { memoryAPI, categoriesAPI } from '../services/api';
 import FaceTagModal from '../components/FaceTagModal';
@@ -71,6 +71,7 @@ export default function CreateMemory() {
     description: '',
     selectedCategories: [],
     people: '', // Comma-separated names
+    memoryDate: '', // ISO date string or empty (means "now")
   });
 
   // Load categories from API
@@ -187,6 +188,7 @@ export default function CreateMemory() {
         },
         categories: formData.selectedCategories.join(','),
         tagged_people: formData.people,
+        memory_date: formData.memoryDate ? new Date(formData.memoryDate).toISOString() : null,
       };
 
       // Step 2: Upload to backend
@@ -390,6 +392,24 @@ export default function CreateMemory() {
             />
             <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
               La IA detecta caras automáticamente al guardar
+            </p>
+          </div>
+
+          {/* Date picker */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
+              <Calendar size={15} className="text-primary" />
+              Fecha del recuerdo
+            </label>
+            <input
+              type="datetime-local"
+              value={formData.memoryDate}
+              onChange={e => setFormData(prev => ({ ...prev, memoryDate: e.target.value }))}
+              max={new Date().toISOString().slice(0, 16)}
+              className="w-full px-4 py-3 rounded-xl border-2 border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark focus:border-primary focus:outline-none transition-colors text-sm"
+            />
+            <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+              {formData.memoryDate ? '' : 'Por defecto: fecha y hora actuales'}
             </p>
           </div>
 

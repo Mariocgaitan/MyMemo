@@ -1,12 +1,11 @@
 /**
  * LocationPickerModal — pick a location from a Leaflet map.
- * Clicking the map moves the pin; dragging the pin also works.
- * Has a "Use my GPS" button as shortcut.
+ * Includes Nominatim geocoding search, GPS button, and draggable pin.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Navigation, X, Check, Loader2 } from 'lucide-react';
+import { Navigation, X, Check, Loader2, Search } from 'lucide-react';
 
 // Default center: Mexico City
 const DEFAULT_CENTER = [19.4326, -99.1332];
@@ -17,10 +16,56 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
+  const searchDebounceRef = useRef(null);
   const [coords, setCoords] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState('');
   const [mapReady, setMapReady] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  const moveMarker = useCallback((lat, lng) => {
+    if (mapInstanceRef.current && markerRef.current) {
+      const ll = [lat, lng];
+      mapInstanceRef.current.setView(ll, mapInstanceRef.current.getZoom() < 14 ? 15 : mapInstanceRef.current.getZoom());
+      markerRef.current.setLatLng(ll);
+    }
+    setCoords({ lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)) });
+  }, []);
+
+  const searchPlaces = useCallback(async (query) => {
+    if (!query.trim() || query.trim().length < 3) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+      const data = await res.json();
+      setSearchResults(data);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => searchPlaces(val), 500);
+  };
+
+  const handleSelectResult = (result) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    moveMarker(lat, lng);
+    setSearchResults([]);
+    setSearchQuery(result.display_name.split(',').slice(0, 2).join(', '));
+  };
 
   // initialise map when opened
   useEffect(() => {
@@ -77,7 +122,6 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
         marker.setLatLng(e.latlng);
         updateCoords(e.latlng.lat, e.latlng.lng);
       });
-
       // Drag marker
       marker.on('dragend', () => {
         const ll = marker.getLatLng();
@@ -102,6 +146,8 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
       setCoords(null);
       setGpsError('');
       setMapReady(false);
+      setSearchQuery('');
+      setSearchResults([]);
     }
   }, [isOpen]);
 
@@ -116,12 +162,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
       (pos) => {
         const { latitude, longitude } = pos.coords;
         setGpsLoading(false);
-        setCoords({ lat: parseFloat(latitude.toFixed(6)), lng: parseFloat(longitude.toFixed(6)) });
-        if (mapInstanceRef.current && markerRef.current) {
-          const ll = [latitude, longitude];
-          mapInstanceRef.current.setView(ll, 16);
-          markerRef.current.setLatLng(ll);
-        }
+        moveMarker(latitude, longitude);
       },
       (err) => {
         setGpsLoading(false);
@@ -165,30 +206,67 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
           </button>
         </div>
 
-        {/* GPS row */}
-        <div className="px-4 py-2 flex items-center gap-3 border-b border-border-light dark:border-border-dark flex-shrink-0 bg-background-light dark:bg-background-dark">
+        {/* Search + GPS row */}
+        <div className="px-4 py-2 flex items-center gap-2 border-b border-border-light dark:border-border-dark flex-shrink-0 bg-background-light dark:bg-background-dark relative">
+          {/* Search input */}
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Buscar lugar..."
+              className="w-full pl-8 pr-3 py-2 rounded-xl text-sm border-2 border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark placeholder:text-text-secondary-light focus:border-primary focus:outline-none transition-colors"
+            />
+            {searchLoading && (
+              <Loader2 size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-primary" />
+            )}
+          </div>
+
+          {/* GPS button */}
           <button
             onClick={handleUseGPS}
             disabled={gpsLoading}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 flex-shrink-0"
+            title="Usar mi GPS"
           >
             {gpsLoading ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
-            {gpsLoading ? 'Buscando...' : 'Usar mi GPS'}
+            <span className="hidden sm:inline">{gpsLoading ? 'Buscando...' : 'GPS'}</span>
           </button>
-          <span className="text-xs flex-1">
-            {gpsError ? (
-              <span className="text-yellow-600 dark:text-yellow-400">{gpsError}</span>
-            ) : coords ? (
-              <span className="text-green-600 dark:text-green-400">
-                {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
-              </span>
-            ) : (
-              <span className="text-text-secondary-light dark:text-text-secondary-dark">
-                Toca el mapa para fijar el punto
-              </span>
-            )}
-          </span>
+
+          {/* Dropdown results — floats over the map */}
+          {searchResults.length > 0 && (
+            <div className="absolute left-4 right-4 top-full mt-1 z-[200] bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-xl overflow-hidden">
+              {searchResults.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSelectResult(r)}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors border-b last:border-b-0 border-border-light dark:border-border-dark"
+                >
+                  <span className="font-medium text-text-primary-light dark:text-text-primary-dark line-clamp-1">
+                    {r.display_name.split(',').slice(0, 2).join(', ')}
+                  </span>
+                  <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark line-clamp-1">
+                    {r.display_name.split(',').slice(2, 4).join(', ')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* GPS error or coords hint */}
+        {(gpsError || coords) && (
+          <div className="px-4 py-1.5 flex-shrink-0 bg-background-light dark:bg-background-dark">
+            {gpsError ? (
+              <p className="text-xs text-yellow-600 dark:text-yellow-400">{gpsError}</p>
+            ) : coords ? (
+              <p className="text-xs text-green-600 dark:text-green-400">
+                📍 {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+              </p>
+            ) : null}
+          </div>
+        )}
 
         {/* Map container — explicit height so Leaflet can measure it */}
         <div style={{ position: 'relative', height: MAP_HEIGHT, flexShrink: 0 }}>
