@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',  // We handle registration manually in main.jsx
       // Solo activo en producción (HTTPS)
       devOptions: {
         enabled: false
