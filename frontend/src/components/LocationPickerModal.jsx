@@ -26,6 +26,8 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
+  const [searchOpen, setSearchOpen] = useState(false);
+
   const moveMarker = useCallback((lat, lng) => {
     if (mapInstanceRef.current && markerRef.current) {
       const ll = [lat, lng];
@@ -75,6 +77,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
     moveMarker(lat, lng);
     setSearchResults([]);
     setSearchQuery(result.display_name.split(',').slice(0, 2).join(', '));
+    setSearchOpen(false); // collapse search bar
   };
 
   // initialise map when opened
@@ -223,31 +226,53 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
 
         {/* Search + GPS row */}
         <div className="px-4 py-2 flex items-center gap-2 border-b border-border-light dark:border-border-dark flex-shrink-0 bg-background-light dark:bg-background-dark relative" style={{ zIndex: 1100 }}>
-          {/* Search input */}
-          <div className="relative flex-1">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              placeholder="Buscar lugar..."
-              className="w-full pl-8 pr-3 py-2 rounded-xl text-sm border-2 border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark placeholder:text-text-secondary-light focus:border-primary focus:outline-none transition-colors"
-            />
-            {searchLoading && (
-              <Loader2 size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-primary" />
-            )}
-          </div>
-
-          {/* GPS button */}
-          <button
-            onClick={handleUseGPS}
-            disabled={gpsLoading}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 flex-shrink-0"
-            title="Usar mi GPS"
-          >
-            {gpsLoading ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
-            <span className="hidden sm:inline">{gpsLoading ? 'Buscando...' : 'GPS'}</span>
-          </button>
+          {searchOpen ? (
+            <>
+              {/* Expanded search input */}
+              <div className="relative flex-1">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  placeholder="Buscar lugar..."
+                  autoFocus
+                  className="w-full pl-8 pr-3 py-2 rounded-xl text-sm border-2 border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark placeholder:text-text-secondary-light focus:border-primary focus:outline-none transition-colors"
+                />
+                {searchLoading && (
+                  <Loader2 size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-primary" />
+                )}
+              </div>
+              {/* Close search */}
+              <button
+                onClick={() => { setSearchOpen(false); setSearchResults([]); }}
+                className="p-2 rounded-xl hover:bg-primary/10 text-text-secondary-light dark:text-text-secondary-dark flex-shrink-0"
+                title="Cerrar búsqueda"
+              >
+                <X size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Collapsed — show search chip + GPS */}
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl border-2 border-dashed border-border-light dark:border-border-dark text-text-secondary-light dark:text-text-secondary-dark text-sm hover:border-primary hover:text-primary transition-colors bg-surface-light dark:bg-surface-dark"
+              >
+                <Search size={14} />
+                {searchQuery || 'Buscar lugar...'}
+              </button>
+              <button
+                onClick={handleUseGPS}
+                disabled={gpsLoading}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 flex-shrink-0"
+                title="Usar mi GPS"
+              >
+                {gpsLoading ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                <span className="hidden sm:inline">{gpsLoading ? 'Buscando...' : 'GPS'}</span>
+              </button>
+            </>
+          )}
 
           {/* Dropdown results — floats over the map */}
           {searchResults.length > 0 && (
