@@ -393,7 +393,7 @@ class ConnectionStatusEnum(str, Enum):
 
 class ConnectionCreate(BaseModel):
     """Send a connection request to another user"""
-    username: str = Field(..., min_length=1, max_length=255, description="Username (name) of the target user")
+    user_id: UUID = Field(..., description="ID of the target user (obtain via /connections/search)")
     person_id: Optional[UUID] = Field(None, description="Person record in your DB that represents this user")
 
 

@@ -137,19 +137,41 @@ function MergeModal({ sourcePerson, allPeople, onConfirm, onCancel, isMerging })
 
 // ─── Link Modal (send connection request) ─────────────────────────────────────
 function LinkModal({ initialPerson, allPeople, onSend, onCancel }) {
-    const [username, setUsername] = useState('');
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState([]);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [searching, setSearching] = useState(false);
     const [personId, setPersonId] = useState(initialPerson?.id || '');
     const [sending, setSending] = useState(false);
     const [error, setError] = useState('');
 
+    useEffect(() => {
+        if (selectedUser || query.trim().length < 2) {
+            setResults([]);
+            return;
+        }
+        const timer = setTimeout(async () => {
+            setSearching(true);
+            try {
+                const data = await connectionsAPI.searchUsers(query.trim());
+                setResults(data);
+            } catch {
+                setResults([]);
+            } finally {
+                setSearching(false);
+            }
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [query, selectedUser]);
+
     const handleSend = async () => {
-        if (!username.trim()) return;
+        if (!selectedUser) return;
         setSending(true);
         setError('');
         try {
-            await onSend(username.trim(), personId || null);
+            await onSend(selectedUser, personId || null);
         } catch (e) {
-            setError(e?.response?.data?.detail || 'No se encontró ese usuario');
+            setError(e?.response?.data?.detail || 'No se pudo enviar la solicitud');
             setSending(false);
         }
     };
@@ -166,14 +188,49 @@ function LinkModal({ initialPerson, allPeople, onSend, onCancel }) {
                     Comparte recuerdos donde ambos aparecen.
                 </p>
 
-                <Input
-                    label="Correo del usuario"
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
-                    placeholder="Ej: diego@gmail.com"
-                    autoFocus
-                    onKeyDown={e => e.key === 'Enter' && handleSend()}
-                />
+                {/* Search input */}
+                <div className="relative">
+                    <Input
+                        label="Buscar por nombre"
+                        value={query}
+                        onChange={e => { setQuery(e.target.value); setSelectedUser(null); }}
+                        placeholder="Escribe el nombre del usuario..."
+                        autoFocus
+                        disabled={!!selectedUser}
+                    />
+                    {searching && (
+                        <div className="absolute right-3 top-9">
+                            <Loader2 size={16} className="animate-spin text-primary" />
+                        </div>
+                    )}
+                    {results.length > 0 && !selectedUser && (
+                        <ul className="absolute z-10 left-0 right-0 mt-1 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-lg overflow-hidden">
+                            {results.map(u => (
+                                <li key={u.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSelectedUser(u); setQuery(u.name || ''); setResults([]); }}
+                                        className="w-full text-left px-4 py-3 hover:bg-primary/10 transition-colors text-sm text-text-primary-light dark:text-text-primary-dark"
+                                    >
+                                        {u.name}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+
+                {/* Selected user chip */}
+                {selectedUser && (
+                    <div className="mt-2 flex items-center gap-2">
+                        <span className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                            {selectedUser.name}
+                            <button type="button" onClick={() => { setSelectedUser(null); setQuery(''); }} className="ml-1 hover:text-primary-hover">
+                                <X size={14} />
+                            </button>
+                        </span>
+                    </div>
+                )}
 
                 <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark mt-4 mb-2">
                     ¿Cuál cara es él/ella en tus fotos? (opcional)
@@ -196,7 +253,7 @@ function LinkModal({ initialPerson, allPeople, onSend, onCancel }) {
                         className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors">
                         Cancelar
                     </button>
-                    <button onClick={handleSend} disabled={sending || !username.trim()}
+                    <button onClick={handleSend} disabled={sending || !selectedUser}
                         className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                         {sending && <Loader2 size={16} className="animate-spin" />} Enviar
                     </button>
@@ -451,11 +508,11 @@ export default function People() {
         setTimeout(() => setToast(null), 4000);
     };
 
-    const handleSendLink = async (username, personId) => {
+    const handleSendLink = async (selectedUser, personId) => {
         // Let the error bubble up to LinkModal so it can show the message inline
-        await connectionsAPI.send(username, personId);
+        await connectionsAPI.send(selectedUser.id, personId);
         setLinkingPerson(null);
-        showToast('success', `Solicitud enviada a @${username}`);
+        showToast('success', `Solicitud enviada a ${selectedUser.name}`);
         await fetchConnections();
     };
 

@@ -244,9 +244,15 @@ export const usageAPI = {
 // ========== Connections Endpoints ==========
 
 export const connectionsAPI = {
-  // Send connection request (username = name of target user, personId = optional)
-  send: async (username, personId = null) => {
-    const response = await api.post('/api/v1/connections', { username, person_id: personId });
+  // Search users by name (partial match, returns [{id, name}])
+  searchUsers: async (q) => {
+    const response = await api.get('/api/v1/connections/search', { params: { q } });
+    return response.data;
+  },
+
+  // Send connection request by user ID (from search results)
+  send: async (userId, personId = null) => {
+    const response = await api.post('/api/v1/connections', { user_id: userId, person_id: personId });
     return response.data;
   },
 

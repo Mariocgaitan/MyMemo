@@ -57,13 +57,13 @@ async def send_connection_request(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Find target user by email (exact, case-insensitive)
+    # Find target user by ID
     result = await db.execute(
-        select(User).where(User.email.ilike(body.username))
+        select(User).where(User.id == body.user_id)
     )
     target = result.scalar_one_or_none()
     if not target:
-        raise HTTPException(status_code=404, detail="No se encontró ningún usuario con ese correo")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     if target.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot connect with yourself")
@@ -165,6 +165,53 @@ async def list_pending_connections(
     for c in conns:
         await db.refresh(c, ["requester", "addressee"])
     return [_connection_to_response(c) for c in conns]
+
+
+# ---------------------------------------------------------------------------
+# GET /connections/search — Search users by name (for send-request autocomplete)
+# ---------------------------------------------------------------------------
+@router.get(
+    "/search",
+    response_model=List[ConnectionUserInfo],
+    summary="Search users by name",
+    description="Find users by partial name match. Excludes self and users already connected.",
+)
+async def search_users(
+    q: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if len(q.strip()) < 2:
+        return []
+
+    # Collect IDs that are already in a connection with the current user (any status)
+    existing_result = await db.execute(
+        select(UserConnection).where(
+            or_(
+                UserConnection.requester_id == current_user.id,
+                UserConnection.addressee_id == current_user.id,
+            )
+        )
+    )
+    connected_ids: set = set()
+    for c in existing_result.scalars().all():
+        connected_ids.add(c.requester_id)
+        connected_ids.add(c.addressee_id)
+    connected_ids.discard(current_user.id)
+
+    query = select(User).where(
+        and_(
+            User.name.ilike(f"%{q.strip()}%"),
+            User.id != current_user.id,
+        )
+    ).limit(8)
+
+    if connected_ids:
+        query = query.where(~User.id.in_(connected_ids))
+
+    users_result = await db.execute(query)
+    users = users_result.scalars().all()
+    return [ConnectionUserInfo(id=u.id, name=u.name) for u in users]
 
 
 # ---------------------------------------------------------------------------
