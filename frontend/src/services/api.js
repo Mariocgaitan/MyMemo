@@ -294,6 +294,12 @@ export const connectionsAPI = {
     });
     return response.data;
   },
+
+  // Assign (or clear) which Person record in your DB represents this connection's partner
+  linkPerson: async (connectionId, personId) => {
+    const response = await api.patch(`/api/v1/connections/${connectionId}/link`, { person_id: personId || null });
+    return response.data;
+  },
 };
 
 export default api;

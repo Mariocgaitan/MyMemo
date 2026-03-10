@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, User, Edit2, Trash2, ChevronRight, Loader2, GitMerge, Link2, Unlink, Check, X, UserPlus } from 'lucide-react';
 import { Input } from '../components/ui';
 import { peopleAPI, connectionsAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 // ─── Rename Modal ──────────────────────────────────────────────────────────────
 function RenameModal({ person, onSave, onCancel }) {
@@ -433,9 +434,65 @@ function PersonMemories({ person, onBack, onMemoryClick }) {
     );
 }
 
+// ─── Link Person to Connection Modal ─────────────────────────────────────────
+function LinkPersonModal({ conn, currentUserId, allPeople, onSave, onCancel }) {
+    const amRequester = conn.requester?.id === currentUserId;
+    const partnerName = amRequester ? conn.addressee?.name : conn.requester?.name;
+    const currentPersonId = amRequester ? (conn.person_id_in_requester || '') : (conn.person_id_in_addressee || '');
+    const [personId, setPersonId] = useState(currentPersonId);
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await onSave(conn.id, personId || null);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative z-10 bg-surface-light dark:bg-surface-dark rounded-2xl shadow-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <User size={24} className="text-primary" />
+                </div>
+                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark text-center mb-1">
+                    ¿Quién es {partnerName} en tus fotos?
+                </h2>
+                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark text-center mb-5">
+                    Selecciona la cara reconocida que corresponde a este amigo/a para compartir recuerdos.
+                </p>
+                <select
+                    value={personId}
+                    onChange={e => setPersonId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark focus:border-primary focus:outline-none transition-colors"
+                >
+                    <option value="">-- Sin vincular --</option>
+                    {allPeople.filter(p => !p.name?.startsWith('Unknown Person')).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </select>
+                <div className="flex gap-3 mt-5">
+                    <button onClick={onCancel}
+                        className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors">
+                        Cancelar
+                    </button>
+                    <button onClick={handleSave} disabled={saving}
+                        className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        {saving && <Loader2 size={16} className="animate-spin" />} Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function People() {
     const navigate = useNavigate();
+    const { user: currentUser } = useAuth();
     const [people, setPeople] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedPerson, setSelectedPerson] = useState(null);
@@ -443,6 +500,7 @@ export default function People() {
     const [deletingPerson, setDeletingPerson] = useState(null);
     const [mergingPerson, setMergingPerson] = useState(null);
     const [linkingPerson, setLinkingPerson] = useState(null);
+    const [linkingConnection, setLinkingConnection] = useState(null);
     const [acceptingRequest, setAcceptingRequest] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isMerging, setIsMerging] = useState(false);
@@ -513,6 +571,13 @@ export default function People() {
         await connectionsAPI.send(selectedUser.id, personId);
         setLinkingPerson(null);
         showToast('success', `Solicitud enviada a ${selectedUser.name}`);
+        await fetchConnections();
+    };
+
+    const handleLinkPersonToConnection = async (connectionId, personId) => {
+        await connectionsAPI.linkPerson(connectionId, personId);
+        setLinkingConnection(null);
+        showToast('success', personId ? 'Cara vinculada ✔️' : 'Vínculo eliminado');
         await fetchConnections();
     };
 
@@ -645,11 +710,10 @@ export default function People() {
                                     </h2>
                                     <div className="space-y-2">
                                         {connections.map(conn => {
-                                            const partner = conn.requester?.id === conn.addressee?.id
-                                                ? conn.requester
-                                                : (conn.requester?.name ? conn.requester : conn.addressee);
-                                            // Determine which side is the current user
-                                            const partnerUser = conn.addressee;
+                                            const amRequester = conn.requester?.id === currentUser?.id;
+                                            const partnerName = amRequester ? conn.addressee?.name : conn.requester?.name;
+                                            const myPersonId = amRequester ? conn.person_id_in_requester : conn.person_id_in_addressee;
+                                            const linkedPerson = myPersonId ? people.find(p => p.id === myPersonId) : null;
                                             return (
                                                 <div key={conn.id} className="bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark p-4 flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -657,9 +721,17 @@ export default function People() {
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-semibold text-text-primary-light dark:text-text-primary-dark truncate">
-                                                            {conn.requester?.name} &amp; {conn.addressee?.name}
+                                                            {partnerName}
                                                         </p>
-                                                        <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Recuerdos compartidos activos</p>
+                                                        <button
+                                                            onClick={() => setLinkingConnection(conn)}
+                                                            className="text-xs mt-0.5 flex items-center gap-1 hover:text-primary transition-colors"
+                                                        >
+                                                            {linkedPerson
+                                                                ? <span className="text-primary font-medium">📷 {linkedPerson.name}</span>
+                                                                : <span className="text-amber-500 font-medium">⚠️ Sin cara vinculada — toca para asignar</span>
+                                                            }
+                                                        </button>
                                                     </div>
                                                     <button onClick={() => handleDisconnect(conn.id)}
                                                         className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Desvincular">
@@ -720,6 +792,15 @@ export default function People() {
                     allPeople={people}
                     onAccept={handleAcceptRequest}
                     onCancel={() => setAcceptingRequest(null)}
+                />
+            )}
+            {linkingConnection && (
+                <LinkPersonModal
+                    conn={linkingConnection}
+                    currentUserId={currentUser?.id}
+                    allPeople={people}
+                    onSave={handleLinkPersonToConnection}
+                    onCancel={() => setLinkingConnection(null)}
                 />
             )}
         </>

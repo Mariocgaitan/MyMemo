@@ -16,6 +16,7 @@ from models.database import User, UserConnection, Person
 from models.schemas import (
     ConnectionCreate,
     ConnectionAccept,
+    ConnectionLinkPerson,
     ConnectionResponse,
     ConnectionStyleUpdate,
     ConnectionUserInfo,
@@ -405,6 +406,63 @@ async def delete_connection(
     await db.delete(conn)
     await db.commit()
     return MessageResponse(message="Connection removed")
+
+
+# ---------------------------------------------------------------------------
+# PATCH /connections/{id}/link — Assign which Person record represents the partner
+# ---------------------------------------------------------------------------
+@router.patch(
+    "/{connection_id}/link",
+    response_model=ConnectionResponse,
+    summary="Link partner to a Person record",
+    description="Set (or clear) which Person in your photo DB represents your connection partner.",
+)
+async def link_person_to_connection(
+    connection_id: uuid.UUID,
+    body: ConnectionLinkPerson,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(UserConnection).where(
+            and_(
+                UserConnection.id == connection_id,
+                UserConnection.status == "accepted",
+                or_(
+                    UserConnection.requester_id == current_user.id,
+                    UserConnection.addressee_id == current_user.id,
+                ),
+            )
+        )
+    )
+    conn = result.scalar_one_or_none()
+    if not conn:
+        raise HTTPException(status_code=404, detail="Accepted connection not found")
+
+    # Validate person_id belongs to current user (if provided)
+    if body.person_id:
+        person_result = await db.execute(
+            select(Person).where(
+                and_(Person.id == body.person_id, Person.user_id == current_user.id)
+            )
+        )
+        if not person_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Person not found in your account")
+
+    am_requester = conn.requester_id == current_user.id
+    if am_requester:
+        conn.person_id_in_requester = body.person_id
+    else:
+        conn.person_id_in_addressee = body.person_id
+
+    # Propagate embeddings if both sides are now linked
+    if conn.person_id_in_requester and conn.person_id_in_addressee:
+        await _propagate_embeddings(db, conn)
+
+    await db.flush()
+    await db.refresh(conn, ["requester", "addressee"])
+    await db.commit()
+    return _connection_to_response(conn)
 
 
 # ---------------------------------------------------------------------------

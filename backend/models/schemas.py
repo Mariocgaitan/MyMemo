@@ -408,6 +408,11 @@ class ConnectionAccept(BaseModel):
     person_id: Optional[UUID] = Field(None, description="Person record in your DB that represents the requester")
 
 
+class ConnectionLinkPerson(BaseModel):
+    """Assign (or clear) the person record that represents the partner in your photos"""
+    person_id: Optional[UUID] = Field(None, description="Person record in your DB that represents the partner (null to clear)")
+
+
 class ConnectionUserInfo(BaseModel):
     """Minimal user info exposed in connection responses"""
     id: UUID
