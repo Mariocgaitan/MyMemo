@@ -207,7 +207,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
         </div>
 
         {/* Search + GPS row */}
-        <div className="px-4 py-2 flex items-center gap-2 border-b border-border-light dark:border-border-dark flex-shrink-0 bg-background-light dark:bg-background-dark relative">
+        <div className="px-4 py-2 flex items-center gap-2 border-b border-border-light dark:border-border-dark flex-shrink-0 bg-background-light dark:bg-background-dark relative" style={{ zIndex: 1100 }}>
           {/* Search input */}
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark pointer-events-none" />
@@ -236,7 +236,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
 
           {/* Dropdown results — floats over the map */}
           {searchResults.length > 0 && (
-            <div className="absolute left-4 right-4 top-full mt-1 z-[200] bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-xl overflow-hidden">
+            <div className="absolute left-4 right-4 top-full mt-1 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-xl overflow-hidden" style={{ zIndex: 2000 }}>
               {searchResults.map((r, i) => (
                 <button
                   key={i}
