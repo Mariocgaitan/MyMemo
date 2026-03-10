@@ -581,7 +581,14 @@ export default function People() {
                             <span className="font-medium">Volver</span>
                         </button>
                         <h1 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">Personas</h1>
-                        <div className="w-20" />
+                        <button
+                            onClick={() => setLinkingPerson({})}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-sm font-semibold transition-colors"
+                            title="Agregar compañero"
+                        >
+                            <UserPlus size={16} />
+                            <span className="hidden sm:inline">Agregar</span>
+                        </button>
                     </div>
                 </div>
 
