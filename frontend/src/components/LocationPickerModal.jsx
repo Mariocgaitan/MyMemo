@@ -237,7 +237,8 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
                   onChange={handleSearchChange}
                   placeholder="Buscar lugar..."
                   autoFocus
-                  className="w-full pl-8 pr-3 py-2 rounded-xl text-sm border-2 border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark placeholder:text-text-secondary-light focus:border-primary focus:outline-none transition-colors"
+                  style={{ fontSize: '16px' }}
+                  className="w-full pl-8 pr-3 py-2 rounded-xl border-2 border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark placeholder:text-text-secondary-light focus:border-primary focus:outline-none transition-colors"
                 />
                 {searchLoading && (
                   <Loader2 size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-primary" />
