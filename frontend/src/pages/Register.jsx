@@ -29,6 +29,8 @@ export default function Register() {
       const detail = err.response?.data?.detail;
       if (detail === 'Email already registered') {
         setError('Este email ya está registrado');
+      } else if (detail === 'Name already taken') {
+        setError('Ese nombre ya está en uso, elige otro');
       } else if (Array.isArray(detail)) {
         setError(detail[0]?.msg || 'Error al registrarse');
       } else {

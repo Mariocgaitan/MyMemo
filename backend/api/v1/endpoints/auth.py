@@ -60,6 +60,16 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
             detail="Email already registered",
         )
 
+    if body.name and body.name.strip():
+        name_check = await db.execute(
+            select(User).where(User.name.ilike(body.name.strip()))
+        )
+        if name_check.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Name already taken",
+            )
+
     user = User(
         email=body.email,
         hashed_password=hash_password(body.password),
