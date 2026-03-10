@@ -17,6 +17,10 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!name.trim()) {
+      setError('El nombre es obligatorio');
+      return;
+    }
     if (password.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres');
       return;
@@ -66,11 +70,12 @@ export default function Register() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               id="name"
-              label="Nombre (opcional)"
+              label="Nombre"
               type="text"
               autoComplete="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              required
             />
             <Input
               id="email"
