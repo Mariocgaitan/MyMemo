@@ -1,178 +1,288 @@
 """
-MyMemo — Admin Dashboard de Costos y Uso de IA
+MyMemo — Admin Dashboard
 Corre con: streamlit run app.py
+
+Variables de entorno:
+  MYMEMO_API_URL   URL base del backend  (default: http://localhost:8000)
+  ADMIN_API_KEY    Clave X-Admin-Key para el endpoint /admin/stats
 """
 import os
 import requests
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
-from datetime import datetime, timedelta
+from dotenv import load_dotenv
 
-# ── Config ───────────────────────────────────────────────────────────────────
-API_URL = os.getenv("MYMEMO_API_URL", "http://localhost:8000")
+load_dotenv()  # Carga dashboard/.env si existe
+
+# ── Config ────────────────────────────────────────────────────────────────────
+API_URL   = os.getenv("MYMEMO_API_URL", "http://localhost:8000")
+ADMIN_KEY = os.getenv("ADMIN_API_KEY", "")
+
+COLORS = {
+    "primary":  "#F39C12",
+    "success":  "#2ECC71",
+    "danger":   "#E74C3C",
+    "purple":   "#9B59B6",
+    "blue":     "#3498DB",
+    "teal":     "#1ABC9C",
+}
 
 st.set_page_config(
-    page_title="MyMemo — Admin Dashboard",
-    page_icon="🧠",
+    page_title="MyMemo Admin",
+    page_icon="🗺️",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-@st.cache_data(ttl=60)
-def fetch(endpoint: str, params: dict = None):
-    """Fetch from the backend API, return JSON or None."""
+@st.cache_data(ttl=120)
+def fetch_stats() -> dict | None:
+    if not ADMIN_KEY:
+        st.error("⚠️ ADMIN_API_KEY no configurada. Agrega la variable de entorno y reinicia.")
+        return None
     try:
-        r = requests.get(f"{API_URL}{endpoint}", params=params, timeout=10)
+        r = requests.get(
+            f"{API_URL}/api/v1/admin/stats",
+            headers={"X-Admin-Key": ADMIN_KEY},
+            timeout=15,
+        )
         r.raise_for_status()
         return r.json()
+    except requests.HTTPError as e:
+        st.error(f"Error HTTP {e.response.status_code}: {e.response.text}")
+        return None
     except Exception as e:
-        st.error(f"Error al conectar con la API ({endpoint}): {e}")
+        st.error(f"No se pudo conectar con `{API_URL}`: {e}")
         return None
 
 
-# ── Header ────────────────────────────────────────────────────────────────────
-st.title("🧠 MyMemo — Dashboard de Admin")
-st.caption(f"Conectado a: `{API_URL}`")
+def sparkline(series: list[dict], x_key: str, y_key: str, color: str) -> go.Figure:
+    """Mini line chart sin ejes, para usar como indicador visual."""
+    df = pd.DataFrame(series) if series else pd.DataFrame({x_key: [], y_key: []})
+    fig = go.Figure(go.Scatter(
+        x=df[x_key] if not df.empty else [],
+        y=df[y_key] if not df.empty else [],
+        mode="lines",
+        line=dict(color=color, width=2),
+        fill="tozeroy",
+        fillcolor=color.replace(")", ",0.15)").replace("rgb", "rgba") if "rgb" in color else color + "26",
+    ))
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=60,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+    )
+    return fig
 
-col_refresh, _ = st.columns([1, 8])
-with col_refresh:
-    if st.button("🔄 Refrescar"):
+
+def bar_chart(series: list[dict], x_key: str, y_key: str, color: str,
+              x_label: str = "", y_label: str = "") -> go.Figure:
+    df = pd.DataFrame(series) if series else pd.DataFrame({x_key: [], y_key: []})
+    fig = px.bar(
+        df, x=x_key, y=y_key,
+        color_discrete_sequence=[color],
+        labels={x_key: x_label, y_key: y_label},
+    )
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=10, b=0),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+    )
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(gridcolor="rgba(128,128,128,0.15)")
+    return fig
+
+
+def line_chart(series: list[dict], x_key: str, y_key: str, color: str,
+               x_label: str = "", y_label: str = "") -> go.Figure:
+    df = pd.DataFrame(series) if series else pd.DataFrame({x_key: [], y_key: []})
+    fig = px.line(
+        df, x=x_key, y=y_key,
+        color_discrete_sequence=[color],
+        labels={x_key: x_label, y_key: y_label},
+        markers=True,
+    )
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=10, b=0),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+    )
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(gridcolor="rgba(128,128,128,0.15)")
+    return fig
+
+
+# ── Header ────────────────────────────────────────────────────────────────────
+col_title, col_btn = st.columns([6, 1])
+with col_title:
+    st.title("🗺️ MyMemo — Admin Dashboard")
+    st.caption(f"Backend: `{API_URL}` · caché 2 min")
+with col_btn:
+    st.write("")
+    if st.button("🔄 Refrescar", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
 st.divider()
 
-# ── Fetch data ────────────────────────────────────────────────────────────────
-usage_data   = fetch("/api/v1/usage/summary")
-metrics_raw  = fetch("/api/v1/usage/metrics", {"limit": 500})
-memories_raw = fetch("/api/v1/memories", {"limit": 1, "skip": 0})
-people_raw   = fetch("/api/v1/people")
+# ── Load data ─────────────────────────────────────────────────────────────────
+data = fetch_stats()
+if not data:
+    st.stop()
 
-# ── Top KPI Cards ─────────────────────────────────────────────────────────────
-st.subheader("📊 Resumen del mes")
+users   = data.get("users", {})
+mems    = data.get("memories", {})
+conns   = data.get("connections", {})
+people  = data.get("people", {})
+costs   = data.get("costs", {})
+jobs    = data.get("jobs_last_30d", {})
+series  = data.get("series", {})
 
-if usage_data:
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-    with kpi1:
-        st.metric("Total tokens OpenAI", f"{usage_data.get('total_openai_tokens', 0):,}")
-    with kpi2:
-        st.metric("Costo estimado", f"${usage_data.get('total_cost_usd', 0):.4f} USD")
-    with kpi3:
-        st.metric("Faces detectadas", f"{usage_data.get('total_face_detections', 0):,}")
-    with kpi4:
-        total_memories = memories_raw.get("total", "—") if memories_raw else "—"
-        st.metric("Total memorias", total_memories)
-else:
-    st.warning("No se pudo cargar el resumen de uso.")
+generated_at = data.get("generated_at", "")
+if generated_at:
+    st.caption(f"Datos generados: {generated_at[:19].replace('T', ' ')} UTC")
 
+# ── KPI row 1: Usuarios ───────────────────────────────────────────────────────
+st.subheader("👥 Usuarios")
+u1, u2, u3, u4 = st.columns(4)
+u1.metric("Total registrados",   users.get("total", 0))
+u2.metric("Nuevos (7 días)",     users.get("new_last_7d", 0))
+u3.metric("Nuevos (30 días)",    users.get("new_last_30d", 0))
+u4.metric("Activos (30 días)",   users.get("active_last_30d", 0),
+          help="Usuarios que subieron al menos 1 memoria en los últimos 30 días")
+
+# Sparkline usuarios/día
+users_series = series.get("users_per_day", [])
+if users_series:
+    st.plotly_chart(
+        sparkline(users_series, "date", "count", COLORS["blue"]),
+        use_container_width=True, config={"displayModeBar": False},
+    )
+
+# ── KPI row 2: Memorias ───────────────────────────────────────────────────────
 st.divider()
+st.subheader("📸 Memorias")
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Total memorias",    mems.get("total", 0))
+m2.metric("Últimos 7 días",    mems.get("last_7d", 0))
+m3.metric("Últimos 30 días",   mems.get("last_30d", 0))
+m4.metric("Conexiones activas", conns.get("accepted", 0))
 
-# ── Metrics over time ─────────────────────────────────────────────────────────
-if metrics_raw:
-    metrics = metrics_raw if isinstance(metrics_raw, list) else metrics_raw.get("metrics", [])
-    if metrics:
-        df = pd.DataFrame(metrics)
-        df["date"] = pd.to_datetime(df["recorded_at"]).dt.date
-
-        # ── Tokens por día ────────────────────────────────────────────────────
-        st.subheader("📈 Tokens OpenAI por día")
-        tokens_df = (
-            df[df["metric_type"] == "openai_tokens"]
-            .groupby("date")["metric_value"]
-            .sum()
-            .reset_index()
-            .rename(columns={"metric_value": "tokens"})
-        )
-        if not tokens_df.empty:
-            fig = px.bar(
-                tokens_df, x="date", y="tokens",
-                color_discrete_sequence=["#F39C12"],
-                labels={"date": "Fecha", "tokens": "Tokens"},
-            )
-            fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No hay datos de tokens aún.")
-
-        # ── Costo acumulado ───────────────────────────────────────────────────
-        st.subheader("💸 Costo acumulado por día (USD)")
-        cost_df = (
-            df.groupby("date")["cost_usd"]
-            .sum()
-            .reset_index()
-            .rename(columns={"cost_usd": "costo_usd"})
-        )
-        if not cost_df.empty:
-            fig2 = px.line(
-                cost_df, x="date", y="costo_usd",
-                color_discrete_sequence=["#E74C3C"],
-                labels={"date": "Fecha", "costo_usd": "Costo (USD)"},
-                markers=True,
-            )
-            fig2.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig2, use_container_width=True)
-        else:
-            st.info("No hay datos de costo aún.")
-
-        # ── Caras detectadas por día ──────────────────────────────────────────
-        st.subheader("👥 Faces detectadas por día")
-        faces_df = (
-            df[df["metric_type"] == "face_detection"]
-            .groupby("date")["metric_value"]
-            .sum()
-            .reset_index()
-            .rename(columns={"metric_value": "faces"})
-        )
-        if not faces_df.empty:
-            fig3 = px.bar(
-                faces_df, x="date", y="faces",
-                color_discrete_sequence=["#2ECC71"],
-                labels={"date": "Fecha", "faces": "Caras detectadas"},
-            )
-            fig3.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig3, use_container_width=True)
-        else:
-            st.info("No hay datos de faces aún.")
-
-        st.divider()
-
-        # ── Tabla detallada ───────────────────────────────────────────────────
-        st.subheader("📋 Métricas detalladas (últimas 100)")
-        cols_show = ["metric_type", "metric_value", "cost_usd", "recorded_at"]
-        available = [c for c in cols_show if c in df.columns]
-        st.dataframe(df[available].head(100), use_container_width=True)
-
+# Bar: memorias por día
+mem_series = series.get("memories_per_day", [])
+if mem_series:
+    st.plotly_chart(
+        bar_chart(mem_series, "date", "count", COLORS["primary"],
+                  x_label="Fecha", y_label="Memorias"),
+        use_container_width=True, config={"displayModeBar": False},
+    )
 else:
-    st.warning("No hay métricas registradas todavía.")
+    st.info("Sin datos de memorias por día todavía.")
 
+# ── KPI row 3: Costos ─────────────────────────────────────────────────────────
 st.divider()
+st.subheader("💸 Costos IA")
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Costo total acumulado", f"${costs.get('total_usd', 0):.4f}")
+c2.metric("Últimos 30 días",       f"${costs.get('last_30d_usd', 0):.4f}")
+c3.metric("Últimos 7 días",        f"${costs.get('last_7d_usd', 0):.4f}")
 
-# ── People summary ────────────────────────────────────────────────────────────
-st.subheader("👤 Resumen de personas")
-if people_raw:
-    named = [p for p in people_raw if not str(p.get("name", "")).startswith("Unknown Person")]
-    unknown = [p for p in people_raw if str(p.get("name", "")).startswith("Unknown Person")]
-    p1, p2 = st.columns(2)
-    with p1:
-        st.metric("Personas nombradas", len(named))
-    with p2:
-        st.metric("Sin nombre", len(unknown))
+# Proyección mensual basada en últimos 7 días
+cost_7d = costs.get("last_7d_usd", 0)
+projection = (cost_7d / 7) * 30 if cost_7d else 0
+c4.metric("Proyección mensual", f"${projection:.4f}",
+          delta=f"{'↑' if projection > costs.get('last_30d_usd', 0) else '↓'} vs mes actual",
+          delta_color="inverse")
 
-    if named:
-        st.markdown("**Top personas por apariciones:**")
-        people_df = pd.DataFrame(named)[["name", "times_detected"]].sort_values(
-            "times_detected", ascending=False
+# Line: costo por día
+cost_series = series.get("cost_per_day", [])
+col_cost, col_breakdown = st.columns([2, 1])
+
+with col_cost:
+    if cost_series:
+        st.plotly_chart(
+            line_chart(cost_series, "date", "cost_usd", COLORS["danger"],
+                       x_label="Fecha", y_label="Costo (USD)"),
+            use_container_width=True, config={"displayModeBar": False},
         )
-        fig4 = px.bar(
-            people_df.head(10), x="name", y="times_detected",
-            color_discrete_sequence=["#9B59B6"],
-            labels={"name": "Persona", "times_detected": "Apariciones"},
+    else:
+        st.info("Sin datos de costo por día.")
+
+with col_breakdown:
+    by_type = costs.get("by_type_last_30d", [])
+    if by_type:
+        st.markdown("**Desglose por tipo (30d)**")
+        df_type = pd.DataFrame(by_type).sort_values("cost_usd", ascending=False)
+        fig_pie = px.pie(
+            df_type, names="type", values="cost_usd",
+            color_discrete_sequence=px.colors.qualitative.Set2,
+            hole=0.4,
         )
-        fig4.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig4, use_container_width=True)
+        fig_pie.update_layout(
+            margin=dict(l=0, r=0, t=10, b=0),
+            paper_bgcolor="rgba(0,0,0,0)",
+            showlegend=True,
+            legend=dict(font=dict(size=11)),
+        )
+        st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": False})
+        st.dataframe(
+            df_type.rename(columns={"type": "Tipo", "cost_usd": "Costo USD", "count": "Llamadas"}),
+            use_container_width=True, hide_index=True,
+        )
+    else:
+        st.info("Sin métricas de costo por tipo.")
+
+# ── Personas & Reconocimiento facial ─────────────────────────────────────────
+st.divider()
+st.subheader("🤖 Reconocimiento facial")
+p1, p2, p3, p4 = st.columns(4)
+p1.metric("Total personas detectadas", people.get("total", 0))
+p2.metric("Nombradas",                 people.get("named", 0))
+p3.metric("Sin nombre",                people.get("unknown", 0))
+pct = round(people.get("named", 0) / people.get("total", 1) * 100) if people.get("total") else 0
+p4.metric("% identificadas",           f"{pct}%")
+
+# ── Jobs de procesamiento ─────────────────────────────────────────────────────
+st.divider()
+st.subheader("⚙️ Jobs de procesamiento (últimos 30 días)")
+if jobs:
+    j_cols = st.columns(len(jobs))
+    status_colors = {"completed": "✅", "failed": "❌", "pending": "🕐", "processing": "⏳"}
+    for col, (status, count) in zip(j_cols, sorted(jobs.items())):
+        col.metric(f"{status_colors.get(status, '•')} {status.capitalize()}", count)
+
+    # Barra de proporción
+    total_jobs = sum(jobs.values())
+    if total_jobs:
+        df_jobs = pd.DataFrame([{"status": k, "count": v} for k, v in jobs.items()])
+        fig_jobs = px.bar(
+            df_jobs, x="count", y=[""] * len(df_jobs), color="status",
+            orientation="h", barmode="stack",
+            color_discrete_map={
+                "completed": COLORS["success"],
+                "failed": COLORS["danger"],
+                "pending": COLORS["primary"],
+                "processing": COLORS["blue"],
+            },
+            labels={"count": "Jobs", "status": "Estado"},
+        )
+        fig_jobs.update_layout(
+            height=80, margin=dict(l=0, r=0, t=0, b=0),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            yaxis=dict(visible=False), xaxis=dict(visible=False),
+            showlegend=True,
+        )
+        st.plotly_chart(fig_jobs, use_container_width=True, config={"displayModeBar": False})
 else:
-    st.info("Sin datos de personas.")
+    st.info("Sin datos de jobs.")
 
-st.caption("MyMemo Admin Dashboard · Datos actualizados cada 60 s (usa 🔄 para forzar)")
+# ── Footer ────────────────────────────────────────────────────────────────────
+st.divider()
+st.caption("MyMemo Admin Dashboard · Solo datos agregados, sin información personal · caché 2 min")
