@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 60
     MEMORY_CREATION_LIMIT_PER_HOUR: int = 10
     MEMORY_CREATION_LIMIT_PER_DAY: int = 50
+
+    # Admin
+    ADMIN_API_KEY: str = ""
     
     # Image Processing
     MAX_IMAGE_SIZE_MB: int = 10
