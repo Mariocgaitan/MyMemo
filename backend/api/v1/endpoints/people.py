@@ -35,7 +35,7 @@ def _merge_encodings(source_embedding: str, target_embedding: str) -> str:
 
 from core.database import get_db
 from core.deps import get_current_user
-from models.database import Person, User, MemoryPerson, Memory
+from models.database import Person, User, MemoryPerson, Memory, UserConnection
 from models.schemas import PersonCreate, PersonResponse, MemoryResponse
 from api.v1.endpoints.memories import memory_to_response
 from services.storage_service import storage_service
@@ -342,6 +342,29 @@ async def update_person(
             .where(MemoryPerson.person_id == person_id)
             .values(person_id=existing_person.id)
         )
+
+        # Keep connection links stable if this person was used in any accepted connection
+        await db.execute(
+            update(UserConnection)
+            .where(
+                and_(
+                    UserConnection.requester_id == user_id,
+                    UserConnection.person_id_in_requester == person_id,
+                )
+            )
+            .values(person_id_in_requester=existing_person.id)
+        )
+        await db.execute(
+            update(UserConnection)
+            .where(
+                and_(
+                    UserConnection.addressee_id == user_id,
+                    UserConnection.person_id_in_addressee == person_id,
+                )
+            )
+            .values(person_id_in_addressee=existing_person.id)
+        )
+
         # Elimina la persona duplicada
         await db.execute(delete(Person).where(Person.id == person_id))
         await db.commit()
@@ -439,6 +462,28 @@ async def merge_people(
         MemoryPerson.__table__.update()
         .where(MemoryPerson.person_id == person_id)
         .values(person_id=target_person_id)
+    )
+
+    # Keep connection links stable if this person was used in any accepted connection
+    await db.execute(
+        update(UserConnection)
+        .where(
+            and_(
+                UserConnection.requester_id == user_id,
+                UserConnection.person_id_in_requester == person_id,
+            )
+        )
+        .values(person_id_in_requester=target_person_id)
+    )
+    await db.execute(
+        update(UserConnection)
+        .where(
+            and_(
+                UserConnection.addressee_id == user_id,
+                UserConnection.person_id_in_addressee == person_id,
+            )
+        )
+        .values(person_id_in_addressee=target_person_id)
     )
 
     # Merge face encodings so the target person gains the source's encodings.

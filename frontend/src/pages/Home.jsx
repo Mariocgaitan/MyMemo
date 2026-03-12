@@ -239,6 +239,15 @@ export default function Home() {
         }
       }
 
+      // Fallback for legacy/stale link data: match selected person name with shared partner name.
+      if (!hasPerson && memory.shared_by?.name) {
+        const partnerName = String(memory.shared_by.name).trim().toLowerCase();
+        hasPerson = selectedPeople.some(pid => {
+          const selected = people.find(p => String(p.id) === String(pid));
+          return selected?.name && String(selected.name).trim().toLowerCase() === partnerName;
+        });
+      }
+
       if (!hasPerson) return false;
     }
 
