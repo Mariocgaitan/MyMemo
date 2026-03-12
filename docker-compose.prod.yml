@@ -37,6 +37,7 @@ services:
       - S3_BUCKET_THUMBNAILS=${S3_BUCKET_THUMBNAILS}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SECRET_KEY=${SECRET_KEY}
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
       - ALLOWED_ORIGINS=https://${DOMAIN}
     depends_on:
       db:
