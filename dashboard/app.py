@@ -5,6 +5,8 @@ Corre con: uv run streamlit run app.py
 Variables de entorno (dashboard/.env):
   MYMEMO_API_URL   URL base del backend  (default: http://localhost:8000)
   ADMIN_API_KEY    Clave X-Admin-Key para los endpoints /admin/*
+    INSTANCE_MONTHLY_USD  Costo mensual estimado de la instancia
+    DATABASE_MONTHLY_USD  Costo mensual estimado de la base de datos
 """
 import os
 import requests
@@ -19,6 +21,20 @@ load_dotenv()
 # ── Config ────────────────────────────────────────────────────────────────────
 API_URL   = os.getenv("MYMEMO_API_URL", "http://localhost:8000")
 ADMIN_KEY = os.getenv("ADMIN_API_KEY", "")
+
+
+def env_float(name: str, default: float = 0.0) -> float:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+INSTANCE_MONTHLY_USD = env_float("INSTANCE_MONTHLY_USD")
+DATABASE_MONTHLY_USD = env_float("DATABASE_MONTHLY_USD")
 
 C = {
     "orange": "#F39C12",
@@ -113,6 +129,10 @@ def donut(values: list, names: list, colors: list, height=260) -> go.Figure:
     fig.update_traces(textposition="inside", textinfo="percent+label")
     return fig
 
+
+def currency(value: float) -> str:
+    return f"${value:,.4f}"
+
 def filter_series(raw: list[dict], date_key: str, val_key: str, days: int) -> pd.DataFrame:
     if not raw:
         return pd.DataFrame(columns=[date_key, val_key])
@@ -152,6 +172,13 @@ with st.sidebar:
     if st.button("🔄 Refrescar datos", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
+    if INSTANCE_MONTHLY_USD or DATABASE_MONTHLY_USD:
+        st.divider()
+        st.caption(
+            "Infra configurada: "
+            f"instancia {currency(INSTANCE_MONTHLY_USD)} / mes · "
+            f"DB {currency(DATABASE_MONTHLY_USD)} / mes"
+        )
     st.caption(f"Backend: `{API_URL}`")
 
 if not data:
@@ -305,44 +332,103 @@ with tab_cost:
     cost_30d   = costs_d.get("last_30d_usd", 0)
     cost_total = costs_d.get("total_usd", 0)
     projection = (cost_7d / 7) * 30 if cost_7d else 0
+    infra_monthly = INSTANCE_MONTHLY_USD + DATABASE_MONTHLY_USD
+    combined_monthly = projection + infra_monthly
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Costo total acumulado", f"${cost_total:.4f}")
-    c2.metric(f"Costo ({days}d)",      f"${cost_in_period:.4f}")
-    c3.metric("Últimos 7 días",        f"${cost_7d:.4f}")
-    c4.metric("Proyección mensual",    f"${projection:.4f}",
+    c1.metric("Costo IA acumulado", currency(cost_total))
+    c2.metric(f"Costo IA ({days}d)", currency(cost_in_period))
+    c3.metric("Infra mensual fija", currency(infra_monthly),
+              help="Suma de instancia y base de datos definida por variables de entorno del dashboard")
+    c4.metric("Run-rate mensual total", currency(combined_monthly),
               delta=f"{'↑' if projection > cost_30d else '='} vs mes actual",
               delta_color="inverse" if projection > cost_30d else "off")
 
     st.divider()
-    st.markdown('<p class="sec-header">Costo por día</p>', unsafe_allow_html=True)
-    if not cost_df.empty:
-        st.plotly_chart(area_chart(cost_df, "date", "cost_usd", C["red"], height=320),
-                        use_container_width=True, config={"displayModeBar": False})
-    else:
-        st.info("Sin datos de costo en este período.")
+    col_cost_ai, col_cost_infra = st.columns([2, 1])
+    with col_cost_ai:
+        st.markdown('<p class="sec-header">Costo IA por día</p>', unsafe_allow_html=True)
+        if not cost_df.empty:
+            st.plotly_chart(area_chart(cost_df, "date", "cost_usd", C["red"], height=320),
+                            use_container_width=True, config={"displayModeBar": False})
+        else:
+            st.info("Sin datos de costo de IA en este período.")
+    with col_cost_infra:
+        st.markdown('<p class="sec-header">Infraestructura mensual</p>', unsafe_allow_html=True)
+        df_infra = pd.DataFrame([
+            {"concept": "Instancia", "cost": INSTANCE_MONTHLY_USD},
+            {"concept": "Base de datos", "cost": DATABASE_MONTHLY_USD},
+        ])
+        if float(df_infra["cost"].sum()) > 0:
+            fig_infra = px.bar(
+                df_infra,
+                x="concept",
+                y="cost",
+                color="concept",
+                color_discrete_map={"Instancia": C["purple"], "Base de datos": C["blue"]},
+            )
+            fig_infra.update_layout(
+                **_BASE,
+                height=320,
+                showlegend=False,
+                xaxis=dict(showgrid=False),
+                yaxis=dict(gridcolor="rgba(128,128,128,0.15)"),
+            )
+            st.plotly_chart(fig_infra, use_container_width=True, config={"displayModeBar": False})
+        else:
+            st.info("Configura `INSTANCE_MONTHLY_USD` y `DATABASE_MONTHLY_USD` en `dashboard/.env`.")
 
     by_type = costs_d.get("by_type_last_30d", [])
+    st.divider()
+    col_pie, col_tbl = st.columns([1, 1])
+
+    with col_pie:
+        st.markdown('<p class="sec-header">Composición mensual estimada</p>', unsafe_allow_html=True)
+        monthly_ai = projection
+        pie_values = [monthly_ai, INSTANCE_MONTHLY_USD, DATABASE_MONTHLY_USD]
+        pie_names = ["IA", "Instancia", "Base de datos"]
+        non_zero = [(name, value) for name, value in zip(pie_names, pie_values) if value > 0]
+        if non_zero:
+            fig_mix = donut(
+                [value for _, value in non_zero],
+                [name for name, _ in non_zero],
+                [C["red"], C["purple"], C["blue"]][:len(non_zero)],
+                height=300,
+            )
+            st.plotly_chart(fig_mix, use_container_width=True, config={"displayModeBar": False})
+        else:
+            st.info("Sin costos para mostrar todavía.")
+
+    with col_tbl:
+        st.markdown('<p class="sec-header">Tabla de costos</p>', unsafe_allow_html=True)
+        rows = [
+            {"Tipo": "IA acumulada", "Costo (USD)": currency(cost_total), "Ventana": "Histórico"},
+            {"Tipo": "IA proyectada", "Costo (USD)": currency(projection), "Ventana": "Mensual estimada"},
+            {"Tipo": "Instancia", "Costo (USD)": currency(INSTANCE_MONTHLY_USD), "Ventana": "Mensual fija"},
+            {"Tipo": "Base de datos", "Costo (USD)": currency(DATABASE_MONTHLY_USD), "Ventana": "Mensual fija"},
+            {"Tipo": "Total mensual estimado", "Costo (USD)": currency(combined_monthly), "Ventana": "Mensual"},
+        ]
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
     if by_type:
         st.divider()
         df_type = pd.DataFrame(by_type).sort_values("cost_usd", ascending=False)
-        col_pie, col_tbl = st.columns([1, 1])
-
-        with col_pie:
-            st.markdown('<p class="sec-header">Desglose por tipo (30 días)</p>', unsafe_allow_html=True)
+        st.markdown('<p class="sec-header">Desglose IA por tipo (30 días)</p>', unsafe_allow_html=True)
+        col_type_pie, col_type_tbl = st.columns([1, 1])
+        with col_type_pie:
             fig_pie = px.pie(df_type, names="type", values="cost_usd",
                              color_discrete_sequence=px.colors.qualitative.Set2, hole=0.48)
             fig_pie.update_layout(**_BASE, height=300)
             st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": False})
-
-        with col_tbl:
-            st.markdown('<p class="sec-header">Tabla de costos</p>', unsafe_allow_html=True)
+        with col_type_tbl:
             df_disp = df_type.copy()
             df_disp["cost_usd"] = df_disp["cost_usd"].apply(lambda x: f"${x:.6f}")
             st.dataframe(
                 df_disp.rename(columns={"type": "Tipo", "cost_usd": "Costo (USD)", "count": "Llamadas"}),
                 use_container_width=True, hide_index=True,
             )
+    else:
+        st.info("Sin desglose de costos IA por tipo todavía.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -470,295 +556,3 @@ with tab_per:
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.divider()
 st.caption("MyMemo Admin Dashboard v2 · Solo datos agregados, sin información personal · Caché 2 min")
-
-import os
-import requests
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import streamlit as st
-from dotenv import load_dotenv
-
-load_dotenv()  # Carga dashboard/.env si existe
-
-# ── Config ────────────────────────────────────────────────────────────────────
-API_URL   = os.getenv("MYMEMO_API_URL", "http://localhost:8000")
-ADMIN_KEY = os.getenv("ADMIN_API_KEY", "")
-
-COLORS = {
-    "primary":  "#F39C12",
-    "success":  "#2ECC71",
-    "danger":   "#E74C3C",
-    "purple":   "#9B59B6",
-    "blue":     "#3498DB",
-    "teal":     "#1ABC9C",
-}
-
-st.set_page_config(
-    page_title="MyMemo Admin",
-    page_icon="🗺️",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-@st.cache_data(ttl=120)
-def fetch_stats() -> dict | None:
-    if not ADMIN_KEY:
-        st.error("⚠️ ADMIN_API_KEY no configurada. Agrega la variable de entorno y reinicia.")
-        return None
-    try:
-        r = requests.get(
-            f"{API_URL}/api/v1/admin/stats",
-            headers={"X-Admin-Key": ADMIN_KEY},
-            timeout=15,
-        )
-        r.raise_for_status()
-        return r.json()
-    except requests.HTTPError as e:
-        st.error(f"Error HTTP {e.response.status_code}: {e.response.text}")
-        return None
-    except Exception as e:
-        st.error(f"No se pudo conectar con `{API_URL}`: {e}")
-        return None
-
-
-def _hex_to_rgba(hex_color: str, alpha: float = 0.15) -> str:
-    """Convierte #RRGGBB a rgba(r,g,b,alpha) para Plotly."""
-    h = hex_color.lstrip("#")
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    return f"rgba({r},{g},{b},{alpha})"
-
-
-def sparkline(series: list[dict], x_key: str, y_key: str, color: str) -> go.Figure:
-    """Mini line chart sin ejes, para usar como indicador visual."""
-    df = pd.DataFrame(series) if series else pd.DataFrame({x_key: [], y_key: []})
-    if color.startswith("#"):
-        fill_color = _hex_to_rgba(color, 0.15)
-    else:
-        fill_color = color.replace(")", ",0.15)").replace("rgb", "rgba")
-    fig = go.Figure(go.Scatter(
-        x=df[x_key] if not df.empty else [],
-        y=df[y_key] if not df.empty else [],
-        mode="lines",
-        line=dict(color=color, width=2),
-        fill="tozeroy",
-        fillcolor=fill_color,
-    ))
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=60,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
-    )
-    return fig
-
-
-def bar_chart(series: list[dict], x_key: str, y_key: str, color: str,
-              x_label: str = "", y_label: str = "") -> go.Figure:
-    df = pd.DataFrame(series) if series else pd.DataFrame({x_key: [], y_key: []})
-    fig = px.bar(
-        df, x=x_key, y=y_key,
-        color_discrete_sequence=[color],
-        labels={x_key: x_label, y_key: y_label},
-    )
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=10, b=0),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        showlegend=False,
-    )
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(gridcolor="rgba(128,128,128,0.15)")
-    return fig
-
-
-def line_chart(series: list[dict], x_key: str, y_key: str, color: str,
-               x_label: str = "", y_label: str = "") -> go.Figure:
-    df = pd.DataFrame(series) if series else pd.DataFrame({x_key: [], y_key: []})
-    fig = px.line(
-        df, x=x_key, y=y_key,
-        color_discrete_sequence=[color],
-        labels={x_key: x_label, y_key: y_label},
-        markers=True,
-    )
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=10, b=0),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        showlegend=False,
-    )
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(gridcolor="rgba(128,128,128,0.15)")
-    return fig
-
-
-# ── Header ────────────────────────────────────────────────────────────────────
-col_title, col_btn = st.columns([6, 1])
-with col_title:
-    st.title("🗺️ MyMemo — Admin Dashboard")
-    st.caption(f"Backend: `{API_URL}` · caché 2 min")
-with col_btn:
-    st.write("")
-    if st.button("🔄 Refrescar", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-
-st.divider()
-
-# ── Load data ─────────────────────────────────────────────────────────────────
-data = fetch_stats()
-if not data:
-    st.stop()
-
-users   = data.get("users", {})
-mems    = data.get("memories", {})
-conns   = data.get("connections", {})
-people  = data.get("people", {})
-costs   = data.get("costs", {})
-jobs    = data.get("jobs_last_30d", {})
-series  = data.get("series", {})
-
-generated_at = data.get("generated_at", "")
-if generated_at:
-    st.caption(f"Datos generados: {generated_at[:19].replace('T', ' ')} UTC")
-
-# ── KPI row 1: Usuarios ───────────────────────────────────────────────────────
-st.subheader("👥 Usuarios")
-u1, u2, u3, u4 = st.columns(4)
-u1.metric("Total registrados",   users.get("total", 0))
-u2.metric("Nuevos (7 días)",     users.get("new_last_7d", 0))
-u3.metric("Nuevos (30 días)",    users.get("new_last_30d", 0))
-u4.metric("Activos (30 días)",   users.get("active_last_30d", 0),
-          help="Usuarios que subieron al menos 1 memoria en los últimos 30 días")
-
-# Sparkline usuarios/día
-users_series = series.get("users_per_day", [])
-if users_series:
-    st.plotly_chart(
-        sparkline(users_series, "date", "count", COLORS["blue"]),
-        use_container_width=True, config={"displayModeBar": False},
-    )
-
-# ── KPI row 2: Memorias ───────────────────────────────────────────────────────
-st.divider()
-st.subheader("📸 Memorias")
-m1, m2, m3, m4 = st.columns(4)
-m1.metric("Total memorias",    mems.get("total", 0))
-m2.metric("Últimos 7 días",    mems.get("last_7d", 0))
-m3.metric("Últimos 30 días",   mems.get("last_30d", 0))
-m4.metric("Conexiones activas", conns.get("accepted", 0))
-
-# Bar: memorias por día
-mem_series = series.get("memories_per_day", [])
-if mem_series:
-    st.plotly_chart(
-        bar_chart(mem_series, "date", "count", COLORS["primary"],
-                  x_label="Fecha", y_label="Memorias"),
-        use_container_width=True, config={"displayModeBar": False},
-    )
-else:
-    st.info("Sin datos de memorias por día todavía.")
-
-# ── KPI row 3: Costos ─────────────────────────────────────────────────────────
-st.divider()
-st.subheader("💸 Costos IA")
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Costo total acumulado", f"${costs.get('total_usd', 0):.4f}")
-c2.metric("Últimos 30 días",       f"${costs.get('last_30d_usd', 0):.4f}")
-c3.metric("Últimos 7 días",        f"${costs.get('last_7d_usd', 0):.4f}")
-
-# Proyección mensual basada en últimos 7 días
-cost_7d = costs.get("last_7d_usd", 0)
-projection = (cost_7d / 7) * 30 if cost_7d else 0
-c4.metric("Proyección mensual", f"${projection:.4f}",
-          delta=f"{'↑' if projection > costs.get('last_30d_usd', 0) else '↓'} vs mes actual",
-          delta_color="inverse")
-
-# Line: costo por día
-cost_series = series.get("cost_per_day", [])
-col_cost, col_breakdown = st.columns([2, 1])
-
-with col_cost:
-    if cost_series:
-        st.plotly_chart(
-            line_chart(cost_series, "date", "cost_usd", COLORS["danger"],
-                       x_label="Fecha", y_label="Costo (USD)"),
-            use_container_width=True, config={"displayModeBar": False},
-        )
-    else:
-        st.info("Sin datos de costo por día.")
-
-with col_breakdown:
-    by_type = costs.get("by_type_last_30d", [])
-    if by_type:
-        st.markdown("**Desglose por tipo (30d)**")
-        df_type = pd.DataFrame(by_type).sort_values("cost_usd", ascending=False)
-        fig_pie = px.pie(
-            df_type, names="type", values="cost_usd",
-            color_discrete_sequence=px.colors.qualitative.Set2,
-            hole=0.4,
-        )
-        fig_pie.update_layout(
-            margin=dict(l=0, r=0, t=10, b=0),
-            paper_bgcolor="rgba(0,0,0,0)",
-            showlegend=True,
-            legend=dict(font=dict(size=11)),
-        )
-        st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": False})
-        st.dataframe(
-            df_type.rename(columns={"type": "Tipo", "cost_usd": "Costo USD", "count": "Llamadas"}),
-            use_container_width=True, hide_index=True,
-        )
-    else:
-        st.info("Sin métricas de costo por tipo.")
-
-# ── Personas & Reconocimiento facial ─────────────────────────────────────────
-st.divider()
-st.subheader("🤖 Reconocimiento facial")
-p1, p2, p3, p4 = st.columns(4)
-p1.metric("Total personas detectadas", people.get("total", 0))
-p2.metric("Nombradas",                 people.get("named", 0))
-p3.metric("Sin nombre",                people.get("unknown", 0))
-pct = round(people.get("named", 0) / people.get("total", 1) * 100) if people.get("total") else 0
-p4.metric("% identificadas",           f"{pct}%")
-
-# ── Jobs de procesamiento ─────────────────────────────────────────────────────
-st.divider()
-st.subheader("⚙️ Jobs de procesamiento (últimos 30 días)")
-if jobs:
-    j_cols = st.columns(len(jobs))
-    status_colors = {"completed": "✅", "failed": "❌", "pending": "🕐", "processing": "⏳"}
-    for col, (status, count) in zip(j_cols, sorted(jobs.items())):
-        col.metric(f"{status_colors.get(status, '•')} {status.capitalize()}", count)
-
-    # Barra de proporción
-    total_jobs = sum(jobs.values())
-    if total_jobs:
-        df_jobs = pd.DataFrame([{"status": k, "count": v} for k, v in jobs.items()])
-        fig_jobs = px.bar(
-            df_jobs, x="count", y=[""] * len(df_jobs), color="status",
-            orientation="h", barmode="stack",
-            color_discrete_map={
-                "completed": COLORS["success"],
-                "failed": COLORS["danger"],
-                "pending": COLORS["primary"],
-                "processing": COLORS["blue"],
-            },
-            labels={"count": "Jobs", "status": "Estado"},
-        )
-        fig_jobs.update_layout(
-            height=80, margin=dict(l=0, r=0, t=0, b=0),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            yaxis=dict(visible=False), xaxis=dict(visible=False),
-            showlegend=True,
-        )
-        st.plotly_chart(fig_jobs, use_container_width=True, config={"displayModeBar": False})
-else:
-    st.info("Sin datos de jobs.")
-
-# ── Footer ────────────────────────────────────────────────────────────────────
-st.divider()
-st.caption("MyMemo Admin Dashboard · Solo datos agregados, sin información personal · caché 2 min")
