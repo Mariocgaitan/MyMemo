@@ -4,7 +4,7 @@ import { Search, X, MapPin, Navigation, ArrowRight, Users, Tag, Plus, Calendar }
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
-import { memoryAPI, peopleAPI, searchAPI, categoriesAPI } from '../services/api';
+import { memoryAPI, peopleAPI, searchAPI, categoriesAPI, connectionsAPI } from '../services/api';
 
 // Helper to safely parse ai_metadata which might come as a string
 const parseMetadata = (metadata) => {
@@ -26,6 +26,7 @@ export default function Home() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [people, setPeople] = useState([]);
+  const [connections, setConnections] = useState([]);
   const [locationModal, setLocationModal] = useState(null);
   const [nearbyResults, setNearbyResults] = useState(null); // null = not active
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -47,6 +48,7 @@ export default function Home() {
   useEffect(() => {
     fetchMemories();
     fetchPeople();
+    fetchConnections();
   }, []);
 
   const fetchMemories = async () => {
@@ -70,6 +72,16 @@ export default function Home() {
       setPeople(named);
     } catch (error) {
       console.error('Error fetching people:', error);
+    }
+  };
+
+  const fetchConnections = async () => {
+    try {
+      const data = await connectionsAPI.list();
+      setConnections(data || []);
+    } catch (error) {
+      console.error('Error fetching connections:', error);
+      setConnections([]);
     }
   };
 
@@ -206,7 +218,27 @@ export default function Home() {
     if (selectedPeople.length > 0) {
       const memFaces = meta.faces || [];
       const faceIds = memFaces.map(f => f.person_id);
-      const hasPerson = selectedPeople.some(pid => faceIds.includes(pid));
+      let hasPerson = selectedPeople.some(pid => faceIds.includes(pid));
+
+      // Shared-memory bridge: selected person IDs are local, but shared memories
+      // may contain partner-side person IDs. Match by connection + shared_by user.
+      if (!hasPerson && memory.shared_by?.user_id) {
+        const partnerId = String(memory.shared_by.user_id);
+        const conn = connections.find(c =>
+          String(c.requester?.id) === partnerId || String(c.addressee?.id) === partnerId
+        );
+
+        if (conn) {
+          const myLocalPersonForPartner = String(conn.requester?.id) === partnerId
+            ? conn.person_id_in_addressee
+            : conn.person_id_in_requester;
+
+          if (myLocalPersonForPartner) {
+            hasPerson = selectedPeople.some(pid => String(pid) === String(myLocalPersonForPartner));
+          }
+        }
+      }
+
       if (!hasPerson) return false;
     }
 

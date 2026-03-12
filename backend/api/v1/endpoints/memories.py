@@ -92,6 +92,52 @@ def memory_to_response(memory: Memory) -> MemoryResponse:
     )
 
 
+async def _get_shared_memory_for_user(
+    db: AsyncSession,
+    user: User,
+    memory_id: uuid.UUID,
+) -> Memory | None:
+    """Return a shared memory if the user is mentioned in it via an accepted connection."""
+    conn_result = await db.execute(
+        select(UserConnection).where(
+            and_(
+                UserConnection.status == "accepted",
+                or_(
+                    UserConnection.requester_id == user.id,
+                    UserConnection.addressee_id == user.id,
+                ),
+            )
+        )
+    )
+    connections = conn_result.scalars().all()
+
+    for conn in connections:
+        am_requester = conn.requester_id == user.id
+        my_person_in_partner = conn.person_id_in_addressee if am_requester else conn.person_id_in_requester
+        partner_id = conn.addressee_id if am_requester else conn.requester_id
+
+        if not my_person_in_partner:
+            continue
+
+        shared_check = await db.execute(
+            select(Memory)
+            .join(MemoryPerson, MemoryPerson.memory_id == Memory.id)
+            .where(
+                and_(
+                    Memory.id == memory_id,
+                    Memory.user_id == partner_id,
+                    Memory.visibility == "visible",
+                    MemoryPerson.person_id == my_person_in_partner,
+                )
+            )
+        )
+        memory = shared_check.scalar_one_or_none()
+        if memory:
+            return memory
+
+    return None
+
+
 # ============================================================
 # ENDPOINTS
 # ============================================================
@@ -419,40 +465,9 @@ async def get_memory(
     )
     memory = result.scalar_one_or_none()
 
-    # If not own memory, allow only shared memories where the current user is
-    # explicitly linked via MemoryPerson through an accepted connection.
+    # If not own memory, check mention-based shared access.
     if not memory:
-        shared_check = await db.execute(
-            select(Memory)
-            .join(MemoryPerson, MemoryPerson.memory_id == Memory.id)
-            .join(
-                UserConnection,
-                and_(
-                    UserConnection.status == "accepted",
-                    or_(
-                        and_(
-                            # Current user sent the request; partner is addressee.
-                            UserConnection.requester_id == user.id,
-                            UserConnection.addressee_id == Memory.user_id,
-                            UserConnection.person_id_in_addressee == MemoryPerson.person_id,
-                        ),
-                        and_(
-                            # Current user received the request; partner is requester.
-                            UserConnection.addressee_id == user.id,
-                            UserConnection.requester_id == Memory.user_id,
-                            UserConnection.person_id_in_requester == MemoryPerson.person_id,
-                        ),
-                    ),
-                ),
-            )
-            .where(
-                and_(
-                    Memory.id == memory_id,
-                    Memory.visibility == "visible",
-                )
-            )
-        )
-        memory = shared_check.scalars().first()
+        memory = await _get_shared_memory_for_user(db, user, memory_id)
 
     if not memory:
         raise HTTPException(
@@ -573,7 +588,7 @@ async def get_memory_jobs(
     user_id = current_user.id
     user = current_user
     
-    # Verify memory exists and belongs to user
+    # Verify memory exists and belongs to user (or is an authorized shared memory)
     memory_result = await db.execute(
         select(Memory).where(
             and_(
@@ -583,6 +598,8 @@ async def get_memory_jobs(
         )
     )
     memory = memory_result.scalar_one_or_none()
+    if not memory:
+        memory = await _get_shared_memory_for_user(db, user, memory_id)
     
     if not memory:
         raise HTTPException(
