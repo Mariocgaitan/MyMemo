@@ -419,44 +419,40 @@ async def get_memory(
     )
     memory = result.scalar_one_or_none()
 
-    # If not own memory, check if it's a shared memory the user has access to
+    # If not own memory, allow only shared memories where the current user is
+    # explicitly linked via MemoryPerson through an accepted connection.
     if not memory:
-        conn_result = await db.execute(
-            select(UserConnection).where(
+        shared_check = await db.execute(
+            select(Memory)
+            .join(MemoryPerson, MemoryPerson.memory_id == Memory.id)
+            .join(
+                UserConnection,
                 and_(
                     UserConnection.status == "accepted",
                     or_(
-                        UserConnection.requester_id == user.id,
-                        UserConnection.addressee_id == user.id,
+                        and_(
+                            # Current user sent the request; partner is addressee.
+                            UserConnection.requester_id == user.id,
+                            UserConnection.addressee_id == Memory.user_id,
+                            UserConnection.person_id_in_addressee == MemoryPerson.person_id,
+                        ),
+                        and_(
+                            # Current user received the request; partner is requester.
+                            UserConnection.addressee_id == user.id,
+                            UserConnection.requester_id == Memory.user_id,
+                            UserConnection.person_id_in_requester == MemoryPerson.person_id,
+                        ),
                     ),
+                ),
+            )
+            .where(
+                and_(
+                    Memory.id == memory_id,
+                    Memory.visibility == "visible",
                 )
             )
         )
-        connections = conn_result.scalars().all()
-
-        for conn in connections:
-            am_requester = conn.requester_id == user.id
-            my_person_in_partner = conn.person_id_in_addressee if am_requester else conn.person_id_in_requester
-            partner_id = conn.addressee_id if am_requester else conn.requester_id
-
-            if not my_person_in_partner:
-                continue
-
-            shared_check = await db.execute(
-                select(Memory)
-                .join(MemoryPerson, MemoryPerson.memory_id == Memory.id)
-                .where(
-                    and_(
-                        Memory.id == memory_id,
-                        Memory.user_id == partner_id,
-                        Memory.visibility == "visible",
-                        MemoryPerson.person_id == my_person_in_partner,
-                    )
-                )
-            )
-            memory = shared_check.scalar_one_or_none()
-            if memory:
-                break
+        memory = shared_check.scalars().first()
 
     if not memory:
         raise HTTPException(
