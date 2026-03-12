@@ -185,3 +185,67 @@ async def get_admin_stats(db: AsyncSession = Depends(get_db)):
             "cost_per_day": cost_per_day,
         },
     }
+
+
+@router.get(
+    "/users",
+    summary="Per-user aggregated stats",
+    description="Non-personal aggregated metrics per user: counts of memories, people, connections and cost.",
+    dependencies=[Depends(require_admin_key)],
+)
+async def get_users_stats(db: AsyncSession = Depends(get_db)):
+    # Users + memory count + people count + last activity
+    rows = (await db.execute(
+        select(
+            User.id,
+            User.name,
+            User.created_at,
+            func.count(func.distinct(Memory.id)).label("memory_count"),
+            func.count(func.distinct(Person.id)).label("people_count"),
+            func.max(Memory.created_at).label("last_activity"),
+        )
+        .outerjoin(Memory, Memory.user_id == User.id)
+        .outerjoin(Person, Person.user_id == User.id)
+        .group_by(User.id, User.name, User.created_at)
+        .order_by(func.count(func.distinct(Memory.id)).desc())
+    )).all()
+
+    # Cost per user
+    cost_rows = (await db.execute(
+        select(UsageMetric.user_id, func.sum(UsageMetric.cost_usd))
+        .group_by(UsageMetric.user_id)
+    )).all()
+    cost_map = {row[0]: float(row[1] or 0) for row in cost_rows}
+
+    # Connections per user (requester + addressee, accepted only)
+    conn_req = (await db.execute(
+        select(UserConnection.requester_id, func.count(UserConnection.id))
+        .where(UserConnection.status == "accepted")
+        .group_by(UserConnection.requester_id)
+    )).all()
+    conn_addr = (await db.execute(
+        select(UserConnection.addressee_id, func.count(UserConnection.id))
+        .where(UserConnection.status == "accepted")
+        .group_by(UserConnection.addressee_id)
+    )).all()
+    conn_map: dict = {}
+    for uid, cnt in conn_req:
+        conn_map[uid] = conn_map.get(uid, 0) + cnt
+    for uid, cnt in conn_addr:
+        conn_map[uid] = conn_map.get(uid, 0) + cnt
+
+    return {
+        "total": len(rows),
+        "users": [
+            {
+                "name":          row.name or "Sin nombre",
+                "joined":        row.created_at.isoformat() if row.created_at else None,
+                "memories":      row.memory_count,
+                "people":        row.people_count,
+                "connections":   conn_map.get(row.id, 0),
+                "last_activity": row.last_activity.isoformat() if row.last_activity else None,
+                "cost_usd":      round(cost_map.get(row.id, 0), 6),
+            }
+            for row in rows
+        ],
+    }
