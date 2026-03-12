@@ -3,7 +3,7 @@ People management endpoints - Manage recognized faces
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, delete, update
+from sqlalchemy import select, func, and_, delete, update
 from sqlalchemy.exc import IntegrityError
 from typing import List
 import uuid
@@ -109,67 +109,16 @@ async def list_people(
     
     # If memory_id provided, get only people in that memory
     if memory_id:
-        # First check if this is own memory or shared memory
-        from models.database import Memory, UserConnection
-        
-        mem_check = await db.execute(
-            select(Memory.user_id).where(Memory.id == memory_id)
+        result = await db.execute(
+            select(Person)
+            .join(MemoryPerson, Person.id == MemoryPerson.person_id)
+            .where(
+                and_(
+                    Person.user_id == user.id,
+                    MemoryPerson.memory_id == memory_id
+                )
+            )
         )
-        memory_owner_id = mem_check.scalar_one_or_none()
-        
-        if not memory_owner_id:
-            # Memory doesn't exist
-            return []
-        
-        # If it's our own memory, or a shared memory from a connected user, allow it
-        if memory_owner_id == user.id:
-            # Own memory — standard query
-            result = await db.execute(
-                select(Person)
-                .join(MemoryPerson, Person.id == MemoryPerson.person_id)
-                .where(
-                    and_(
-                        Person.user_id == user.id,
-                        MemoryPerson.memory_id == memory_id
-                    )
-                )
-            )
-        else:
-            # Check if this memory is shared via an accepted connection
-            conn_check = await db.execute(
-                select(UserConnection).where(
-                    and_(
-                        UserConnection.status == "accepted",
-                        or_(
-                            and_(
-                                UserConnection.requester_id == user.id,
-                                UserConnection.addressee_id == memory_owner_id,
-                            ),
-                            and_(
-                                UserConnection.addressee_id == user.id,
-                                UserConnection.requester_id == memory_owner_id,
-                            ),
-                        ),
-                    )
-                )
-            )
-            connection = conn_check.scalar_one_or_none()
-            
-            if not connection:
-                # Not connected — no access
-                return []
-            
-            # Connected — return people from the partner's memory
-            result = await db.execute(
-                select(Person)
-                .join(MemoryPerson, Person.id == MemoryPerson.person_id)
-                .where(
-                    and_(
-                        Person.user_id == memory_owner_id,
-                        MemoryPerson.memory_id == memory_id
-                    )
-                )
-            )
     else:
         # Get all people for user
         result = await db.execute(
