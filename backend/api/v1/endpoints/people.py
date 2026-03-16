@@ -246,28 +246,47 @@ async def create_person_from_photo(
             )
         raise
 
-    # Create Person record in DB -----------------------------------------------
-    person_id = uuid.uuid4()
-    new_person = Person(
-        id=person_id,
-        user_id=current_user.id,
-        name=payload.name,
-        face_embedding=face_service._serialize_encodings([encoding]),
-        times_detected=0,  # manual registration — not from a real memory
+    # Check if person exists to append embedding instead of UniqueViolation
+    result = await db.execute(
+        select(Person).where(
+            and_(Person.user_id == current_user.id, Person.name == payload.name)
+        )
     )
-    db.add(new_person)
-    await db.flush()  # get the ID before uploading thumbnail
+    existing_person = result.scalar_one_or_none()
+    
+    encoded_new_face = face_service._serialize_encodings([encoding])
+
+    if existing_person:
+        existing_person.face_embedding = _merge_encodings(
+            source_embedding=encoded_new_face,
+            target_embedding=existing_person.face_embedding
+        )
+        person_id = existing_person.id
+        working_person = existing_person
+    else:
+        # Create Person record in DB -------------------------------------------
+        person_id = uuid.uuid4()
+        working_person = Person(
+            id=person_id,
+            user_id=current_user.id,
+            name=payload.name,
+            face_embedding=encoded_new_face,
+            times_detected=0,  # manual registration
+        )
+        db.add(working_person)
+
+    await db.flush()  # ensure DB state is ready
 
     # Upload face-crop thumbnail to S3 (never the full original photo) ---------
     try:
         thumbnail_key = storage_service.upload_face_thumbnail(face_crop, person_id)
-        new_person.thumbnail_url = thumbnail_key
+        working_person.thumbnail_url = thumbnail_key
     except Exception as e:
         print(f"[people] WARNING: thumbnail upload failed for {person_id}: {e}")
 
     await db.commit()
-    await db.refresh(new_person)
-    return person_to_response(new_person)
+    await db.refresh(working_person)
+    return person_to_response(working_person)
 
 
 @router.get(
