@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, UserPlus, Upload, Loader2, CheckCircle, AlertCircle, Camera } from 'lucide-react';
+import { X, UserPlus, Camera, Upload, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { peopleAPI } from '../services/api';
 
 /**
@@ -10,212 +10,176 @@ import { peopleAPI } from '../services/api';
  * Props:
  *   isOpen   : boolean
  *   onClose  : () => void
- *   onCreated: (personResponse) => void  — called after successful creation
+ *   onCreated: (personResponse) => void
  */
 export default function TrainFaceModal({ isOpen, onClose, onCreated }) {
-  const [step, setStep] = useState('idle');        // idle | preview | saving | done | error
-  const [name, setName] = useState('');
-  const [previewSrc, setPreviewSrc] = useState(null);   // local <img> preview
-  const [imageBase64, setImageBase64] = useState(null); // to send to backend
-  const [errorMsg, setErrorMsg] = useState('');
-  const fileInputRef = useRef(null);
+    const [step, setStep] = useState('idle');   // idle | preview | saving | done
+    const [name, setName] = useState('');
+    const [previewSrc, setPreviewSrc] = useState(null);
+    const [imageBase64, setImageBase64] = useState(null);
+    const [errorMsg, setErrorMsg] = useState('');
+    const fileInputRef = useRef(null);
 
-  if (!isOpen) return null;
+    if (!isOpen) return null;
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  function reset() {
-    setStep('idle');
-    setName('');
-    setPreviewSrc(null);
-    setImageBase64(null);
-    setErrorMsg('');
-  }
-
-  function handleClose() {
-    reset();
-    onClose();
-  }
-
-  // ── File picker ────────────────────────────────────────────────────────────
-
-  function handleFileChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setErrorMsg('');
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target.result; // e.g. "data:image/jpeg;base64,..."
-      setPreviewSrc(dataUrl);
-      setImageBase64(dataUrl); // backend validator strips the prefix
-      setStep('preview');
-    };
-    reader.readAsDataURL(file);
-    // Reset the input value so the same file can be re-selected if needed
-    e.target.value = '';
-  }
-
-  // ── Submit ─────────────────────────────────────────────────────────────────
-
-  async function handleSave() {
-    if (!name.trim()) {
-      setErrorMsg('Por favor escribe un nombre para esta persona.');
-      return;
-    }
-    if (!imageBase64) {
-      setErrorMsg('Por favor selecciona una foto primero.');
-      return;
+    function reset() {
+        setStep('idle');
+        setName('');
+        setPreviewSrc(null);
+        setImageBase64(null);
+        setErrorMsg('');
     }
 
-    setStep('saving');
-    setErrorMsg('');
-
-    try {
-      const person = await peopleAPI.trainFromPhoto(name.trim(), imageBase64);
-      setStep('done');
-      onCreated(person.data);
-      setTimeout(() => {
-        handleClose();
-      }, 1500);
-    } catch (err) {
-      const detail =
-        err?.response?.data?.detail ||
-        'Error al procesar la foto. Intenta con otra imagen.';
-      setErrorMsg(detail);
-      setStep('preview'); // go back so user can retry
+    function handleClose() {
+        reset();
+        onClose();
     }
-  }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+    function handleFileChange(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setErrorMsg('');
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            setPreviewSrc(ev.target.result);
+            setImageBase64(ev.target.result);
+            setStep('preview');
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    }
 
-  return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
-      onClick={(e) => e.target === e.currentTarget && handleClose()}
-    >
-      <div
-        className="relative w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden"
-        style={{ background: 'var(--bg-secondary, #1e1e2a)', border: '1px solid rgba(255,255,255,0.08)' }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-          <div className="flex items-center gap-2">
-            <UserPlus size={18} className="text-blue-400" />
-            <span className="font-semibold text-white text-sm">Añadir persona</span>
-          </div>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white transition-colors">
-            <X size={18} />
-          </button>
+    async function handleSave() {
+        if (!name.trim()) { setErrorMsg('Por favor escribe un nombre.'); return; }
+        if (!imageBase64) { setErrorMsg('Por favor selecciona una foto primero.'); return; }
+        setStep('saving');
+        setErrorMsg('');
+        try {
+            const res = await peopleAPI.trainFromPhoto(name.trim(), imageBase64);
+            setStep('done');
+            onCreated(res.data);
+            setTimeout(handleClose, 1500);
+        } catch (err) {
+            const detail = err?.response?.data?.detail || 'Error al procesar la foto. Intenta con otra imagen.';
+            setErrorMsg(detail);
+            setStep('preview');
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
+            <div className="relative z-10 bg-surface-light dark:bg-surface-dark rounded-2xl shadow-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark">
+
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
+                        <UserPlus size={20} className="text-primary" />
+                        Añadir persona
+                    </h2>
+                    <button onClick={handleClose} className="p-1 rounded-lg hover:bg-primary/10 text-text-secondary-light dark:text-text-secondary-dark transition-colors">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {/* Subtitle */}
+                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-4 leading-relaxed">
+                    Sube un retrato donde solo salga una persona. La foto no se guardará — solo se usará para registrar su rostro.
+                </p>
+
+                {/* Photo area */}
+                {step === 'idle' ? (
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full flex flex-col items-center justify-center gap-2 py-8 rounded-xl border-2 border-dashed border-border-light dark:border-border-dark hover:border-primary transition-colors text-text-secondary-light dark:text-text-secondary-dark hover:text-primary"
+                    >
+                        <Camera size={32} />
+                        <span className="text-sm font-medium">Seleccionar foto</span>
+                    </button>
+                ) : (
+                    <div className="relative flex justify-center mb-1">
+                        <img
+                            src={previewSrc}
+                            alt="Vista previa"
+                            className="h-36 w-36 rounded-full object-cover border-4 border-primary/30"
+                        />
+                        {step !== 'saving' && step !== 'done' && (
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="absolute bottom-0 right-[calc(50%-54px)] bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-full p-1.5 shadow hover:bg-primary/10 transition-colors"
+                                title="Cambiar foto"
+                            >
+                                <Upload size={13} className="text-primary" />
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleFileChange}
+                />
+
+                {/* Name input — visible once photo is selected */}
+                {(step === 'preview' || step === 'saving' || step === 'done') && (
+                    <div className="mt-4">
+                        {/* font-size: 16px prevents iOS auto-zoom on input focus */}
+                        <input
+                            type="text"
+                            placeholder="Nombre de la persona…"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                            disabled={step === 'saving' || step === 'done'}
+                            style={{ fontSize: '16px' }}
+                            className="w-full px-4 py-3 rounded-xl border-2 border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark focus:border-primary focus:outline-none transition-colors"
+                            autoFocus
+                        />
+                    </div>
+                )}
+
+                {/* Error */}
+                {errorMsg && (
+                    <div className="mt-3 flex items-start gap-2 text-sm text-red-500 bg-red-50 dark:bg-red-900/20 rounded-xl px-3 py-2">
+                        <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
+                        <span>{errorMsg}</span>
+                    </div>
+                )}
+
+                {/* Success */}
+                {step === 'done' && (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-xl px-3 py-2">
+                        <CheckCircle size={15} />
+                        <span>¡Persona registrada!</span>
+                    </div>
+                )}
+
+                {/* Actions */}
+                {(step === 'preview' || step === 'saving') && (
+                    <div className="flex gap-3 mt-5">
+                        <button
+                            onClick={handleClose}
+                            className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={step === 'saving' || !name.trim()}
+                            className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {step === 'saving' ? (
+                                <><Loader2 size={16} className="animate-spin" /> Analizando…</>
+                            ) : (
+                                <><UserPlus size={16} /> Guardar</>
+                            )}
+                        </button>
+                    </div>
+                )}
+            </div>
         </div>
-
-        {/* Body */}
-        <div className="p-5 flex flex-col gap-4">
-
-          {/* Subtitle */}
-          <p className="text-xs text-gray-400 leading-relaxed">
-            Sube un retrato claro donde solo salga una persona. La foto no se guardará — solo se usará para registrar su rostro.
-          </p>
-
-          {/* Photo picker / preview */}
-          {step === 'idle' ? (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-8 transition-colors hover:border-blue-400 hover:bg-blue-900/10"
-              style={{ borderColor: 'rgba(255,255,255,0.15)' }}
-            >
-              <Camera size={32} className="text-gray-500" />
-              <span className="text-sm text-gray-400">Seleccionar foto</span>
-            </button>
-          ) : (
-            <div className="relative flex justify-center">
-              <img
-                src={previewSrc}
-                alt="Vista previa"
-                className="h-40 w-40 rounded-full object-cover shadow-lg"
-                style={{ border: '3px solid rgba(99,102,241,0.6)' }}
-              />
-              {step !== 'saving' && step !== 'done' && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute bottom-1 right-1 rounded-full p-1.5 shadow transition-opacity hover:opacity-80"
-                  style={{ background: 'rgba(0,0,0,0.6)' }}
-                  title="Cambiar foto"
-                >
-                  <Upload size={13} className="text-white" />
-                </button>
-              )}
-            </div>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-
-          {/* Name input — only when photo is loaded */}
-          {(step === 'preview' || step === 'saving' || step === 'done') && (
-            <input
-              type="text"
-              placeholder="Nombre de la persona…"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-              disabled={step === 'saving' || step === 'done'}
-              className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none transition-colors"
-              style={{
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.12)',
-              }}
-              autoFocus
-            />
-          )}
-
-          {/* Error message */}
-          {errorMsg && (
-            <div className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)' }}>
-              <AlertCircle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
-              <span className="text-red-300">{errorMsg}</span>
-            </div>
-          )}
-
-          {/* Success */}
-          {step === 'done' && (
-            <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs" style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)' }}>
-              <CheckCircle size={14} className="text-green-400" />
-              <span className="text-green-300">¡Persona registrada!</span>
-            </div>
-          )}
-        </div>
-
-        {/* Footer — save button */}
-        {(step === 'preview' || step === 'saving') && (
-          <div className="px-5 pb-5">
-            <button
-              onClick={handleSave}
-              disabled={step === 'saving' || !name.trim()}
-              className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-all disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg,#6366f1,#4338ca)', color: 'white' }}
-            >
-              {step === 'saving' ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" />
-                  Analizando cara…
-                </>
-              ) : (
-                <>
-                  <UserPlus size={15} />
-                  Guardar persona
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    );
 }
