@@ -96,6 +96,15 @@ export const memoryAPI = {
     return response.data;
   },
 
+  // Evaluate batch of photos for target faces (Stateless, RAM-only)
+  evaluateMatch: async (targetPersonIds, images) => {
+    const response = await api.post('/api/v1/memories/evaluate-match', {
+      target_person_ids: targetPersonIds,
+      images: images
+    });
+    return response.data;
+  },
+
   // Get processing jobs for a memory
   getJobs: async (id) => {
     const response = await api.get(`/api/v1/memories/${id}/jobs`);
