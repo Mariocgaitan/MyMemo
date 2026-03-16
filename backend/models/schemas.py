@@ -258,13 +258,45 @@ class PersonResponse(BaseModel):
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440001",
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
-                "name": "John Doe",
-                "times_detected": 15,
-                "last_seen": "2026-02-16T18:30:00Z",
-                "created_at": "2026-01-01T10:00:00Z"
+                "name": "Jane",
+                "thumbnail_url": "https://...",
+                "times_detected": 10,
+                "last_seen": "2023-01-01T00:00:00Z",
+                "created_at": "2023-01-01T00:00:00Z"
             }
         }
     )
+
+
+# ============================================================
+# MEMORY GENERATOR SCHEMAS
+# ============================================================
+
+class EvaluateMatchImage(BaseModel):
+    photo_id: str
+    image_base64: str = Field(..., description="Canvas-scaled Base64 image")
+
+    @field_validator('image_base64')
+    @classmethod
+    def validate_image_base64(cls, v: str) -> str:
+        import base64
+        if ',' in v:
+            header, data = v.split(',', 1)
+            v = data
+        try:
+            base64.b64decode(v)
+            return v
+        except Exception:
+            raise ValueError("Invalid base64 image data")
+
+class EvaluateMatchRequest(BaseModel):
+    """Request to evaluate a batch of images against target people"""
+    target_person_ids: List[UUID] = Field(..., min_length=1, description="UUIDs of the required people")
+    images: List[EvaluateMatchImage] = Field(..., max_length=10, description="Batch of scaled images, max 10 to protect server JS")
+
+class EvaluateMatchResponse(BaseModel):
+    """Response containing the matched photo IDs"""
+    matched_photo_ids: List[str]
 
 
 class MemoryPersonLink(BaseModel):

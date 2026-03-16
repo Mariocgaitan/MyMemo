@@ -22,6 +22,8 @@ from models.schemas import (
     MessageResponse,
     ProcessingJobResponse,
     SharedByInfo,
+    EvaluateMatchRequest,
+    EvaluateMatchResponse,
 )
 from services.storage_service import storage_service
 from tasks.celery_app import celery_app
@@ -141,6 +143,110 @@ async def _get_shared_memory_for_user(
 # ============================================================
 # ENDPOINTS
 # ============================================================
+
+@router.post(
+    "/evaluate-match",
+    response_model=EvaluateMatchResponse,
+    summary="Evaluate batch of photos for target faces",
+    description="Stateless endpoint to check if uploaded minified photos contain ALL target people."
+)
+async def evaluate_match(
+    payload: EvaluateMatchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Receives an array of base64 images (downscaled by frontend canvas) 
+    and checks if ALL `target_person_ids` are present in the image.
+    Returns the IDs of the photos that matched.
+    Images are purely processed in RAM and destroyed.
+    """
+    import asyncio
+    import base64
+    import numpy as np
+    import face_recognition
+    from PIL import Image, ImageOps, ImageEnhance
+    from io import BytesIO
+    from services.face_service import face_service
+
+    # Load target encodings from DB
+    target_people = await db.execute(
+        select(Person).where(
+            and_(
+                Person.id.in_(payload.target_person_ids),
+                Person.user_id == current_user.id
+            )
+        )
+    )
+    db_people = target_people.scalars().all()
+    
+    if len(db_people) != len(payload.target_person_ids):
+        raise HTTPException(status_code=400, detail="One or more target people not found or access denied.")
+
+    # Parse reference encodings
+    target_data = [] # List of tuples: (person_id, list_of_encodings_np)
+    for p in db_people:
+        encs = face_service._parse_encodings(p.face_embedding)
+        if encs:
+            target_data.append((p.id, encs))
+
+    if len(target_data) != len(payload.target_person_ids):
+        raise HTTPException(status_code=400, detail="One or more target people have no face embeddings.")
+
+    matched_ids = []
+
+    def _evaluate_single_image(img_b64: str) -> bool:
+        """Returns True if ALL target people are detected in this image"""
+        try:
+            image_bytes = base64.b64decode(img_b64)
+            pil = Image.open(BytesIO(image_bytes)).convert("RGB")
+            pil = ImageOps.exif_transpose(pil)
+            
+            # Simple contrast enhancement for small/blurry canvas crops
+            pil = ImageEnhance.Contrast(pil).enhance(1.2)
+            img_array = np.array(pil)
+
+            # Detect faces (HOG is fast, upsample=1 usually enough for 800px)
+            locations = face_recognition.face_locations(img_array, model='hog', number_of_times_to_upsample=1)
+            if not locations:
+                return False
+
+            encodings = face_recognition.face_encodings(img_array, known_face_locations=locations)
+            if not encodings:
+                return False
+
+            # Check if every target person has at least one matching face in this photo
+            for _, ref_encodings in target_data:
+                person_found = False
+                for face_encoding in encodings:
+                    for ref_enc in ref_encodings:
+                        dist = face_recognition.face_distance([ref_enc], face_encoding)[0]
+                        if dist < 0.55: # match threshold
+                            person_found = True
+                            break # Move to next face in photo if needed, or we just found the person
+                    if person_found:
+                        break # Found this target person, check the next target person
+                
+                # If after checking all faces we didn't find this target person, the photo fails the ALL rule
+                if not person_found:
+                    return False
+
+            return True
+
+        except Exception as e:
+            # If image is corrupted or completely unreadable, skip it silently
+            print(f"[evaluate-match] Error evaluating image: {e}")
+            return False
+
+    # Process batch
+    for image_item in payload.images:
+        # Run CPU-heavy detection in a thread
+        is_match = await asyncio.to_thread(_evaluate_single_image, image_item.image_base64)
+        if is_match:
+            matched_ids.append(image_item.photo_id)
+
+    return EvaluateMatchResponse(matched_photo_ids=matched_ids)
+
 
 @router.post(
     "",
