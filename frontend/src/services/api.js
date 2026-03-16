@@ -166,6 +166,10 @@ export const peopleAPI = {
     const response = await api.post(`/api/v1/people/${sourceId}/merge/${targetId}`);
     return response.data;
   },
+
+  // Create a person from a portrait photo (backend extracts the face embedding)
+  trainFromPhoto: (name, imageBase64) =>
+    api.post('/api/v1/people/from-photo', { name, image_base64: imageBase64 }),
 };
 
 // ========== Search Endpoints ==========

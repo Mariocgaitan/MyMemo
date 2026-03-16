@@ -204,6 +204,44 @@ class PersonCreate(BaseModel):
     )
 
 
+class PersonFromPhotoCreate(BaseModel):
+    """Request schema for creating a person from a portrait photo"""
+    name: str = Field(..., min_length=1, max_length=255, description="Name of the person")
+    image_base64: str = Field(..., description="Base64 portrait photo (JPEG/PNG/WebP). Must contain exactly one face.")
+
+    @field_validator('image_base64')
+    @classmethod
+    def validate_image_base64(cls, v: str) -> str:
+        """Validate base64 image format and MIME type (JPEG/PNG/WebP only)"""
+        import base64
+        if ',' in v:
+            header, data = v.split(',', 1)
+            if not header.startswith('data:image/'):
+                raise ValueError("Invalid image data URI header")
+            v = data
+        try:
+            decoded = base64.b64decode(v)
+        except Exception:
+            raise ValueError("Invalid base64 image data")
+        if len(decoded) > 10 * 1024 * 1024:
+            raise ValueError("Image size exceeds 10MB limit")
+        is_jpeg = decoded[:3] == b'\xff\xd8\xff'
+        is_png  = decoded[:4] == b'\x89PNG'
+        is_webp = decoded[:4] == b'RIFF' and decoded[8:12] == b'WEBP'
+        if not (is_jpeg or is_png or is_webp):
+            raise ValueError("Only JPEG, PNG, and WebP images are allowed")
+        return v
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Mario",
+                "image_base64": "<base64 portrait photo with exactly one face>"
+            }
+        }
+    )
+
+
 class PersonResponse(BaseModel):
     """Response schema for person data"""
     id: UUID

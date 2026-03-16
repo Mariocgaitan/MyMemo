@@ -36,7 +36,7 @@ def _merge_encodings(source_embedding: str, target_embedding: str) -> str:
 from core.database import get_db
 from core.deps import get_current_user
 from models.database import Person, User, MemoryPerson, Memory, UserConnection
-from models.schemas import PersonCreate, PersonResponse, MemoryResponse
+from models.schemas import PersonCreate, PersonFromPhotoCreate, PersonResponse, MemoryResponse
 from api.v1.endpoints.memories import memory_to_response
 from services.storage_service import storage_service
 from sqlalchemy.orm.attributes import flag_modified
@@ -505,3 +505,141 @@ async def merge_people(
     await db.refresh(target_person)
     
     return person_to_response(target_person)
+
+
+@router.post(
+    "/from-photo",
+    response_model=PersonResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create person from portrait photo",
+    description=(
+        "Extract a face from a portrait photo and register the person. "
+        "The photo must contain exactly one face. "
+        "The original photo is never stored — only a small face-crop thumbnail."
+    )
+)
+async def create_person_from_photo(
+    payload: PersonFromPhotoCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Register a person by uploading a clean portrait photo."""
+    import asyncio
+    import base64
+    import face_recognition  # noqa: imported here to avoid heavy load at module startup
+    import numpy as np
+    from PIL import Image, ImageOps, ImageEnhance
+    from io import BytesIO
+    from services.storage_service import storage_service
+    from services.face_service import face_service, MAX_ENCODINGS_PER_PERSON
+
+    # Decode the base64 image --------------------------------------------------
+    raw_b64 = payload.image_base64
+    if ',' in raw_b64:
+        _, raw_b64 = raw_b64.split(',', 1)
+    image_bytes = base64.b64decode(raw_b64)
+
+    # Run CPU-heavy face detection in a thread so we don't block the event loop
+    def _detect_single_face(img_bytes: bytes):
+        """Returns (encoding_np, face_crop_pil) or raises ValueError."""
+        pil = Image.open(BytesIO(img_bytes)).convert("RGB")
+        pil = ImageOps.exif_transpose(pil)  # fix mobile rotation
+        pil_orig = pil.copy()
+        img_w, img_h = pil_orig.size
+
+        # Resize for HOG detection
+        max_dim = 800
+        ratio = 1.0
+        if pil.width > max_dim or pil.height > max_dim:
+            ratio = max(pil.width / max_dim, pil.height / max_dim)
+            pil = pil.resize(
+                (int(pil.width / ratio), int(pil.height / ratio)),
+                Image.Resampling.LANCZOS,
+            )
+        pil = ImageEnhance.Contrast(pil).enhance(1.3)
+        pil = ImageEnhance.Brightness(pil).enhance(1.05)
+        img_array = np.array(pil)
+
+        locations = face_recognition.face_locations(img_array, model='hog', number_of_times_to_upsample=1)
+
+        if len(locations) == 0:
+            raise ValueError("no_face")
+        if len(locations) > 1:
+            raise ValueError("multiple_faces")
+
+        # Scale location back to original dimensions
+        top, right, bottom, left = locations[0]
+        top    = int(top    * ratio)
+        right  = int(right  * ratio)
+        bottom = int(bottom * ratio)
+        left   = int(left   * ratio)
+
+        # Build crop with 30 % padding for a nicer thumbnail
+        face_h = bottom - top
+        face_w = right - left
+        pad = int(max(face_h, face_w) * 0.4)
+        crop_left   = max(0, left   - pad)
+        crop_top    = max(0, top    - pad)
+        crop_right  = min(img_w, right  + pad)
+        crop_bottom = min(img_h, bottom + pad)
+
+        orig_arr = np.ascontiguousarray(np.array(pil_orig))
+        crop_arr = np.ascontiguousarray(orig_arr[crop_top:crop_bottom, crop_left:crop_right])
+
+        # Resize crop for encoding (400 px sweet-spot)
+        ENCODE_SIZE = 400
+        if crop_arr.shape[0] > ENCODE_SIZE or crop_arr.shape[1] > ENCODE_SIZE:
+            scale = max(crop_arr.shape[0] / ENCODE_SIZE, crop_arr.shape[1] / ENCODE_SIZE)
+            from PIL import Image as PILImage
+            c_pil = PILImage.fromarray(crop_arr)
+            c_pil = c_pil.resize(
+                (int(crop_arr.shape[1] / scale), int(crop_arr.shape[0] / scale)),
+                PILImage.Resampling.LANCZOS,
+            )
+            crop_arr = np.ascontiguousarray(np.array(c_pil))
+
+        encodings = face_recognition.face_encodings(crop_arr, num_jitters=1)
+        if not encodings:
+            raise ValueError("no_face")
+
+        face_crop_pil = pil_orig.crop((crop_left, crop_top, crop_right, crop_bottom))
+        return encodings[0], face_crop_pil
+
+    try:
+        encoding, face_crop = await asyncio.to_thread(_detect_single_face, image_bytes)
+    except ValueError as exc:
+        msg = str(exc)
+        if msg == "no_face":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No face detected. Please upload a clear portrait photo.",
+            )
+        elif msg == "multiple_faces":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="More than one face detected. Please upload a photo with only one person.",
+            )
+        raise
+
+    # Create Person record in DB -----------------------------------------------
+    person_id = uuid.uuid4()
+    new_person = Person(
+        id=person_id,
+        user_id=current_user.id,
+        name=payload.name,
+        face_embedding=face_service._serialize_encodings([encoding]),
+        times_detected=0,  # manual registration — not from a real memory
+    )
+    db.add(new_person)
+    await db.flush()  # get the ID before uploading thumbnail
+
+    # Upload face-crop thumbnail to S3 (never the full original photo) ---------
+    try:
+        thumbnail_key = storage_service.upload_face_thumbnail(face_crop, person_id)
+        new_person.thumbnail_url = thumbnail_key
+    except Exception as e:
+        print(f"[people] WARNING: thumbnail upload failed for {person_id}: {e}")
+
+    await db.commit()
+    await db.refresh(new_person)
+    return person_to_response(new_person)

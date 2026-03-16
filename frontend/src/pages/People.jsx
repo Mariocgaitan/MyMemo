@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, User, Edit2, Trash2, ChevronRight, Loader2, GitMerge, Link2, Unlink, Check, X, UserPlus } from 'lucide-react';
+import { ChevronLeft, User, Edit2, Trash2, ChevronRight, Loader2, GitMerge, Link2, Unlink, Check, X, UserPlus, ScanFace } from 'lucide-react';
 import { Input } from '../components/ui';
 import { peopleAPI, connectionsAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import TrainFaceModal from '../components/TrainFaceModal';
 
 // ─── Rename Modal ──────────────────────────────────────────────────────────────
 function RenameModal({ person, onSave, onCancel }) {
@@ -507,6 +508,7 @@ export default function People() {
     const [connections, setConnections] = useState([]);
     const [pendingRequests, setPendingRequests] = useState([]);
     const [toast, setToast] = useState(null); // { type: 'success'|'error', msg: string }
+    const [trainModalOpen, setTrainModalOpen] = useState(false);
 
     const fetchPeople = async () => {
         try {
@@ -646,14 +648,26 @@ export default function People() {
                             <span className="font-medium">Volver</span>
                         </button>
                         <h1 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">Personas</h1>
-                        <button
-                            onClick={() => setLinkingPerson({})}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-sm font-semibold transition-colors"
-                            title="Agregar compañero"
-                        >
-                            <UserPlus size={16} />
-                            <span className="hidden sm:inline">Agregar</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {/* Train face button */}
+                            <button
+                                onClick={() => setTrainModalOpen(true)}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-sm font-semibold transition-colors"
+                                title="Registrar rostro con foto"
+                            >
+                                <ScanFace size={16} />
+                                <span className="hidden sm:inline">Añadir cara</span>
+                            </button>
+                            {/* Add friend button */}
+                            <button
+                                onClick={() => setLinkingPerson({})}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-sm font-semibold transition-colors"
+                                title="Agregar compañero"
+                            >
+                                <UserPlus size={16} />
+                                <span className="hidden sm:inline">Agregar</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -803,6 +817,14 @@ export default function People() {
                     onCancel={() => setLinkingConnection(null)}
                 />
             )}
+            <TrainFaceModal
+                isOpen={trainModalOpen}
+                onClose={() => setTrainModalOpen(false)}
+                onCreated={(newPerson) => {
+                    setPeople(prev => [newPerson, ...prev]);
+                    showToast('success', `${newPerson.name} registrado correctamente`);
+                }}
+            />
         </>
     );
 }
