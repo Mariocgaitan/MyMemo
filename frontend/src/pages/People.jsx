@@ -821,8 +821,14 @@ export default function People() {
                 isOpen={trainModalOpen}
                 onClose={() => setTrainModalOpen(false)}
                 onCreated={(newPerson) => {
-                    setPeople(prev => [newPerson, ...prev]);
-                    showToast('success', `${newPerson.name} registrado correctamente`);
+                    setPeople(prev => {
+                        const exists = prev.some(p => p.id === newPerson.id);
+                        if (exists) {
+                            return prev.map(p => p.id === newPerson.id ? newPerson : p);
+                        }
+                        return [newPerson, ...prev];
+                    });
+                    showToast('success', `${newPerson.name} registrado/actualizado correctamente`);
                 }}
             />
         </>
