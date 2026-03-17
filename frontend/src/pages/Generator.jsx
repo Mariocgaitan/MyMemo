@@ -377,6 +377,13 @@ export default function Generator() {
           }
         } catch (apiErr) {
           console.error('[evaluateMatch] API Error:', apiErr);
+          const status = apiErr?.response?.status;
+          const detail = apiErr?.response?.data?.detail;
+          if (status === 422) {
+            setProgressText(`Error de validacion en lote (${scaledItems.length} imagenes). Ajusta chunk o backend.`);
+          } else if (detail) {
+            setProgressText(`Error backend: ${String(detail)}`);
+          }
           // continue to next batch on error
         }
       }

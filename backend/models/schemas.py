@@ -292,7 +292,7 @@ class EvaluateMatchImage(BaseModel):
 class EvaluateMatchRequest(BaseModel):
     """Request to evaluate a batch of images against target people"""
     target_person_ids: List[UUID] = Field(..., min_length=1, description="UUIDs of the required people")
-    images: List[EvaluateMatchImage] = Field(..., max_length=10, description="Batch of scaled images, max 10 to protect server JS")
+    images: List[EvaluateMatchImage] = Field(..., max_length=30, description="Batch of scaled images, max 30")
 
 class EvaluateMatchResponse(BaseModel):
     """Response containing the matched photo IDs"""
