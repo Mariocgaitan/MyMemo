@@ -25,6 +25,24 @@ export default function Generator() {
   const filesRef = useRef([]);
   const photoTimestampRef = useRef(new Map());
 
+  const clearMatchedPreviews = () => {
+    for (const item of matchedFiles) {
+      if (item?.previewUrl) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      for (const item of matchedFiles) {
+        if (item?.previewUrl) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      }
+    };
+  }, [matchedFiles]);
+
   // Fetch people on mount
   useEffect(() => {
     peopleAPI.getAll()
@@ -202,6 +220,8 @@ export default function Generator() {
    * Main Handler: When the user selects "The entire gallery"
    */
   const handleFilesSelected = async (e) => {
+    if (isProcessing) return;
+
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
@@ -213,6 +233,10 @@ export default function Generator() {
     setStep('processing');
     setIsProcessing(true);
     setProgressText('Analizando tus fotos localmente...');
+    photoTimestampRef.current = new Map();
+    clearMatchedPreviews();
+    setMatchedFiles([]);
+    setCurrentIndex(0);
     
     try {
       // 1. Filter by Date (prefer EXIF capture date; fallback to file mtime)
@@ -409,7 +433,12 @@ export default function Generator() {
           onChange={handleFilesSelected}
         />
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            if (!fileInputRef.current) return;
+            // Force change event even if user picks the same files again.
+            fileInputRef.current.value = '';
+            fileInputRef.current.click();
+          }}
           disabled={selectedPeople.length === 0}
           className="w-full flex items-center justify-center gap-2 bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >

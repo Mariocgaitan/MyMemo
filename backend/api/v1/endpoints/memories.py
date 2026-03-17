@@ -221,7 +221,7 @@ async def evaluate_match(
                 for face_encoding in encodings:
                     for ref_enc in ref_encodings:
                         dist = face_recognition.face_distance([ref_enc], face_encoding)[0]
-                        if dist < 0.55: # match threshold
+                        if dist < 0.58: # relaxed match threshold to compensate for minified blurry web canvas crops
                             person_found = True
                             break # Move to next face in photo if needed, or we just found the person
                     if person_found:
