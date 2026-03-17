@@ -65,16 +65,36 @@ class FaceRecognitionService:
             # JSON array of numbers (edge-case: single encoding as flat list)
             return [np.array(parsed)]
         except (json.JSONDecodeError, TypeError):
-            # Legacy comma-separated format
-            return [np.array([float(x) for x in raw.split(",")])]
+            # Fallback to legacy comma-separated format
+            try:
+                return [np.array([float(x) for x in raw.split(",")])]
+            except ValueError:
+                return [] # If legacy format also fails to parse
 
     @staticmethod
     def _serialize_encodings(encodings: List[np.ndarray]) -> str:
         """Serialize a list of encodings to a JSON string."""
         return json.dumps([enc.tolist() for enc in encodings])
+        
+    def _parse_encodings(self, encodings_str: str) -> List[np.ndarray]:
+        """
+        Public alias to deserialize encodings for external endpoints like evaluate-match
+        """
+        return self._deserialize_encodings(encodings_str)
+
+    def _deserialize_encodings(self, encodings_str: str) -> List[np.ndarray]:
+        """Convert JSON back to list of numpy arrays"""
+        if not encodings_str:
+            return []
+        try:
+            enc_list = json.loads(encodings_str)
+            return [np.array(enc) for enc in enc_list]
+        except Exception as e:
+            print(f"Error deserializing encodings: {e}")
+            return []
 
     @staticmethod
-    def _preprocess_image(image_bytes: bytes) -> np.ndarray:
+    def _preprocess_image(image_bytes: bytes) -> Tuple[np.ndarray, Image.Image, Image.Image, float]:
         """
         Normalize image before face detection:
         - Apply EXIF rotation so portrait/landscape mobile photos are upright

@@ -118,17 +118,20 @@ export default function Generator() {
         const batch = clusterToProcess.slice(i, i + BATCH_SIZE);
         setProgressText(`Escaneando fotos ${i} - ${Math.min(i + BATCH_SIZE, clusterToProcess.length)} (Encontradas: ${foundMatches.length})...`);
         
-        // Convert batch to base64
-        const scaledPromises = batch.map(async (file, idx) => {
+        // Convert batch to base64 sequentially to avoid RAM spikes and UI freezing on mobile
+        const scaledItems = [];
+        for (let idx = 0; idx < batch.length; idx++) {
+          const file = batch[idx];
           try {
+            // Yield event loop to let React render the progress text and keep spinner moving
+            await new Promise(resolve => setTimeout(resolve, 50));
             const b64 = await scaleImageToCanvas(file);
-            return { photo_id: String(i + idx), image_base64: b64, originalFile: file };
+            scaledItems.push({ photo_id: String(i + idx), image_base64: b64, originalFile: file });
           } catch (err) {
-            return null;
+            console.error('Error scaling image', err);
           }
-        });
+        }
         
-        const scaledItems = (await Promise.all(scaledPromises)).filter(Boolean);
         if (scaledItems.length === 0) continue;
 
         // Call backend (Stateless RAM check)
@@ -206,7 +209,7 @@ export default function Generator() {
           Generador de Memorias
         </h3>
         <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark leading-relaxed px-4">
-          Selecciona a quién quieres encontrar y el año/fecha. Luego, te pediremos que abras tu galería de fotos. Nosotros buscaremos mágicamente el recuerdo. <b>Tus fotos nunca se guardan, solo pasan por tu celular.</b>
+          Selecciona a quién quieres encontrar y una fecha/periodo. Luego abre tu galería y <b>selecciona todas las fotos que puedas de ese día</b>. (Por privacidad, Google y Apple no nos permiten leer tu galería sin que tú selecciones las fotos a mano). Nosotros buscaremos mágicamente el recuerdo. <b>Tus fotos nunca se guardan.</b>
         </p>
       </div>
 
@@ -271,8 +274,8 @@ export default function Generator() {
           <ImageIcon size={18} />
           Seleccionar tu Galería Completa
         </button>
-        <p className="text-xs text-center text-text-secondary-light mt-2">
-          (Puedes seleccionar cientos de fotos, nosotros las filtramos.)
+        <p className="text-xs text-center text-text-secondary-light mt-3 px-4">
+          💡 Tip: Usa el gesto de <b>arrastrar el dedo</b> en tu galería para seleccionar rápidamente cientos de fotos de ese día.
         </p>
       </div>
     </div>
