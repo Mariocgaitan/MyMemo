@@ -83,7 +83,8 @@ export default function Generator() {
   const readExifTimestamp = async (file) => {
     try {
       if (!file || !file.type?.includes('jpeg')) return null;
-      const buffer = await file.arrayBuffer();
+      // Read only header chunk: EXIF APP1 lives near the beginning of JPEGs.
+      const buffer = await file.slice(0, 256 * 1024).arrayBuffer();
       const view = new DataView(buffer);
 
       // JPEG SOI
@@ -233,6 +234,8 @@ export default function Generator() {
     setStep('processing');
     setIsProcessing(true);
     setProgressText('Analizando tus fotos localmente...');
+    // Give mobile browser a moment to close gallery UI and paint loading state.
+    await new Promise(resolve => setTimeout(resolve, 50));
     photoTimestampRef.current = new Map();
     clearMatchedPreviews();
     setMatchedFiles([]);
