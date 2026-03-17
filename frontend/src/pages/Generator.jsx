@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom';
 const GENERATOR_BATCH_SIZE = 30;
 const GENERATOR_MAX_TOTAL_TO_CHECK = 300;
 const GENERATOR_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes (testing)
-const GENERATOR_MAX_MATCHES = 5;
 
 export default function Generator() {
   const navigate = useNavigate();
@@ -340,11 +339,6 @@ export default function Generator() {
                  }
                }
              }
-
-             // Stop once we have enough options to show the user.
-             if (foundMatches.length >= GENERATOR_MAX_MATCHES) {
-               break;
-             }
           }
         } catch (apiErr) {
           console.error('[evaluateMatch] API Error:', apiErr);
@@ -353,6 +347,7 @@ export default function Generator() {
       }
 
       if (foundMatches.length > 0) {
+        setProgressText(`Listo. Encontramos ${foundMatches.length} resultado(s).`);
         setMatchedFiles(foundMatches);
         setStep('found');
       } else {
