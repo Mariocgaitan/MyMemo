@@ -3,6 +3,10 @@ import { X, Search, Wand2, Image as ImageIcon, Calendar, Users, Loader2, ArrowRi
 import { memoryAPI, peopleAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
+const GENERATOR_BATCH_SIZE = 30;
+const GENERATOR_MAX_TOTAL_TO_CHECK = 300;
+const GENERATOR_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes (testing)
+
 export default function Generator() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -242,6 +246,8 @@ export default function Generator() {
     setCurrentIndex(0);
     
     try {
+      const runStartedAt = Date.now();
+
       // 1. Filter by Date (prefer EXIF capture date; fallback to file mtime)
       let filtered = files;
       if (startDate && endDate) {
@@ -251,6 +257,11 @@ export default function Generator() {
         if (startTs && endTs) {
           filtered = [];
           for (let idx = 0; idx < files.length; idx++) {
+            if (Date.now() - runStartedAt > GENERATOR_TIMEOUT_MS) {
+              setProgressText('Tiempo máximo alcanzado durante el filtro de fechas.');
+              setStep('no_matches');
+              return;
+            }
             if (idx % 20 === 0) {
               setProgressText(`Filtrando fecha ${idx + 1}/${files.length}...`);
               await new Promise(resolve => setTimeout(resolve, 0));
@@ -274,17 +285,20 @@ export default function Generator() {
       // Shuffle the cluster so the discovery is random / serendipitous
       const shuffled = [...filtered].sort(() => 0.5 - Math.random());
       
-      // We will process in batches of 5 to not hang the browser
-      const BATCH_SIZE = 5;
-      const MAX_TOTAL_TO_CHECK = 300; // Limit to protect browser RAM on huge galleries
-      const clusterToProcess = shuffled.slice(0, MAX_TOTAL_TO_CHECK);
+      // Process in chunks tuned for current test capacity.
+      const clusterToProcess = shuffled.slice(0, GENERATOR_MAX_TOTAL_TO_CHECK);
       
       let foundMatches = [];
 
       // Loop through batches
-      for (let i = 0; i < clusterToProcess.length; i += BATCH_SIZE) {
-        const batch = clusterToProcess.slice(i, i + BATCH_SIZE);
-        setProgressText(`Escaneando fotos ${i} - ${Math.min(i + BATCH_SIZE, clusterToProcess.length)} (Encontradas: ${foundMatches.length})...`);
+      for (let i = 0; i < clusterToProcess.length; i += GENERATOR_BATCH_SIZE) {
+        if (Date.now() - runStartedAt > GENERATOR_TIMEOUT_MS) {
+          setProgressText('Tiempo máximo alcanzado durante el análisis.');
+          break;
+        }
+
+        const batch = clusterToProcess.slice(i, i + GENERATOR_BATCH_SIZE);
+        setProgressText(`Escaneando fotos ${i} - ${Math.min(i + GENERATOR_BATCH_SIZE, clusterToProcess.length)} (Encontradas: ${foundMatches.length})...`);
         
         // Convert batch to base64 sequentially to avoid RAM spikes and UI freezing on mobile
         const scaledItems = [];
