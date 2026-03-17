@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Search, Wand2, Image as ImageIcon, Calendar, Users, Loader2, ArrowRight, Check } from 'lucide-react';
 import { memoryAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -381,7 +382,7 @@ export default function GeneratorModal({ isOpen, onClose, people }) {
     </div>
   );
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isProcessing && onClose()} />
       <div className="relative bg-surface-light dark:bg-surface-dark rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-fade-in">
@@ -406,6 +407,7 @@ export default function GeneratorModal({ isOpen, onClose, people }) {
           {step === 'no_matches' && renderNoMatches()}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

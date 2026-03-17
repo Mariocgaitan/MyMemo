@@ -33,47 +33,51 @@ BEGIN
     END IF;
 END$$;
 
--- ── 2. Create Mario's real user ───────────────────────────────────────────────
--- IMPORTANT: Replace the values below before running:
+-- ── 2. Create Mario's real user + reassign all data (email defined once) ────────
+-- IMPORTANT: Replace only these 3 values before running:
 --   MARIO_EMAIL   → your real email
---   MARIO_NAME    → your display name
---   BCRYPT_HASH   → run this locally to generate:
---                   python3 -c "from passlib.context import CryptContext; \
---                   ctx = CryptContext(schemes=['bcrypt']); \
---                   print(ctx.hash('YOUR_PASSWORD_HERE'))"
+--   MARIO_NAME    → your display name (e.g. 'Mario')
+--   BCRYPT_HASH   → generate on the server with:
+--                   docker exec mymemo_backend python -c \
+--                   "import bcrypt; print(bcrypt.hashpw(b'YOUR_PASSWORD', bcrypt.gensalt()).decode())"
 
-INSERT INTO users (id, email, hashed_password, name, created_at, updated_at)
-VALUES (
-    gen_random_uuid(),
-    'MARIO_EMAIL',          -- ← change this
-    'BCRYPT_HASH',          -- ← change this (generate with command above)
-    'MARIO_NAME',           -- ← change this (e.g. 'Mario')
-    NOW(),
-    NOW()
-)
-ON CONFLICT (email) DO NOTHING;
+DO $$
+DECLARE
+    v_mario_id   UUID;
+    v_default_id UUID;
+BEGIN
+    -- Insert real user; if email already exists just get the ID
+    INSERT INTO users (id, email, hashed_password, name, created_at, updated_at)
+    VALUES (
+        gen_random_uuid(),
+        'MARIO_EMAIL',   -- ← change this
+        'BCRYPT_HASH',   -- ← change this
+        'MARIO_NAME',    -- ← change this
+        NOW(),
+        NOW()
+    )
+    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO v_mario_id;
 
--- ── 3. Reassign all existing data to Mario's new user ─────────────────────────
+    -- Get default user ID
+    SELECT id INTO v_default_id FROM users WHERE email = 'default@lifelogs.local';
 
--- Memories
-UPDATE memories
-SET user_id = (SELECT id FROM users WHERE email = 'MARIO_EMAIL')  -- ← same email
-WHERE user_id = (SELECT id FROM users WHERE email = 'default@lifelogs.local');
+    IF v_default_id IS NULL THEN
+        RAISE NOTICE 'default@lifelogs.local not found — skipping reassignment';
+    ELSE
+        -- Reassign all data
+        UPDATE memories      SET user_id = v_mario_id WHERE user_id = v_default_id;
+        UPDATE people        SET user_id = v_mario_id WHERE user_id = v_default_id;
+        UPDATE usage_metrics SET user_id = v_mario_id WHERE user_id = v_default_id;
 
--- People (recognized faces)
-UPDATE people
-SET user_id = (SELECT id FROM users WHERE email = 'MARIO_EMAIL')  -- ← same email
-WHERE user_id = (SELECT id FROM users WHERE email = 'default@lifelogs.local');
+        -- Delete placeholder user
+        DELETE FROM users WHERE id = v_default_id;
 
--- Usage metrics
-UPDATE usage_metrics
-SET user_id = (SELECT id FROM users WHERE email = 'MARIO_EMAIL')  -- ← same email
-WHERE user_id = (SELECT id FROM users WHERE email = 'default@lifelogs.local');
+        RAISE NOTICE 'Reassigned all data from default user to %', 'MARIO_EMAIL';
+    END IF;
+END $$;
 
--- ── 4. Delete the placeholder default user ────────────────────────────────────
-DELETE FROM users WHERE email = 'default@lifelogs.local';
-
--- ── 5. Verify ────────────────────────────────────────────────────────────────
+-- ── 3. Verify ────────────────────────────────────────────────────────────────
 SELECT
     u.email,
     u.name,
