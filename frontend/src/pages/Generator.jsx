@@ -23,6 +23,7 @@ export default function Generator() {
 
   // References to keep state in async closures
   const filesRef = useRef([]);
+  const photoTimestampRef = useRef(new Map());
 
   // Fetch people on mount
   useEffect(() => {
@@ -39,6 +40,133 @@ export default function Generator() {
     setSelectedPeople(prev => 
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
     );
+  };
+
+  const parseInputDateStartLocal = (dateStr) => {
+    const [y, m, d] = String(dateStr || '').split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+  };
+
+  const parseInputDateEndLocal = (dateStr) => {
+    const [y, m, d] = String(dateStr || '').split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+  };
+
+  const parseExifDateTime = (s) => {
+    // EXIF format: "YYYY:MM:DD HH:MM:SS"
+    const m = String(s || '').match(/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+    if (!m) return null;
+    const [, y, mo, d, h, mi, se] = m.map(Number);
+    return new Date(y, mo - 1, d, h, mi, se, 0).getTime();
+  };
+
+  const readExifTimestamp = async (file) => {
+    try {
+      if (!file || !file.type?.includes('jpeg')) return null;
+      const buffer = await file.arrayBuffer();
+      const view = new DataView(buffer);
+
+      // JPEG SOI
+      if (view.getUint16(0, false) !== 0xFFD8) return null;
+
+      let offset = 2;
+      while (offset + 4 < view.byteLength) {
+        if (view.getUint8(offset) !== 0xFF) break;
+        const marker = view.getUint8(offset + 1);
+        offset += 2;
+
+        if (marker === 0xDA || marker === 0xD9) break; // SOS or EOI
+
+        const length = view.getUint16(offset, false);
+        if (length < 2 || offset + length > view.byteLength) break;
+
+        // APP1 Exif
+        if (marker === 0xE1) {
+          const exifStart = offset + 2;
+          const exifHeader = String.fromCharCode(
+            view.getUint8(exifStart),
+            view.getUint8(exifStart + 1),
+            view.getUint8(exifStart + 2),
+            view.getUint8(exifStart + 3)
+          );
+
+          if (exifHeader === 'Exif') {
+            const tiff = exifStart + 6; // skip "Exif\0\0"
+            const little = view.getUint16(tiff, false) === 0x4949;
+            const get16 = (p) => view.getUint16(p, little);
+            const get32 = (p) => view.getUint32(p, little);
+
+            const ifd0 = tiff + get32(tiff + 4);
+            const readAsciiAt = (valPtr, count) => {
+              const pos = count <= 4 ? valPtr : (tiff + get32(valPtr));
+              let out = '';
+              for (let i = 0; i < count - 1 && pos + i < view.byteLength; i++) {
+                const c = view.getUint8(pos + i);
+                if (!c) break;
+                out += String.fromCharCode(c);
+              }
+              return out;
+            };
+
+            const readIfdForDate = (ifdPtr) => {
+              if (!ifdPtr || ifdPtr >= view.byteLength) return null;
+              const entries = get16(ifdPtr);
+              for (let i = 0; i < entries; i++) {
+                const e = ifdPtr + 2 + i * 12;
+                if (e + 12 > view.byteLength) break;
+                const tag = get16(e);
+                const type = get16(e + 2);
+                const count = get32(e + 4);
+                const valuePtr = e + 8;
+                // DateTimeOriginal / DateTimeDigitized / DateTime
+                if ((tag === 0x9003 || tag === 0x9004 || tag === 0x0132) && type === 2 && count >= 19) {
+                  const raw = readAsciiAt(valuePtr, count);
+                  const ts = parseExifDateTime(raw);
+                  if (ts) return ts;
+                }
+              }
+              return null;
+            };
+
+            // Try DateTime in IFD0
+            const ifd0Date = readIfdForDate(ifd0);
+            if (ifd0Date) return ifd0Date;
+
+            // Find ExifIFD pointer (tag 0x8769) then read DateTimeOriginal
+            const entries = get16(ifd0);
+            for (let i = 0; i < entries; i++) {
+              const e = ifd0 + 2 + i * 12;
+              if (e + 12 > view.byteLength) break;
+              const tag = get16(e);
+              if (tag === 0x8769) {
+                const exifIfd = tiff + get32(e + 8);
+                const exifDate = readIfdForDate(exifIfd);
+                if (exifDate) return exifDate;
+              }
+            }
+          }
+        }
+
+        offset += length;
+      }
+    } catch {
+      // ignore EXIF parsing errors
+    }
+
+    return null;
+  };
+
+  const getBestPhotoTimestamp = async (file) => {
+    if (photoTimestampRef.current.has(file)) {
+      return photoTimestampRef.current.get(file);
+    }
+
+    const exifTs = await readExifTimestamp(file);
+    const ts = exifTs || file.lastModified || Date.now();
+    photoTimestampRef.current.set(file, ts);
+    return ts;
   };
 
   /**
@@ -87,13 +215,26 @@ export default function Generator() {
     setProgressText('Analizando tus fotos localmente...');
     
     try {
-      // 1. Filter by Date (Binary Search simulation / Fast filtering)
+      // 1. Filter by Date (prefer EXIF capture date; fallback to file mtime)
       let filtered = files;
       if (startDate && endDate) {
-        const startTs = new Date(startDate).getTime();
-        const endTs = new Date(endDate).getTime() + 86400000; // include full end day
-        // Standard fast filter. For an array of 5,000 files in JS, standard filter() takes ~2ms.
-        filtered = files.filter(f => f.lastModified >= startTs && f.lastModified <= endTs);
+        const startTs = parseInputDateStartLocal(startDate);
+        const endTs = parseInputDateEndLocal(endDate);
+
+        if (startTs && endTs) {
+          filtered = [];
+          for (let idx = 0; idx < files.length; idx++) {
+            if (idx % 20 === 0) {
+              setProgressText(`Filtrando fecha ${idx + 1}/${files.length}...`);
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            const f = files[idx];
+            const ts = await getBestPhotoTimestamp(f);
+            if (ts >= startTs && ts <= endTs) {
+              filtered.push(f);
+            }
+          }
+        }
       }
 
       if (filtered.length === 0) {
@@ -149,7 +290,8 @@ export default function Generator() {
                if (sourceItem) {
                  foundMatches.push({
                    file: sourceItem.originalFile,
-                   previewUrl: URL.createObjectURL(sourceItem.originalFile)
+                   previewUrl: URL.createObjectURL(sourceItem.originalFile),
+                   captureTs: photoTimestampRef.current.get(sourceItem.originalFile) || sourceItem.originalFile.lastModified,
                  });
                }
              }
@@ -192,7 +334,7 @@ export default function Generator() {
     navigate('/create', {
       state: {
         prefilledFile: currentMatch.file,
-        prefilledDate: currentMatch.file.lastModified ? new Date(currentMatch.file.lastModified).toISOString() : null,
+        prefilledDate: currentMatch.captureTs ? new Date(currentMatch.captureTs).toISOString() : null,
         prefilledPeople: people.filter(p => selectedPeople.includes(p.id)).map(p => p.name)
       }
     });
@@ -316,10 +458,10 @@ export default function Generator() {
             alt="Match" 
             className="w-full h-full object-contain"
           />
-          {currentMatch.file.lastModified && (
+          {(currentMatch.captureTs || currentMatch.file.lastModified) && (
             <div className="absolute top-3 left-3 bg-black/70 text-white text-xs px-2.5 py-1 rounded-full flex items-center gap-1 backdrop-blur-sm">
               <Calendar size={12} />
-              {new Date(currentMatch.file.lastModified).toLocaleDateString()}
+              {new Date(currentMatch.captureTs || currentMatch.file.lastModified).toLocaleDateString()}
             </div>
           )}
         </div>
