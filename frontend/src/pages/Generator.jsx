@@ -24,6 +24,7 @@ export default function Generator() {
   const [progressText, setProgressText] = useState('');
   const [matchedFiles, setMatchedFiles] = useState([]); // Array of { file, previewUrl }
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [debugStats, setDebugStats] = useState(null);
 
   // References to keep state in async closures
   const filesRef = useRef([]);
@@ -187,9 +188,12 @@ export default function Generator() {
     }
 
     const exifTs = await readExifTimestamp(file);
-    const ts = exifTs || file.lastModified || Date.now();
-    photoTimestampRef.current.set(file, ts);
-    return ts;
+    const meta = {
+      ts: exifTs || file.lastModified || Date.now(),
+      source: exifTs ? 'exif' : 'fallback',
+    };
+    photoTimestampRef.current.set(file, meta);
+    return meta;
   };
 
   /**
@@ -247,6 +251,16 @@ export default function Generator() {
     
     try {
       const runStartedAt = Date.now();
+      const stats = {
+        totalSelected: files.length,
+        dateFiltered: files.length,
+        exifCount: 0,
+        fallbackCount: 0,
+        decodeOk: 0,
+        decodeFail: 0,
+        batchesSent: 0,
+        batchesSkipped: 0,
+      };
 
       // 1. Filter by Date (prefer EXIF capture date; fallback to file mtime)
       let filtered = files;
@@ -267,10 +281,25 @@ export default function Generator() {
               await new Promise(resolve => setTimeout(resolve, 0));
             }
             const f = files[idx];
-            const ts = await getBestPhotoTimestamp(f);
-            if (ts >= startTs && ts <= endTs) {
+            const meta = await getBestPhotoTimestamp(f);
+            if (meta.source === 'exif') stats.exifCount += 1;
+            else stats.fallbackCount += 1;
+            if (meta.ts >= startTs && meta.ts <= endTs) {
               filtered.push(f);
             }
+          }
+
+          stats.dateFiltered = filtered.length;
+
+          // If metadata appears unreliable and date filter yields nothing,
+          // retry this run without date filter to avoid false negatives.
+          if (filtered.length === 0 && files.length > 0) {
+            setProgressText(
+              `No hubo coincidencias por fecha (${stats.exifCount}/${files.length} con EXIF). Reintentando sin filtro de fecha...`
+            );
+            await new Promise(resolve => setTimeout(resolve, 150));
+            filtered = files;
+            stats.dateFiltered = filtered.length;
           }
         }
       }
@@ -309,12 +338,17 @@ export default function Generator() {
             await new Promise(resolve => setTimeout(resolve, 50));
             const b64 = await scaleImageToCanvas(file);
             scaledItems.push({ photo_id: String(i + idx), image_base64: b64, originalFile: file });
+            stats.decodeOk += 1;
           } catch (err) {
             console.error('Error scaling image', err);
+            stats.decodeFail += 1;
           }
         }
         
-        if (scaledItems.length === 0) continue;
+        if (scaledItems.length === 0) {
+          stats.batchesSkipped += 1;
+          continue;
+        }
 
         // Call backend (Stateless RAM check)
         const payload = {
@@ -323,6 +357,7 @@ export default function Generator() {
         };
 
         try {
+          stats.batchesSent += 1;
           const res = await memoryAPI.evaluateMatch(selectedPeople, payload.images);
           
           if (res.matched_photo_ids && res.matched_photo_ids.length > 0) {
@@ -334,7 +369,7 @@ export default function Generator() {
                    foundMatches.push({
                      file: sourceItem.originalFile,
                      previewUrl: URL.createObjectURL(sourceItem.originalFile),
-                     captureTs: photoTimestampRef.current.get(sourceItem.originalFile) || sourceItem.originalFile.lastModified,
+                     captureTs: photoTimestampRef.current.get(sourceItem.originalFile)?.ts || sourceItem.originalFile.lastModified,
                    });
                  }
                }
@@ -349,8 +384,13 @@ export default function Generator() {
       if (foundMatches.length > 0) {
         setProgressText(`Listo. Encontramos ${foundMatches.length} resultado(s).`);
         setMatchedFiles(foundMatches);
+        setDebugStats(stats);
         setStep('found');
       } else {
+        if (stats.batchesSent === 0) {
+          setProgressText('No se pudo procesar ningun batch. Revisa formato de fotos (ej. HEIC) o reduce el lote.');
+        }
+        setDebugStats(stats);
         setStep('no_matches');
       }
 
@@ -557,6 +597,21 @@ export default function Generator() {
       >
         Intentar con otras fechas
       </button>
+
+      {debugStats && (
+        <details className="w-full mt-4 text-left bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-3">
+          <summary className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark cursor-pointer">
+            Ver diagnostico tecnico
+          </summary>
+          <div className="mt-2 text-xs text-text-secondary-light dark:text-text-secondary-dark space-y-1">
+            <p>Seleccionadas: {debugStats.totalSelected}</p>
+            <p>Despues de fecha: {debugStats.dateFiltered}</p>
+            <p>EXIF: {debugStats.exifCount} | Fallback: {debugStats.fallbackCount}</p>
+            <p>Decodificadas: {debugStats.decodeOk} | Fallidas: {debugStats.decodeFail}</p>
+            <p>Batches enviados: {debugStats.batchesSent} | Batches omitidos: {debugStats.batchesSkipped}</p>
+          </div>
+        </details>
+      )}
     </div>
   );
 
