@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, MapPin, Navigation, ArrowRight, Users, Tag, Plus, Calendar, Wand2 } from 'lucide-react';
+import { Search, X, MapPin, Navigation, ArrowRight, Users, Tag, Plus, Calendar } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
-import GeneratorModal from '../components/GeneratorModal';
 import { memoryAPI, peopleAPI, searchAPI, categoriesAPI, connectionsAPI } from '../services/api';
 
 // Helper to safely parse ai_metadata which might come as a string
@@ -34,7 +33,6 @@ export default function Home() {
   const [nearbyError, setNearbyError] = useState('');
   const [newCatLabel, setNewCatLabel] = useState('');
   const [addingCat, setAddingCat] = useState(false);
-  const [generatorOpen, setGeneratorOpen] = useState(false);
   const searchDebounceRef = useRef(null);
 
   // Load categories from backend on mount
@@ -556,22 +554,6 @@ export default function Home() {
         </div>
         <ArrowRight size={18} className="text-primary" />
       </button>
-
-      {/* Floating Action Button (FAB) for Magic Memory Generator */}
-      <button
-        onClick={() => setGeneratorOpen(true)}
-        className="absolute bottom-24 right-4 z-40 bg-primary text-white p-4 rounded-full shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center animate-bounce-slow"
-        title="Generador de Memorias Mágicas"
-      >
-        <Wand2 size={24} />
-      </button>
-
-      {/* Magic Generator Modal */}
-      <GeneratorModal
-        isOpen={generatorOpen}
-        onClose={() => setGeneratorOpen(false)}
-        people={people}
-      />
     </div>
   );
 }

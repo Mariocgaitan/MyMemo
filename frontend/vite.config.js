@@ -34,7 +34,7 @@ export default defineConfig({
             urlPattern: /^https:\/\/.*\.s3\..*\.amazonaws\.com\/.*/i,
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'mymemo-s3-images-v2', // v2 forces mobile PWAs to purge old green markers cache
+              cacheName: 'mymemo-s3-images-v3', // v3 forces mobile PWAs to purge old green markers cache
               expiration: {
                 maxEntries: 200,
                 maxAgeSeconds: 60 * 60 * 24 * 60, // 60 days
@@ -46,8 +46,8 @@ export default defineConfig({
             urlPattern: /\.(js|css|html)$/i,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'mymemo-app-shell-v2', // v2 forces clean start
-              networkTimeoutSeconds: 5, // Fall back to cache after 5s
+              cacheName: 'mymemo-app-shell-v3', // v3 forces clean start
+              networkTimeoutSeconds: 3, // Fall back to cache after 3s (faster network check)
             },
           },
         ],

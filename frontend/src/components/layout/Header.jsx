@@ -1,16 +1,19 @@
-import { Menu, Moon, Sun, Users, RefreshCw, LogOut, UserPlus } from 'lucide-react';
+import { Menu, Moon, Sun, Users, RefreshCw, LogOut, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { connectionsAPI } from '../../services/api';
+import { connectionsAPI, peopleAPI } from '../../services/api';
 import Button from '../ui/Button';
 import { useState, useEffect, useCallback } from 'react';
+import GeneratorModal from '../GeneratorModal';
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [people, setPeople] = useState([]);
 
   const fetchPending = useCallback(async () => {
     if (!user) return;
@@ -31,6 +34,17 @@ export default function Header() {
       window.removeEventListener('connection-updated', fetchPending);
     };
   }, [fetchPending]);
+
+  // Load people for the Magic Wand modal
+  useEffect(() => {
+    if (!user) return;
+    peopleAPI.getAll()
+      .then(data => {
+        const named = (data || []).filter(p => !p.name.startsWith('Unknown Person'));
+        setPeople(named);
+      })
+      .catch(console.error);
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -71,7 +85,7 @@ export default function Header() {
           </h1>
         </div>
 
-        {/* Right: Dark mode + People nav */}
+        {/* Right: Actions */}
         <div className="flex items-center gap-3">
           {/* Nuke Cache button */}
           <Button
@@ -98,33 +112,34 @@ export default function Header() {
             )}
           </Button>
 
-          {/* Connections requests badge */}
+          {/* People / Connections link (MERGED) */}
           <button
             onClick={() => navigate('/people')}
-            className="relative p-2 rounded-lg hover:bg-primary/10 transition-colors"
-            aria-label="Solicitudes de conexión"
-            title="Solicitudes de conexión"
-          >
-            <UserPlus size={20} className="text-text-secondary-light dark:text-text-secondary-dark" />
-            {pendingCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                {pendingCount > 9 ? '9+' : pendingCount}
-              </span>
-            )}
-          </button>
-
-          {/* People link */}
-          <button
-            onClick={() => navigate('/people')}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-primary/10 transition-colors group"
+            className="group relative flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl hover:bg-primary/10 transition-colors"
+            title="Ver personas y conexiones"
             aria-label="Ver personas"
           >
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center group-hover:bg-primary-hover transition-colors">
+            <div className="relative w-8 h-8 rounded-full bg-primary flex items-center justify-center group-hover:bg-primary-hover transition-colors">
               <Users size={16} className="text-white" />
+              {pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 border border-surface-light dark:border-surface-dark">
+                  {pendingCount > 9 ? '9+' : pendingCount}
+                </span>
+              )}
             </div>
             <span className="hidden sm:block text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
               Personas
             </span>
+          </button>
+
+          {/* Magic Wand Button */}
+          <button
+            onClick={() => setGeneratorOpen(true)}
+            title="Generador de Memorias Mágicas"
+            className="w-10 h-10 rounded-full border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-sm relative overflow-hidden group ml-1"
+          >
+            <Wand2 size={20} className="group-hover:rotate-12 transition-transform" />
+            <div className="absolute inset-0 bg-white/20 w-1/2 -skew-x-12 -translate-x-full group-hover:animate-shine"></div>
           </button>
 
           {/* User info + logout */}
@@ -146,6 +161,13 @@ export default function Header() {
           )}
         </div>
       </div>
+
+      {/* Magic Generator Modal */}
+      <GeneratorModal
+        isOpen={generatorOpen}
+        onClose={() => setGeneratorOpen(false)}
+        people={people}
+      />
     </header>
   );
 }
