@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Camera, Upload, MapPin, Loader2, Calendar } from 'lucide-react';
 import { Button, Input, Textarea, Chip } from '../components/ui';
 import { memoryAPI, categoriesAPI } from '../services/api';
@@ -53,6 +53,7 @@ function UploadOverlay({ step }) {
 
 export default function CreateMemory() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploadStep, setUploadStep] = useState(null); // 'prepare' | 'upload' | 'ai'
@@ -73,6 +74,14 @@ export default function CreateMemory() {
     people: '', // Comma-separated names
     memoryDate: '', // ISO date string or empty (means "now")
   });
+
+  const toDateTimeLocal = (isoLike) => {
+    if (!isoLike) return '';
+    const d = new Date(isoLike);
+    if (Number.isNaN(d.getTime())) return '';
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
 
   // Load categories from API
   useEffect(() => {
@@ -108,6 +117,25 @@ export default function CreateMemory() {
       setGpsStatus('error');
     }
   }, []);
+
+  // If user comes from Generator, prefill image/date/people to speed up memory creation.
+  useEffect(() => {
+    const prefilledFile = location.state?.prefilledFile;
+    const prefilledDate = location.state?.prefilledDate;
+    const prefilledPeople = location.state?.prefilledPeople;
+
+    if (!prefilledFile && !prefilledDate && !prefilledPeople) return;
+
+    setFormData(prev => ({
+      ...prev,
+      image: prefilledFile || prev.image,
+      imagePreview: prefilledFile ? URL.createObjectURL(prefilledFile) : prev.imagePreview,
+      memoryDate: prefilledDate ? toDateTimeLocal(prefilledDate) : prev.memoryDate,
+      people: Array.isArray(prefilledPeople) && prefilledPeople.length > 0
+        ? prefilledPeople.join(', ')
+        : prev.people,
+    }));
+  }, [location.state]);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -397,7 +425,7 @@ export default function CreateMemory() {
 
           {/* Date picker */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
+            <label className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
               <Calendar size={15} className="text-primary" />
               Fecha del recuerdo
             </label>
