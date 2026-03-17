@@ -382,7 +382,7 @@ export default function GeneratorModal({ isOpen, onClose, people }) {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isProcessing && onClose()} />
       <div className="relative bg-surface-light dark:bg-surface-dark rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-fade-in">
         
