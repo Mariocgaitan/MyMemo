@@ -8,7 +8,7 @@ import os
 import sys
 import uuid
 import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timezone
 
 import face_recognition
