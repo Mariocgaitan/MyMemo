@@ -1,17 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Search, Wand2, Image as ImageIcon, Calendar, Users, Loader2, ArrowRight, Check } from 'lucide-react';
-import { memoryAPI } from '../services/api';
+import { X, Search, Wand2, Image as ImageIcon, Calendar, Users, Loader2, ArrowRight, Check, ArrowLeft } from 'lucide-react';
+import { memoryAPI, peopleAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
-export default function GeneratorModal({ isOpen, onClose, people }) {
+export default function Generator() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   
-  // --------- States ---------
   const [step, setStep] = useState('config'); // 'config' | 'processing' | 'found' | 'no_matches'
   
   // Config
+  const [people, setPeople] = useState([]);
   const [selectedPeople, setSelectedPeople] = useState([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -25,24 +24,15 @@ export default function GeneratorModal({ isOpen, onClose, people }) {
   // References to keep state in async closures
   const filesRef = useRef([]);
 
-  // --------- Reset on open ---------
+  // Fetch people on mount
   useEffect(() => {
-    if (isOpen) {
-      setStep('config');
-      setSelectedPeople([]);
-      setStartDate('');
-      setEndDate('');
-      setMatchedFiles([]);
-      setCurrentIndex(0);
-      setIsProcessing(false);
-      setProgressText('');
-      if (filesRef.current.length > 0) {
-        filesRef.current = [];
-      }
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
+    peopleAPI.getAll()
+      .then(data => {
+        const named = (data || []).filter(p => !p.name.startsWith('Unknown Person'));
+        setPeople(named);
+      })
+      .catch(console.error);
+  }, []);
 
   // --------- Helpers ---------
   const handleTogglePerson = (id) => {
@@ -203,7 +193,6 @@ export default function GeneratorModal({ isOpen, onClose, people }) {
         prefilledPeople: people.filter(p => selectedPeople.includes(p.id)).map(p => p.name)
       }
     });
-    onClose();
   };
 
   // --------- Renderers ---------
@@ -382,32 +371,27 @@ export default function GeneratorModal({ isOpen, onClose, people }) {
     </div>
   );
 
-  return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isProcessing && onClose()} />
-      <div className="relative bg-surface-light dark:bg-surface-dark rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-fade-in">
-        
-        {/* Header (hidden in processing/found states to keep immersion) */}
-        {!['processing', 'found'].includes(step) && (
-          <div className="absolute top-4 right-4 z-10">
-            <button
-              onClick={onClose}
-              disabled={isProcessing}
-              className="p-1.5 bg-background-light/50 dark:bg-background-dark/50 text-text-secondary-light hover:text-text-primary-light rounded-full backdrop-blur-md transition-colors disabled:opacity-50"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        )}
-
-        <div className="p-6">
-          {step === 'config' && renderConfig()}
-          {step === 'processing' && renderProcessing()}
-          {step === 'found' && renderFound()}
-          {step === 'no_matches' && renderNoMatches()}
-        </div>
+  return (
+    <div className="max-w-xl mx-auto p-6 space-y-8 animate-fade-in pb-24">
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-6">
+        <button
+          onClick={() => navigate('/')}
+          className="p-2 -ml-2 hover:bg-surface-light dark:hover:bg-surface-dark rounded-xl transition-colors"
+        >
+          <ArrowLeft className="text-text-secondary-light dark:text-text-secondary-dark" size={24} />
+        </button>
+        <h2 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
+          Generador de Memorias
+        </h2>
       </div>
-    </div>,
-    document.body
+
+      <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 shadow-sm border border-border-light dark:border-border-dark flex flex-col min-h-[400px]">
+        {step === 'config' && renderConfig()}
+        {step === 'processing' && renderProcessing()}
+        {step === 'found' && renderFound()}
+        {step === 'no_matches' && renderNoMatches()}
+      </div>
+    </div>
   );
 }

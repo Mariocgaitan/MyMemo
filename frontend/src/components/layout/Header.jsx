@@ -2,18 +2,15 @@ import { Menu, Moon, Sun, Users, RefreshCw, LogOut, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { connectionsAPI, peopleAPI } from '../../services/api';
+import { connectionsAPI } from '../../services/api';
 import Button from '../ui/Button';
 import { useState, useEffect, useCallback } from 'react';
-import GeneratorModal from '../GeneratorModal';
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
-  const [generatorOpen, setGeneratorOpen] = useState(false);
-  const [people, setPeople] = useState([]);
 
   const fetchPending = useCallback(async () => {
     if (!user) return;
@@ -34,17 +31,6 @@ export default function Header() {
       window.removeEventListener('connection-updated', fetchPending);
     };
   }, [fetchPending]);
-
-  // Load people for the Magic Wand modal
-  useEffect(() => {
-    if (!user) return;
-    peopleAPI.getAll()
-      .then(data => {
-        const named = (data || []).filter(p => !p.name.startsWith('Unknown Person'));
-        setPeople(named);
-      })
-      .catch(console.error);
-  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -134,7 +120,7 @@ export default function Header() {
 
           {/* Magic Wand Button */}
           <button
-            onClick={() => setGeneratorOpen(true)}
+            onClick={() => navigate('/generator')}
             title="Generador de Memorias Mágicas"
             className="w-10 h-10 rounded-full border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-sm relative overflow-hidden group ml-1"
           >
@@ -161,13 +147,6 @@ export default function Header() {
           )}
         </div>
       </div>
-
-      {/* Magic Generator Modal */}
-      <GeneratorModal
-        isOpen={generatorOpen}
-        onClose={() => setGeneratorOpen(false)}
-        people={people}
-      />
     </header>
   );
 }
