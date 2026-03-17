@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 const GENERATOR_BATCH_SIZE = 30;
 const GENERATOR_MAX_TOTAL_TO_CHECK = 300;
 const GENERATOR_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes (testing)
+const GENERATOR_MAX_MATCHES = 5;
 
 export default function Generator() {
   const navigate = useNavigate();
@@ -329,18 +330,20 @@ export default function Generator() {
              for (const mid of res.matched_photo_ids) {
                const sourceItem = scaledItems.find(s => s.photo_id === mid);
                if (sourceItem) {
-                 foundMatches.push({
-                   file: sourceItem.originalFile,
-                   previewUrl: URL.createObjectURL(sourceItem.originalFile),
-                   captureTs: photoTimestampRef.current.get(sourceItem.originalFile) || sourceItem.originalFile.lastModified,
-                 });
+                 const alreadyAdded = foundMatches.some(m => m.file === sourceItem.originalFile);
+                 if (!alreadyAdded) {
+                   foundMatches.push({
+                     file: sourceItem.originalFile,
+                     previewUrl: URL.createObjectURL(sourceItem.originalFile),
+                     captureTs: photoTimestampRef.current.get(sourceItem.originalFile) || sourceItem.originalFile.lastModified,
+                   });
+                 }
                }
              }
-             
-             // If we found at least one match, we can stop the brute-force and show it!
-             // UX decision: Stop early to give instant gratification.
-             if (foundMatches.length > 0) {
-               break; 
+
+             // Stop once we have enough options to show the user.
+             if (foundMatches.length >= GENERATOR_MAX_MATCHES) {
+               break;
              }
           }
         } catch (apiErr) {
