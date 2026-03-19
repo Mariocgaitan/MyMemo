@@ -72,6 +72,39 @@ export const memoryAPI = {
     return response.data;
   },
 
+  // Fetch all pages from /memories (backend uses page/page_size, not limit/skip)
+  getAllPages: async ({ pageSize = 100, visibility } = {}) => {
+    let page = 1;
+    let hasMore = true;
+    let total = 0;
+    const merged = [];
+
+    while (hasMore) {
+      const params = { page, page_size: pageSize };
+      if (visibility) params.visibility = visibility;
+
+      const response = await api.get('/api/v1/memories', { params });
+      const data = response.data || {};
+      const batch = Array.isArray(data.memories) ? data.memories : [];
+
+      merged.push(...batch);
+      total = Number.isFinite(data.total) ? data.total : merged.length;
+      hasMore = Boolean(data.has_more);
+      page += 1;
+
+      // Guardrail against malformed responses causing infinite loops.
+      if (page > 200) break;
+    }
+
+    return {
+      memories: merged,
+      total,
+      page: 1,
+      page_size: merged.length,
+      has_more: false,
+    };
+  },
+
   // Get single memory by ID
   getById: async (id) => {
     const response = await api.get(`/api/v1/memories/${id}`);

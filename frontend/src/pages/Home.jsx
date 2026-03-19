@@ -54,8 +54,8 @@ export default function Home() {
   const fetchMemories = async () => {
     try {
       setLoading(true);
-      const response = await memoryAPI.getAll({ limit: 200, skip: 0 });
-      // API returns { memories: [...], total, page, page_size, has_more }
+      const response = await memoryAPI.getAllPages({ pageSize: 100 });
+      // Keep full history for map so older memories never disappear due to pagination.
       setMemories(response.memories || []);
     } catch (error) {
       console.error('Error fetching memories:', error);

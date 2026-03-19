@@ -21,7 +21,7 @@ export default function Timeline() {
     const load = async () => {
       try {
         setLoading(true);
-        const response = await memoryAPI.getAll({ limit: 500, skip: 0 });
+        const response = await memoryAPI.getAllPages({ pageSize: 100 });
         setMemories(response.memories || []);
       } catch (e) {
         console.error('Error fetching memories:', e);

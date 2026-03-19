@@ -1,67 +1,261 @@
-# Session 18: Entrenamiento de Rostros y Explorador de Galería
+# Session 19: Estrategia de Rediseño Frontend + Mapa
+
+Fecha: 2026-03-19
+Estado: Planeacion (sin codificar aun)
 
 ---
 
-## Funcionalidad 1: "Añadir / Entrenar Rostro Manual"
+## 1) Objetivo de la sesion
 
-### El Problema
-El sistema registra personas de forma pasiva: detecta caras al subir memorias. Si dos personas se parecen o las condiciones de luz son malas, el algoritmo puede crear duplicados o fallar en identificar a alguien. No hay manera de darle una foto de referencia limpia directamente a MyMemo sin crear una memoria completa.
+Definir una estrategia optima, por fases, para implementar estos cambios de producto:
 
-### Solución
-Una interfaz dedicada para inyectar un *embedding* de alta calidad en el diccionario facial del usuario, sin crear ningún "recuerdo".
-
-### Flujo de Usuario
-1. En la vista `/people`, botón nuevo: **"Entrenar nuevo Rostro"**.
-2. Se abre un modal de subida. El usuario sube **un retrato claro y frontal**.
-3. El backend procesa la imagen con `face_recognition`:
-   - 0 caras detectadas → `400 Bad Request`: *"No se detectó ninguna cara"*.
-   - Más de 1 cara → `400 Bad Request`: *"Sube una foto con una sola persona"*.
-   - Exactamente 1 cara → retorna el recorte thumbnail y el vector de 128d.
-4. El frontend muestra el recorte de la cara detectada + un input: *"¿Quién es?"*.
-5. El usuario escribe el nombre y confirma. La persona queda registrada con embeddings de alta fidelidad.
-
-### Plan Técnico (Backend)
-- **`POST /api/v1/people/train`**
-  - Recibe: imagen base64.
-  - Corre `face_recognition` en modo efímero (no guarda la imagen original en S3, solo el thumbnail de cara si se quiere avatar).
-  - Valida exactamente 1 cara detectada.
-  - Retorna: `{ thumbnail_crop: "<base64>", embedding: [...128 floats] }`.
-- **`POST /api/v1/people`** (ya existente): recibe `name` + `embedding` devuelto por el paso anterior para crear el Person en BD.
-
-### Plan Técnico (Frontend)
-| Archivo | Cambio |
-|---|---|
-| `People.jsx` | Botón "Entrenar nuevo Rostro" en el header |
-| `TrainFaceModal.jsx` (NUEVO) | Modal de subida + preview de recorte + input nombre |
-| `api.js` | `peopleAPI.train(imageBase64)` → `POST /api/v1/people/train` |
+1. Rediseño general estilo app social (barra inferior con 5 tabs).
+2. Simplificar header (sin menu de 3 puntos; dejar reiniciar cache, modo y salida).
+3. Mapa con clustering por radio de 500 m y vista tipo timeline al abrir cluster.
+4. Corregir desaparicion de recuerdos antiguos en mapa.
+5. Instrucciones iniciales para onboarding de uso de componentes principales.
+6. Definir usuario principal en primer login (cara + nombre).
+7. Evaluar reemplazo/mejora de buscador de mapa (Google Maps / Waze / Uber-like place search).
 
 ---
 
-## Funcionalidad 2: "Explorador de Galería Inteligente" *(En Diseño — Sin solución definitiva)*
+## 2) Principios de implementacion
 
-### El Concepto
-El usuario define parámetros: personas a buscar (ej. "Mario" y "Mau") y un período temporal (ej. "2024"). MyMemo busca en las fotos del carrete del dispositivo aquellas que cumplan ambas condiciones, de forma pseudoaleatoria, y si el usuario acepta una, la manda directamente al flujo de crear un nuevo recuerdo.
+1. No romper flujos existentes: crear recuerdo, timeline, personas, mapa, generador.
+2. Entregar por verticales pequenas y desplegables.
+3. Siempre dejar feature flags simples para desactivar funcionalidades nuevas si hay regresion.
+4. Medir impacto en UX/performance antes de pasar a la siguiente fase.
 
-### Flujo de Usuario Definido
-1. El usuario accede a la pantalla "Explorar Galería".
-2. Configura los filtros: **Personas** (nombre de personas ya registradas en su BD) + **Período** (año o rango de fechas).
-3. MyMemo le solicita permiso para acceder a fotos → el usuario selecciona un lote grande de su carrete (ej. 300 fotos de 2024).
-4. **Paso 1 — Filtro local (EXIF, en el dispositivo, sin enviar nada al servidor):** Se leen los metadatos EXIF de cada foto y se descartan las que no están dentro del período pedido. Solo las que sí cumplen pasan al siguiente paso.
-5. El array de fotos que pasan el filtro se **mezcla aleatoriamente (shuffle)** para evitar que siempre salgan los mismos resultados en corridas distintas.
-6. **Paso 2 — Reconocimiento facial (backend):** Los thumbnails de las fotos mezcladas se mandan al servidor en batches de 3, procesando en paralelo. El servidor corre `face_recognition` y devuelve qué fotos contienen a las personas pedidas.
-7. En cuanto se encuentran **hasta 5 matches**, el proceso se **detiene**. Las fotos restantes nunca se envían al servidor.
-8. Los matches se presentan al usuario uno por uno. Para cada foto:
-   - **Aceptar** → va al flujo `CreateMemory` con la foto y la fecha EXIF pre-cargadas.
-   - **Ignorar** → muestra la siguiente.
-   - Si ninguna convence, el usuario puede correr de nuevo con un nuevo shuffle.
-9. **Solo la foto que se convierte en recuerdo se guarda en S3 y en BD.** Las demás nunca se persisten.
+---
 
-### Barreras y Problemas Abiertos
+## 3) Arquitectura funcional objetivo (frontend)
 
-| Problema | Detalle |
-|---|---|
-| **Acceso a galería en iOS** | Safari en PWA no permite leer el carrete automáticamente. El usuario debe seleccionar las fotos manualmente. |
-| **EXIF perdido** | Fotos compartidas por WhatsApp/redes sociales pierden los metadatos de fecha y ubicación. El filtro de fecha no puede aplicarse a ellas → ¿las descartamos o las mandamos todas al backend? |
-| **Costo si no hay matches** | En el peor caso, se procesan ~150 thumbnails completos sin encontrar matches. Esto equivale a ~$0.01 de cómputo pero son potencialmente 3-5 minutos de espera. |
-| **Privacidad de embeddings** | Los thumbnails que se mandan al servidor para reconocimiento facial: ¿se conservan en memoria o se garantiza que son eliminados inmediatamente tras la comparación? |
-| **Solución definitiva** | Pendiente de revisión — no llegamos a una decisión final en esta sesión. |
+### Navegacion principal (Bottom Tab Bar)
+
+Tabs (con iconos, sin texto visible por defecto):
+
+1. Mapa (pantalla principal por defecto)
+2. Linea del tiempo
+3. Agregar recuerdo (accion central destacada)
+4. Buscar recuerdo
+5. Personas
+
+Reglas:
+
+1. Mantener rutas existentes para compatibilidad.
+2. Integrar la barra en el layout global, no por pagina.
+3. Header simplificado: solo reiniciar cache, modo y logout.
+
+---
+
+## 4) Estrategia por fases (orden recomendado)
+
+## Fase A - Base de navegacion y layout (prioridad maxima)
+
+Objetivo: mover la app al nuevo modelo visual sin alterar logica de negocio.
+
+Entregables:
+
+1. Bottom tab bar funcional con las 5 rutas.
+2. Mapa como home principal.
+3. Header limpio sin menu de 3 puntos.
+
+Riesgos:
+
+1. Superposicion de barra sobre mapa o FAB.
+2. Safe areas en mobile (iOS notch / bottom inset).
+
+Mitigacion:
+
+1. Reservar padding inferior global.
+2. Ajustar z-index y hit areas.
+
+---
+
+## Fase B - Mapa estable y completo (antes del cluster nuevo)
+
+Objetivo: resolver bug de recuerdos antiguos que desaparecen.
+
+Entregables:
+
+1. Auditoria de filtros activos por defecto (fecha, people, limites).
+2. Garantizar que mapa carga todo lo que corresponde (sin recortes por antiguedad no deseados).
+3. Tests/manual checks con recuerdos recientes y antiguos.
+
+Riesgos:
+
+1. El problema puede venir de frontend, backend o ambos.
+2. Cargar todo sin paginacion puede afectar performance.
+
+Mitigacion:
+
+1. Verificar endpoint y params reales.
+2. Si hace falta, usar paginacion incremental pero sin ocultar historicos.
+
+---
+
+## Fase C - Cluster geoespacial 500 m + vista de grupo tipo timeline
+
+Objetivo: mejorar legibilidad del mapa en zonas densas.
+
+Definicion funcional:
+
+1. Todo recuerdo dentro de un radio de 500 m cae en un cluster visual.
+2. Al tocar cluster: abrir vista panel/pestana tipo timeline solo con recuerdos de ese cluster.
+
+Estrategia tecnica recomendada:
+
+1. Clustering por distancia geodesica (no solo grid de zoom) con umbral configurable.
+2. Calculo en frontend para MVP rapido.
+3. Opcional futura: precluster en backend para datasets mas grandes.
+
+Decision confirmada: **Clustering dinamico por zoom**
+
+- A zoom 50% (alejado): 500 m visualmenpte grandes => clusters cerrados.
+- A zoom 100%+ (acercado): 500 m visualmente pequenos => clusters se separan mas.
+- Calculo: distancia geodesica constante (500 m reales), pero visualizacion se adapta segun zoom del mapa.
+- Cuando usuario hace zoom in/out, clusters se reagrupan dinamicamente en tiempo real.
+
+Razon: intuitivo, el usuario ve como se desagrupan al acercarse.
+
+---
+
+## Fase D - Onboarding guiado
+
+Objetivo: que nuevos usuarios entiendan los 5 componentes clave sin friccion.
+
+Alcance MVP:
+
+1. Tour de primera sesion con 4-6 pasos.
+2. Tooltips por tab principal.
+3. Opcion "ver tutorial de nuevo" en ajustes.
+
+Persistencia:
+
+1. Guardar bandera por usuario: onboarding_completed.
+
+---
+
+## Fase E - Usuario principal en primer login (cara + nombre)
+
+Objetivo: dejar definido el owner facial para mejorar reconocimiento y UX.
+
+Flujo propuesto:
+
+1. Primer login detectado.
+2. Modal obligatorio: nombre + foto frontal.
+3. Validacion de una sola cara.
+4. Guardar como "principal" y registrar embedding inicial.
+
+Dependencias:
+
+1. Reusar flujo de entrenamiento facial ya existente.
+2. Definir flag backend: primary_person_id por usuario.
+
+---
+
+## Fase F - Buscador de mapa mejorado (research + implementacion)
+
+Objetivo: mejorar calidad de lugares y POIs.
+
+Decision confirmada: **Google Places API**
+
+1. Alta calidad, cobertura global, autocompletado robusto.
+2. Costo estimado: minimo para MVP (primeros 1000 searches gratis/mes).
+3. Integracion directa con Google Maps que ya usamos en frontend Leaflet.
+
+Nota sobre Waze/Uber:
+
+1. No existe API publica general de busqueda de lugares.
+2. Google es la opcion mas realista y confiable.
+
+---
+
+## 5) Orden final sugerido de ejecucion
+
+1. Fase A (navegacion + layout)
+2. Fase B (bug recuerdos antiguos en mapa)
+3. Fase C (cluster 500 m + timeline de cluster)
+4. Fase D (onboarding)
+5. Fase E (usuario principal)
+6. Fase F (buscador externo de lugares)
+
+Razon:
+
+1. Primero estructura visual base.
+2. Luego estabilidad del mapa (base de todo).
+3. Despues feature geoespacial avanzada.
+4. Al final flows de activacion y mejoras de proveedor externo.
+
+---
+
+## 6) Definicion de listo por fase
+
+Cada fase se considera "Done" cuando cumple:
+
+1. QA mobile + desktop sin regresiones visibles.
+2. Sin errores en consola ni warnings criticos.
+3. Flujo principal documentado en changelog corto.
+4. Deployable sin tocar infraestructura fuera de lo necesario.
+
+---
+
+## 7) Decisiones cerradas
+
+✅ Clustering: **Dinamico por zoom** (500 m geodesicos reales, ajuste visual segun zoom del mapa).
+✅ Buscador mapa: **Google Places API**.
+✅ Bottom tab bar labels: **Solo icono siempre, label visible en navegacion del header al cambiar de tab (no en la barra misma)**.
+
+---
+
+## 8) Aclaracion: Bottom Tab Bar labels
+
+Estructura visual objetivo:
+
+```
+┌─────────────────────────────────┐
+│  [<] Mapa      [Header limpio] │  <- titulo de la seccion actual
+└─────────────────────────────────┘
+│                                   │
+│      [Contenido de la tab]        │
+│                                   │
+└─────────────────────────────────┘
+│ [◉] [═] [✚] [⊙] [◈]          │  <- bottom bar, solo iconos (Lucide)
+└─────────────────────────────────┘
+```
+
+Iconos (de Lucide) representan:
+1. ◉ (Map) → Mapa
+2. ═ (Clock / Timeline) → Linea del tiempo
+3. ✚ (Plus, central y mas grande) → Agregar recuerdo
+4. ⊙ (Search) → Buscar recuerdo
+5. ◈ (Users) → Personas
+
+El nombre/label se muestra en el header de cada seccion, no en la barra para mantener limpieza visual.
+
+---
+
+## 9) Proximos pasos: Arrancar Fase A
+
+✅ **FASE A COMPLETADA** (commit `df6cc35`)
+
+Implementado:
+1. ✅ BottomTabBar.jsx con 5 rutas y navegación fluida.
+2. ✅ Header simplificado (solo refresh cache, modo, logout).
+3. ✅ Layout refactorizado con BottomTabBar integrado.
+4. ✅ Ruta /search con página SearchMemory básica.
+5. ✅ Timeline ahora usa Layout (recupera BottomTabBar).
+6. ✅ Padding inferior (pb-20) para que contenido no choque con barra.
+
+✅ **FASE B COMPLETADA** (pendiente commit local de esta fase)
+
+Hallazgo raiz:
+1. Frontend pedia `/memories` con `limit/skip`, pero backend usa `page/page_size`.
+2. Resultado real: solo llegaba la primera pagina (20 recuerdos), ocultando historicos en mapa y timeline.
+
+Fix aplicado:
+1. `memoryAPI.getAllPages()` agregado con paginacion real por `page/page_size` y `has_more`.
+2. Home ahora carga historial completo con `getAllPages({ pageSize: 100 })`.
+3. Timeline ahora carga historial completo con `getAllPages({ pageSize: 100 })`.
+
+Siguiente: **Fase C - Cluster geoespacial dinamico (500m) + vista tipo timeline por cluster**
