@@ -258,6 +258,12 @@ Dependencias:
 1. Reusar flujo de entrenamiento facial ya existente.
 2. Definir flag backend: primary_person_id por usuario.
 
+Estado actual:
+1. Implementado modal obligatorio de configuracion inicial en frontend.
+2. Agregado endpoint backend para crear persona desde foto (`POST /people/from-photo`).
+3. Agregado endpoint backend para asignar persona principal (`PATCH /auth/self-person`).
+4. `GET /auth/me` ahora incluye `self_person_id` para decidir si mostrar el modal.
+
 ---
 
 ## Fase F - Buscador de mapa mejorado (research + implementacion)

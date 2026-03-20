@@ -61,6 +61,11 @@ export const authAPI = {
     const response = await api.get('/api/v1/auth/me');
     return response.data; // { id, email, name }
   },
+
+  setSelfPerson: async (personId) => {
+    const response = await api.patch('/api/v1/auth/self-person', { person_id: personId });
+    return response.data;
+  },
 };
 
 // ========== Memory Endpoints ==========

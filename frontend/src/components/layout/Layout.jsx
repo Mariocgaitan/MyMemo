@@ -4,11 +4,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import Header from './Header';
 import BottomTabBar from './BottomTabBar';
 import TourOverlay from '../onboarding/TourOverlay';
+import PrimaryUserSetupModal from '../onboarding/PrimaryUserSetupModal';
 
 export default function Layout({ children, showFAB = false }) {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [showMainTutorial, setShowMainTutorial] = useState(false);
+  const [showPrimarySetup, setShowPrimarySetup] = useState(false);
 
   const mainTutorialKey = useMemo(
     () => `mymemo:onboarding:main:${user?.id || 'anon'}`,
@@ -49,11 +51,19 @@ export default function Layout({ children, showFAB = false }) {
 
   useEffect(() => {
     const alreadyCompleted = localStorage.getItem(mainTutorialKey) === '1';
-    if (!alreadyCompleted && location.pathname === '/') {
+    if (!alreadyCompleted && location.pathname === '/' && user?.self_person_id) {
       const t = setTimeout(() => setShowMainTutorial(true), 300);
       return () => clearTimeout(t);
     }
-  }, [location.pathname, mainTutorialKey]);
+  }, [location.pathname, mainTutorialKey, user?.self_person_id]);
+
+  useEffect(() => {
+    if (user && !user.self_person_id) {
+      setShowPrimarySetup(true);
+    } else {
+      setShowPrimarySetup(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     const openTutorial = () => setShowMainTutorial(true);
@@ -78,6 +88,15 @@ export default function Layout({ children, showFAB = false }) {
         storageKey={mainTutorialKey}
         onComplete={() => setShowMainTutorial(false)}
         onSkip={() => setShowMainTutorial(false)}
+      />
+
+      <PrimaryUserSetupModal
+        isOpen={showPrimarySetup}
+        initialName={user?.name || ''}
+        onCompleted={async () => {
+          await refreshUser();
+          setShowPrimarySetup(false);
+        }}
       />
     </div>
   );

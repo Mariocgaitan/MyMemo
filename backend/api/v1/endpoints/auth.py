@@ -9,12 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from sqlalchemy.orm.attributes import flag_modified
+import uuid
 
 from core.database import get_db
 from core.deps import get_current_user
 from core.limiter import limiter
 from core.security import create_access_token, hash_password, verify_password
-from models.database import User
+from models.database import User, Person
 
 router = APIRouter()
 
@@ -50,6 +51,7 @@ class UserResponse(BaseModel):
     id: str
     email: str
     name: str | None
+    self_person_id: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -125,6 +127,43 @@ async def me(current_user: User = Depends(get_current_user)):
         id=str(current_user.id),
         email=current_user.email,
         name=current_user.name,
+        self_person_id=str(current_user.self_person_id) if current_user.self_person_id else None,
+    )
+
+
+class SetSelfPersonRequest(BaseModel):
+    person_id: str
+
+
+@router.patch("/self-person", response_model=UserResponse)
+async def set_self_person(
+    payload: SetSelfPersonRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Assign the current user's own person profile (used for friend-link mapping)."""
+    user = current_user
+
+    try:
+        pid = uuid.UUID(payload.person_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid person_id")
+
+    exists = await db.execute(
+        select(Person.id).where(Person.id == pid, Person.user_id == user.id)
+    )
+    if not exists.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
+
+    user.self_person_id = pid
+    await db.commit()
+    await db.refresh(user)
+
+    return UserResponse(
+        id=str(user.id),
+        email=user.email,
+        name=user.name,
+        self_person_id=str(user.self_person_id) if user.self_person_id else None,
     )
 
 
