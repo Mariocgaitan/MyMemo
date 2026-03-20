@@ -1,5 +1,5 @@
-import { Moon, Sun, RefreshCw, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Moon, Sun, RefreshCw, LogOut, CircleHelp } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../ui/Button';
@@ -8,6 +8,7 @@ export default function Header() {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -28,6 +29,13 @@ export default function Header() {
     }
   };
 
+  const openTutorial = () => {
+    const eventName = location.pathname.startsWith('/create')
+      ? 'mymemo:open-create-tutorial'
+      : 'mymemo:open-main-tutorial';
+    window.dispatchEvent(new CustomEvent(eventName));
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark px-6 py-4 shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -41,6 +49,16 @@ export default function Header() {
 
         {/* Right: Actions (minimal) */}
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={openTutorial}
+            title="Ver tutorial"
+            aria-label="Ver tutorial"
+          >
+            <CircleHelp className="text-text-secondary-light dark:text-text-secondary-dark" size={18} />
+          </Button>
+
           {/* Nuke Cache button */}
           <Button
             variant="ghost"

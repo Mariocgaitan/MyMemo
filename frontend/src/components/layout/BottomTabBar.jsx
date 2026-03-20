@@ -29,6 +29,7 @@ export default function BottomTabBar() {
             <button
               key={tab.id}
               onClick={() => navigate(tab.path)}
+              data-onboarding-tab={tab.id}
               className={`
                 flex flex-col items-center justify-center gap-1 
                 ${tab.center ? 'px-6 py-3' : 'px-4 py-3 flex-1'}

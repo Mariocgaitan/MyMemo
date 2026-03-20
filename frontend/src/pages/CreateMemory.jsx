@@ -3,8 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Camera, Upload, MapPin, Loader2, Calendar } from 'lucide-react';
 import { Button, Input, Textarea, Chip } from '../components/ui';
 import { memoryAPI, categoriesAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import FaceTagModal from '../components/FaceTagModal';
 import LocationPickerModal from '../components/LocationPickerModal';
+import TourOverlay from '../components/onboarding/TourOverlay';
 
 // Upload progress steps for the overlay
 const UPLOAD_STEPS = [
@@ -54,6 +56,7 @@ function UploadOverlay({ step }) {
 export default function CreateMemory() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploadStep, setUploadStep] = useState(null); // 'prepare' | 'upload' | 'ai'
@@ -63,6 +66,7 @@ export default function CreateMemory() {
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [createdMemoryId, setCreatedMemoryId] = useState(null);
   const [createdMemoryUrl, setCreatedMemoryUrl] = useState(null);
+  const [showCreateTutorial, setShowCreateTutorial] = useState(false);
   const [formData, setFormData] = useState({
     image: null,
     imagePreview: null,
@@ -74,6 +78,41 @@ export default function CreateMemory() {
     people: '', // Comma-separated names
     memoryDate: '', // ISO date string or empty (means "now")
   });
+
+  const createTutorialKey = `mymemo:onboarding:create:${user?.id || 'anon'}`;
+
+  const createSteps = [
+    {
+      title: 'Empieza con foto y fecha',
+      text: 'Sube una foto clara y confirma la fecha del recuerdo.',
+      targetSelector: '[data-onboarding-create="photo"]',
+    },
+    {
+      title: 'Cuenta que paso',
+      text: 'Una descripcion corta mejora mucho la busqueda futura.',
+      targetSelector: '[data-onboarding-create="description"]',
+    },
+    {
+      title: 'Categorias',
+      text: 'Las categorias son tuyas para organizar mejor. Puedes seleccionar varias.',
+      targetSelector: '[data-onboarding-create="categories"]',
+    },
+    {
+      title: 'Personas',
+      text: 'Agrega quienes aparecen o participaron. Esto mejora filtros y sugerencias.',
+      targetSelector: '[data-onboarding-create="people"]',
+    },
+    {
+      title: 'Asociacion por amistades',
+      text: 'Con amistades conectadas, MyMemo puede relacionar personas equivalentes entre cuentas.',
+      targetSelector: '[data-onboarding-create="people"]',
+    },
+    {
+      title: 'Guardar recuerdo',
+      text: 'Cuando termines, guarda. Luego puedes editar descripcion, categorias y personas.',
+      targetSelector: '[data-onboarding-create="submit"]',
+    },
+  ];
 
   const toDateTimeLocal = (isoLike) => {
     if (!isoLike) return '';
@@ -116,6 +155,20 @@ export default function CreateMemory() {
     } else {
       setGpsStatus('error');
     }
+  }, []);
+
+  useEffect(() => {
+    const alreadyCompleted = localStorage.getItem(createTutorialKey) === '1';
+    if (!alreadyCompleted) {
+      const t = setTimeout(() => setShowCreateTutorial(true), 350);
+      return () => clearTimeout(t);
+    }
+  }, [createTutorialKey]);
+
+  useEffect(() => {
+    const openCreateTutorial = () => setShowCreateTutorial(true);
+    window.addEventListener('mymemo:open-create-tutorial', openCreateTutorial);
+    return () => window.removeEventListener('mymemo:open-create-tutorial', openCreateTutorial);
   }, []);
 
   // If user comes from Generator, prefill image/date/people to speed up memory creation.
@@ -269,7 +322,7 @@ export default function CreateMemory() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Image Upload */}
-          <div className="space-y-3">
+          <div className="space-y-3" data-onboarding-create="photo">
             {formData.imagePreview ? (
               <div className="relative aspect-[3/2] rounded-2xl overflow-hidden">
                 <img
@@ -382,17 +435,19 @@ export default function CreateMemory() {
           </div>
 
           {/* Description */}
-          <Textarea
-            label="¿Qué pasó?"
-            value={formData.description}
-            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            placeholder="En unos taquitos de canasta con Ángel, hoy me pedí 5..."
-            rows={6}
-            required
-          />
+          <div data-onboarding-create="description">
+            <Textarea
+              label="¿Qué pasó?"
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="En unos taquitos de canasta con Ángel, hoy me pedí 5..."
+              rows={6}
+              required
+            />
+          </div>
 
           {/* Categories */}
-          <div className="space-y-3">
+          <div className="space-y-3" data-onboarding-create="categories">
             <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
               Categorías
             </label>
@@ -410,7 +465,7 @@ export default function CreateMemory() {
           </div>
 
           {/* People tagging */}
-          <div className="space-y-3">
+          <div className="space-y-3" data-onboarding-create="people">
             <Input
               label="¿Con quién estabas?"
               value={formData.people}
@@ -453,6 +508,7 @@ export default function CreateMemory() {
             type="submit"
             fullWidth
             size="lg"
+            data-onboarding-create="submit"
             disabled={!formData.image || !formData.description || loading}
             loading={loading}
           >
@@ -460,6 +516,14 @@ export default function CreateMemory() {
           </Button>
         </form>
       </div>
+
+      <TourOverlay
+        open={showCreateTutorial}
+        steps={createSteps}
+        storageKey={createTutorialKey}
+        onComplete={() => setShowCreateTutorial(false)}
+        onSkip={() => setShowCreateTutorial(false)}
+      />
 
       {/* Location Picker Modal */}
       <LocationPickerModal

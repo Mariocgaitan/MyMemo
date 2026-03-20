@@ -124,15 +124,121 @@ Razon: intuitivo, el usuario ve como se desagrupan al acercarse.
 
 Objetivo: que nuevos usuarios entiendan los 5 componentes clave sin friccion.
 
-Alcance MVP:
+### Alcance MVP (cerrado)
 
-1. Tour de primera sesion con 4-6 pasos.
-2. Tooltips por tab principal.
-3. Opcion "ver tutorial de nuevo" en ajustes.
+1. Tutorial inicial de navegacion (primera sesion).
+2. Tutorial contextual del primer recuerdo (la primera vez que entra a crear recuerdo).
+3. Boton "Ver tutorial de nuevo" desde ajustes/perfil.
 
-Persistencia:
+### Tutorial 1: Inicial (navegacion global)
 
-1. Guardar bandera por usuario: onboarding_completed.
+Objetivo: orientar en tabs y flujo general de app.
+
+Paso 1 - Bienvenida
+Titulo: "Bienvenido a MyMemo"
+Texto: "Te mostramos rapidamente como moverte por la app."
+CTA primario: "Empezar"
+CTA secundario: "Saltar"
+
+Paso 2 - Mapa
+Titulo: "Tu vista principal"
+Texto: "Aqui ves tus recuerdos por zona. Al acercar el mapa, los grupos se separan."
+CTA: "Siguiente"
+
+Paso 3 - Linea del tiempo
+Titulo: "Recuerdos por fecha"
+Texto: "Aqui revisas tu historial y abres cualquier recuerdo para ver detalle."
+CTA: "Siguiente"
+
+Paso 4 - Buscar
+Titulo: "Busqueda rapida"
+Texto: "Encuentra recuerdos por texto, lugar, tags o personas."
+CTA: "Siguiente"
+
+Paso 5 - Personas
+Titulo: "Tu red de personas"
+Texto: "Gestiona nombres, entrena rostros y mejora la precision de reconocimiento."
+CTA primario: "Terminar"
+CTA secundario: "Saltar"
+
+### Tutorial 2: Primer recuerdo (contextual en CreateMemory)
+
+Objetivo: guiar exactamente como crear un buen recuerdo y etiquetar personas.
+
+Disparador:
+1. Primera entrada a Crear Recuerdo (`first_memory_tutorial_completed = false`).
+
+Paso A - Foto y fecha
+Titulo: "Empieza con foto y fecha"
+Texto: "Sube una foto clara. Si vienes de galeria inteligente, la fecha puede llegar precargada."
+
+Paso B - Descripcion
+Titulo: "Cuenta que paso"
+Texto: "Escribe una descripcion corta y util. Esto mejora la busqueda futura."
+
+Paso C - Categorias (aclaracion fuerte)
+Titulo: "Categorias = organizacion personal"
+Texto: "Las categorias son tuyas y te ayudan a filtrar rapido (ejemplo: Viaje, Trabajo, Familia). Puedes usar varias en un mismo recuerdo."
+
+Paso D - Personas (aclaracion fuerte)
+Titulo: "Personas = quienes aparecen o participaron"
+Texto: "Agrega nombres de quienes estaban contigo. Esto ayuda a vincular recuerdos por persona y mejorar sugerencias."
+
+Paso E - Asociacion con amistades (aclaracion fuerte)
+Titulo: "Como funciona con amistades"
+Texto: "Si tienes una amistad conectada, MyMemo puede relacionar personas equivalentes entre cuentas para compartir y filtrar recuerdos de forma consistente."
+
+Paso F - Guardar y continuar
+Titulo: "Listo para guardar"
+Texto: "Guarda el recuerdo. Despues podras editar descripcion, categorias y personas cuando quieras."
+CTA primario: "Entendido"
+CTA secundario: "No mostrar otra vez"
+
+### Flujo UX (como se mostrara)
+
+1. Overlay semitransparente con blur suave.
+2. Spotlight (recorte) sobre el elemento objetivo del paso.
+3. Tarjeta flotante inferior en mobile / lateral en desktop.
+4. Progreso visible: "Paso X de N" + barra fina.
+5. Navegacion: Anterior, Siguiente, Saltar.
+6. Al cambiar de paso, si el elemento no esta visible, autoscroll o autonav a la vista correspondiente.
+
+### Diseño visual (propuesta)
+
+1. Estilo limpio, minimalista, sin emojis.
+2. Iconografia Lucide consistente con la tab bar.
+3. Tarjeta con bordes redondeados (16-20px), sombra media, contraste AA.
+4. Microanimaciones cortas (200-250ms): fade + slide.
+5. Color de acento igual al primario de marca para CTAs y progreso.
+
+### Reglas de comportamiento
+
+1. Tutorial inicial aparece solo si `onboarding_completed = false`.
+2. Tutorial primer recuerdo aparece solo si `first_memory_tutorial_completed = false`.
+3. Si usuario toca "Saltar", marcar solo el tutorial actual como completado.
+4. Si hay cambio de layout (mobile/desktop), recalcular anclas al redimensionar.
+
+### Persistencia
+
+1. Guardar bandera por usuario: `onboarding_completed`.
+2. Guardar bandera por usuario: `first_memory_tutorial_completed`.
+3. Guardar timestamp opcional: `onboarding_completed_at`.
+4. Guardar version opcional: `onboarding_version` para relanzar tour si cambia UX mayor.
+
+### Criterio de "Done" Fase D
+
+1. Tutorial inicial se ejecuta en primer login y no reaparece despues de completar.
+2. Tutorial de primer recuerdo se ejecuta solo al entrar por primera vez a Crear Recuerdo.
+3. Explicaciones de categorias, personas y amistades quedan claras y accionables.
+4. Boton "Ver tutorial de nuevo" funcional para ambos tutoriales.
+5. Funciona en mobile y desktop sin bloquear interacciones criticas.
+
+Estado actual:
+1. Implementado en frontend con `TourOverlay` reutilizable.
+2. Tutorial inicial conectado al Layout + tabs.
+3. Tutorial de primer recuerdo conectado a CreateMemory.
+4. Boton de ayuda en header para relanzar tutorial.
+5. Persistencia temporal en localStorage por usuario (`mymemo:onboarding:*`).
 
 ---
 
