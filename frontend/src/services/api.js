@@ -254,6 +254,20 @@ export const searchAPI = {
     });
     return response.data;
   },
+
+  placesAutocomplete: async (query, params = {}) => {
+    const response = await api.get('/api/v1/search/places/autocomplete', {
+      params: { q: query, ...params }
+    });
+    return response.data;
+  },
+
+  geocodePlace: async (placeId, params = {}) => {
+    const response = await api.get('/api/v1/search/places/geocode', {
+      params: { place_id: placeId, ...params }
+    });
+    return response.data;
+  },
 };
 
 // ========== Usage Endpoints ==========

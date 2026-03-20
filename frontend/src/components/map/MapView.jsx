@@ -200,7 +200,7 @@ function clusterMemoriesByRadius(memories, radiusMeters) {
   return clusters;
 }
 
-export default function MapView({ memories = [], onMemoryClick, onLocationClick, loading = false }) {
+export default function MapView({ memories = [], onMemoryClick, onLocationClick, loading = false, focusPoint = null }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerLayerRef = useRef(null);
@@ -262,6 +262,19 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
       fittedRef.current = true;
     }
   }, [memories, mapReady]);
+
+  // Pan/zoom to searched place from parent page.
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !focusPoint) return;
+
+    const lat = Number(focusPoint.latitude);
+    const lon = Number(focusPoint.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    mapInstanceRef.current.flyTo([lat, lon], Math.max(mapInstanceRef.current.getZoom(), 14), {
+      duration: 0.8,
+    });
+  }, [focusPoint, mapReady]);
 
   // Update markers and clusters when data or zoom changes.
   useEffect(() => {

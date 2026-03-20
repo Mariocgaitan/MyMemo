@@ -1,27 +1,141 @@
 """
 Search endpoints - Search memories by various criteria
 """
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, text, cast, Text
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from typing import List, Optional
 from datetime import datetime, date
+import httpx
 
 from core.database import get_db
 from core.deps import get_current_user
+from core.config import settings
 from models.database import Memory, User
 from models.schemas import MemoryListResponse
 from api.v1.endpoints.memories import memory_to_response
 
 
 router = APIRouter(prefix="/search", tags=["search"])
+GOOGLE_AUTOCOMPLETE_URL = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
+GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+
+
+def _ensure_google_maps_enabled() -> str:
+    api_key = settings.GOOGLE_MAPS_API_KEY.strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Google Maps search is not configured")
+    return api_key
+
+
+async def _google_get_json(url: str, params: dict) -> dict:
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Google service timeout")
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"Google service error ({exc.response.status_code})")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Google service unreachable")
 
 
 # ============================================================
 # ENDPOINTS
 # ============================================================
+
+@router.get(
+    "/places/autocomplete",
+    summary="Places autocomplete",
+    description="Proxy endpoint for Google Places autocomplete"
+)
+async def places_autocomplete(
+    q: str = Query(..., min_length=2, max_length=120, description="Search query"),
+    language: str = Query("es", min_length=2, max_length=10),
+    country: Optional[str] = Query("mx", min_length=2, max_length=2, description="Country code, e.g. mx"),
+    current_user: User = Depends(get_current_user),
+):
+    _ = current_user
+    api_key = _ensure_google_maps_enabled()
+
+    params = {
+        "input": q,
+        "language": language,
+        "types": "geocode",
+        "key": api_key,
+    }
+    if country:
+        params["components"] = f"country:{country.lower()}"
+
+    payload = await _google_get_json(GOOGLE_AUTOCOMPLETE_URL, params)
+    status = payload.get("status")
+
+    if status not in {"OK", "ZERO_RESULTS"}:
+        raise HTTPException(status_code=502, detail=f"Google autocomplete failed: {status}")
+
+    predictions = payload.get("predictions", [])
+    return {
+        "predictions": [
+            {
+                "place_id": p.get("place_id"),
+                "description": p.get("description"),
+                "main_text": (p.get("structured_formatting") or {}).get("main_text"),
+                "secondary_text": (p.get("structured_formatting") or {}).get("secondary_text"),
+            }
+            for p in predictions
+            if p.get("place_id") and p.get("description")
+        ]
+    }
+
+
+@router.get(
+    "/places/geocode",
+    summary="Geocode place",
+    description="Proxy endpoint for Google Geocoding by place_id"
+)
+async def geocode_place(
+    place_id: str = Query(..., min_length=5, max_length=256),
+    language: str = Query("es", min_length=2, max_length=10),
+    current_user: User = Depends(get_current_user),
+):
+    _ = current_user
+    api_key = _ensure_google_maps_enabled()
+
+    payload = await _google_get_json(
+        GOOGLE_GEOCODE_URL,
+        {
+            "place_id": place_id,
+            "language": language,
+            "key": api_key,
+        },
+    )
+    status = payload.get("status")
+    if status != "OK":
+        if status == "ZERO_RESULTS":
+            raise HTTPException(status_code=404, detail="Place not found")
+        raise HTTPException(status_code=502, detail=f"Google geocode failed: {status}")
+
+    results = payload.get("results") or []
+    if not results:
+        raise HTTPException(status_code=404, detail="Place not found")
+
+    first = results[0]
+    location = ((first.get("geometry") or {}).get("location") or {})
+    lat = location.get("lat")
+    lng = location.get("lng")
+    if lat is None or lng is None:
+        raise HTTPException(status_code=502, detail="Invalid geocode response")
+
+    return {
+        "place_id": place_id,
+        "formatted_address": first.get("formatted_address"),
+        "latitude": lat,
+        "longitude": lng,
+    }
 
 @router.get(
     "/text",

@@ -70,6 +70,9 @@ class Settings(BaseSettings):
 
     # Admin
     ADMIN_API_KEY: str = ""
+
+    # Google Maps / Places
+    GOOGLE_MAPS_API_KEY: str = ""
     
     # Image Processing
     MAX_IMAGE_SIZE_MB: int = 10

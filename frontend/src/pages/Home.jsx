@@ -24,6 +24,11 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState(null); // null = not searching
   const [searchLoading, setSearchLoading] = useState(false);
+  const [placeSearchQuery, setPlaceSearchQuery] = useState('');
+  const [placeResults, setPlaceResults] = useState([]);
+  const [placeLoading, setPlaceLoading] = useState(false);
+  const [placeError, setPlaceError] = useState('');
+  const [selectedPlace, setSelectedPlace] = useState(null);
   const [categories, setCategories] = useState([]);
   const [people, setPeople] = useState([]);
   const [connections, setConnections] = useState([]);
@@ -34,6 +39,7 @@ export default function Home() {
   const [newCatLabel, setNewCatLabel] = useState('');
   const [addingCat, setAddingCat] = useState(false);
   const searchDebounceRef = useRef(null);
+  const placeDebounceRef = useRef(null);
 
   // Load categories from backend on mount
   useEffect(() => {
@@ -49,6 +55,11 @@ export default function Home() {
     fetchMemories();
     fetchPeople();
     fetchConnections();
+  }, []);
+
+  useEffect(() => () => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (placeDebounceRef.current) clearTimeout(placeDebounceRef.current);
   }, []);
 
   const fetchMemories = async () => {
@@ -118,6 +129,63 @@ export default function Home() {
     setSearchQuery('');
     setSearchResults(null);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+  };
+
+  const handlePlaceSearchChange = useCallback((e) => {
+    const value = e.target.value;
+    setPlaceSearchQuery(value);
+    setPlaceError('');
+
+    if (placeDebounceRef.current) clearTimeout(placeDebounceRef.current);
+
+    if (!value.trim() || value.trim().length < 2) {
+      setPlaceResults([]);
+      return;
+    }
+
+    placeDebounceRef.current = setTimeout(async () => {
+      try {
+        setPlaceLoading(true);
+        const data = await searchAPI.placesAutocomplete(value.trim(), { country: 'mx', language: 'es' });
+        setPlaceResults(data.predictions || []);
+      } catch (err) {
+        console.error('Place autocomplete error:', err);
+        setPlaceResults([]);
+        setPlaceError(err.response?.data?.detail || 'No se pudo buscar lugares');
+      } finally {
+        setPlaceLoading(false);
+      }
+    }, 350);
+  }, []);
+
+  const clearPlaceSearch = () => {
+    setPlaceSearchQuery('');
+    setPlaceResults([]);
+    setPlaceError('');
+    setSelectedPlace(null);
+    if (placeDebounceRef.current) clearTimeout(placeDebounceRef.current);
+  };
+
+  const selectPlaceResult = async (prediction) => {
+    try {
+      setPlaceLoading(true);
+      setPlaceError('');
+      const geocoded = await searchAPI.geocodePlace(prediction.place_id, { language: 'es' });
+
+      setSelectedPlace({
+        latitude: geocoded.latitude,
+        longitude: geocoded.longitude,
+        label: geocoded.formatted_address || prediction.description,
+      });
+      setPlaceSearchQuery(geocoded.formatted_address || prediction.description || '');
+      setPlaceResults([]);
+      setNearbyResults(null);
+    } catch (err) {
+      console.error('Place geocode error:', err);
+      setPlaceError(err.response?.data?.detail || 'No se pudo ubicar este lugar');
+    } finally {
+      setPlaceLoading(false);
+    }
   };
 
   const handleNearbySearch = () => {
@@ -333,6 +401,65 @@ export default function Home() {
           </button>
         </div>
 
+        {/* Place search input */}
+        <div className="relative">
+          <Input
+            placeholder="Buscar lugar en el mapa (Google)"
+            value={placeSearchQuery}
+            onChange={handlePlaceSearchChange}
+            startIcon={placeLoading
+              ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              : <MapPin size={18} />}
+            className="w-full"
+          />
+          {placeSearchQuery && (
+            <button
+              onClick={clearPlaceSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light"
+              aria-label="Limpiar búsqueda de lugar"
+            >
+              <X size={16} />
+            </button>
+          )}
+
+          {placeResults.length > 0 && (
+            <div className="absolute z-[1100] mt-1 w-full rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-lg overflow-hidden">
+              {placeResults.slice(0, 6).map((result) => (
+                <button
+                  key={result.place_id}
+                  onClick={() => selectPlaceResult(result)}
+                  className="w-full px-4 py-3 text-left hover:bg-primary/10 transition-colors border-b border-border-light dark:border-border-dark last:border-b-0"
+                >
+                  <p className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
+                    {result.main_text || result.description}
+                  </p>
+                  {result.secondary_text && (
+                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-0.5">
+                      {result.secondary_text}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {placeError && (
+          <p className="text-xs text-red-500 px-1">{placeError}</p>
+        )}
+
+        {selectedPlace && (
+          <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-2">
+            <MapPin size={14} className="text-blue-600 flex-shrink-0" />
+            <span className="text-sm text-blue-800 dark:text-blue-300 flex-1 truncate">
+              Mapa centrado en: {selectedPlace.label}
+            </span>
+            <button onClick={() => setSelectedPlace(null)} className="text-blue-700 dark:text-blue-400 hover:text-blue-900">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Nearby active banner */}
         {nearbyResults !== null && (
           <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2">
@@ -464,6 +591,7 @@ export default function Home() {
           onMemoryClick={handleMemoryClick}
           onLocationClick={handleLocationClick}
           loading={loading}
+          focusPoint={selectedPlace}
         />
       </div>
 
