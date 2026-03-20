@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import 'leaflet.markercluster';
+
+const BASE_CLUSTER_RADIUS_METERS = 500;
 
 // Inject photo marker CSS once
 const PHOTO_MARKER_CSS = `
@@ -115,12 +114,8 @@ function createPhotoIcon(memory) {
 }
 
 // Create a cluster icon showing the most recent memory's thumbnail
-function createClusterIcon(cluster) {
-  const markers = cluster.getAllChildMarkers();
-  // Get most recent memory thumbnail from first marker's options
-  const firstMemory = markers[0]?.options?._memory;
-  const imgSrc = firstMemory?.thumbnail_url || firstMemory?.image_url;
-  const count = cluster.getChildCount();
+function createClusterIconFromMemory(memory, count) {
+  const imgSrc = memory?.thumbnail_url || memory?.image_url;
   const html = `
     <div style="position:relative;display:inline-block;">
       <div class="photo-cluster-inner" style="background-color: #1f2937 !important;">
@@ -140,10 +135,77 @@ function createClusterIcon(cluster) {
   });
 }
 
+function getMemoryTimestamp(memory) {
+  return new Date(memory.memory_date || memory.created_at).getTime() || 0;
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const toRad = (v) => (v * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function getDynamicRadiusMeters(zoom) {
+  const safeZoom = Number.isFinite(zoom) ? zoom : 12;
+  const scaleFactor = Math.pow(2, 12 - safeZoom);
+  const dynamic = BASE_CLUSTER_RADIUS_METERS * scaleFactor;
+  return Math.max(120, Math.min(1600, dynamic));
+}
+
+function clusterMemoriesByRadius(memories, radiusMeters) {
+  const clusters = [];
+
+  for (const memory of memories) {
+    if (!memory.latitude || !memory.longitude) continue;
+
+    const lat = Number(memory.latitude);
+    const lon = Number(memory.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+    let matched = null;
+    for (const cluster of clusters) {
+      const d = haversineMeters(lat, lon, cluster.centerLat, cluster.centerLon);
+      if (d <= radiusMeters) {
+        matched = cluster;
+        break;
+      }
+    }
+
+    if (!matched) {
+      clusters.push({
+        centerLat: lat,
+        centerLon: lon,
+        memories: [memory],
+      });
+      continue;
+    }
+
+    matched.memories.push(memory);
+    const n = matched.memories.length;
+    matched.centerLat = ((matched.centerLat * (n - 1)) + lat) / n;
+    matched.centerLon = ((matched.centerLon * (n - 1)) + lon) / n;
+  }
+
+  for (const cluster of clusters) {
+    cluster.memories.sort((a, b) => getMemoryTimestamp(b) - getMemoryTimestamp(a));
+    cluster.preview = cluster.memories[0] || null;
+  }
+
+  return clusters;
+}
+
 export default function MapView({ memories = [], onMemoryClick, onLocationClick, loading = false }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const markerClusterRef = useRef(null);
+  const markerLayerRef = useRef(null);
+  const fittedRef = useRef(false);
+  const [zoom, setZoom] = useState(12);
   const [mapReady, setMapReady] = useState(false);
 
   // Initialize map
@@ -161,20 +223,20 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
       maxZoom: 19,
     }).addTo(map);
 
-    const markerCluster = L.markerClusterGroup({
-      maxClusterRadius: 60,
-      spiderfyOnMaxZoom: true,
-      showCoverageOnHover: false,
-      zoomToBoundsOnClick: true,
-      iconCreateFunction: createClusterIcon,
-    });
-
-    map.addLayer(markerCluster);
+    const markerLayer = L.layerGroup();
+    map.addLayer(markerLayer);
     mapInstanceRef.current = map;
-    markerClusterRef.current = markerCluster;
+    markerLayerRef.current = markerLayer;
+
+    const handleZoomEnd = () => {
+      setZoom(map.getZoom());
+    };
+    map.on('zoomend', handleZoomEnd);
+
     setMapReady(true);
 
     return () => {
+      map.off('zoomend', handleZoomEnd);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -182,39 +244,61 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
     };
   }, []);
 
-  // Update markers when memories change
+  // Fit bounds when memory dataset changes.
   useEffect(() => {
-    if (!mapReady || !markerClusterRef.current) return;
+    if (!mapReady || !mapInstanceRef.current) return;
 
-    markerClusterRef.current.clearLayers();
-
-    // Create individual marker for EVERY memory. 
-    // If they share exact coords, Leaflet's Spiderfy will spread them out automatically.
-    memories.forEach(memory => {
-      if (!memory.latitude || !memory.longitude) return;
-
-      const marker = L.marker([memory.latitude, memory.longitude], {
-        icon: createPhotoIcon(memory),
-        _memory: memory, // stored so cluster icon can read it
-      });
-
-      // Direct navigation to MemoryDetail, exactly like the timeline
-      marker.on('click', () => {
-        if (onMemoryClick) onMemoryClick(memory);
-      });
-
-      markerClusterRef.current.addLayer(marker);
-    });
-
-    if (memories.length > 0) {
-      const bounds = memories
-        .filter(m => m.latitude && m.longitude)
-        .map(m => [m.latitude, m.longitude]);
-      if (bounds.length > 0) {
-        mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-      }
+    if (memories.length === 0) {
+      fittedRef.current = false;
+      return;
     }
-  }, [memories, mapReady, onLocationClick]);
+
+    const bounds = memories
+      .filter(m => m.latitude && m.longitude)
+      .map(m => [m.latitude, m.longitude]);
+
+    if (bounds.length > 0 && !fittedRef.current) {
+      mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+      fittedRef.current = true;
+    }
+  }, [memories, mapReady]);
+
+  // Update markers and clusters when data or zoom changes.
+  useEffect(() => {
+    if (!mapReady || !markerLayerRef.current) return;
+
+    markerLayerRef.current.clearLayers();
+
+    const radiusMeters = getDynamicRadiusMeters(zoom);
+    const clusters = clusterMemoriesByRadius(memories, radiusMeters);
+
+    clusters.forEach(cluster => {
+      const isSingle = cluster.memories.length === 1;
+      const marker = L.marker([cluster.centerLat, cluster.centerLon], {
+        icon: isSingle
+          ? createPhotoIcon(cluster.memories[0])
+          : createClusterIconFromMemory(cluster.preview, cluster.memories.length),
+      });
+
+      marker.on('click', () => {
+        if (isSingle) {
+          if (onMemoryClick) onMemoryClick(cluster.memories[0]);
+          return;
+        }
+
+        if (onLocationClick) {
+          onLocationClick({
+            location_name: `Cluster (${cluster.memories.length}) - radio ~${Math.round(radiusMeters)}m`,
+            memories: cluster.memories,
+          });
+        }
+      });
+
+      markerLayerRef.current.addLayer(marker);
+    });
+  }, [memories, mapReady, onLocationClick, onMemoryClick, zoom]);
+
+  const currentRadius = Math.round(getDynamicRadiusMeters(zoom));
 
   return (
     <div className="w-full h-full relative">
@@ -223,6 +307,14 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
         className="w-full h-full"
         style={{ minHeight: '400px' }}
       />
+
+      {!loading && memories.length > 0 && (
+        <div className="absolute top-4 right-4 z-[900] bg-surface-light/95 dark:bg-surface-dark/95 border border-border-light dark:border-border-dark rounded-lg px-3 py-1.5 shadow">
+          <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+            Cluster dinamico: ~{currentRadius}m (zoom {zoom.toFixed(0)})
+          </p>
+        </div>
+      )}
 
       {/* Loading overlay */}
       {loading && (

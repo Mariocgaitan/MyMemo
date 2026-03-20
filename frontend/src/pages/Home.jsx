@@ -288,6 +288,10 @@ export default function Home() {
     setLocationModal(location);
   };
 
+  const groupedLocationMemories = locationModal
+    ? groupMemoriesByDay(locationModal.memories || [])
+    : [];
+
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col">
       {/* Search and Filters */}
@@ -467,7 +471,7 @@ export default function Home() {
       <Modal
         isOpen={!!locationModal}
         onClose={() => setLocationModal(null)}
-        title={locationModal?.memories?.[0] && (locationModal.memories[0].location_name || 'Recuerdos en este lugar')}
+        title={locationModal?.location_name || locationModal?.memories?.[0]?.location_name || 'Recuerdos en esta zona'}
         size="lg"
       >
         {locationModal && (
@@ -475,62 +479,58 @@ export default function Home() {
             <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
               {locationModal.memories.length} {locationModal.memories.length === 1 ? 'recuerdo' : 'recuerdos'} en este lugar
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {locationModal.memories.map(memory => {
-                const shared = memory.shared_by;
-                const cardStyle = shared ? {
-                  border: `2px ${shared.border_style === 'glow' ? 'solid' : (shared.border_style || 'solid')} ${shared.border_color || '#6366f1'}`,
-                  boxShadow: shared.border_style === 'glow' ? `0 0 10px ${shared.border_color}80` : undefined,
-                } : {};
-                return (
-                <div
-                  key={memory.id}
-                  className={`cursor-pointer bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden hover:shadow-md transition-shadow${!shared ? ' border border-border-light dark:border-border-dark' : ''}`}
-                  style={shared ? cardStyle : undefined}
-                  onClick={() => { setLocationModal(null); navigate(`/memory/${memory.id}`); }}
-                >
-                  {/* Photo */}
-                  <div className="relative h-48 bg-gray-100 dark:bg-gray-800">
-                    <img
-                      src={memory.thumbnail_url || memory.image_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-                      {new Date(memory.memory_date || memory.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </div>
-                    {shared && (
-                      <div
-                        className="absolute top-2 left-2 flex items-center gap-1 text-white text-xs font-semibold px-2 py-0.5 rounded-full shadow"
-                        style={{ backgroundColor: shared.border_color || '#6366f1' }}
-                      >
-                        📎 {shared.name}
-                      </div>
-                    )}
+            <div className="space-y-6">
+              {groupedLocationMemories.map(group => (
+                <div key={group.label}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-px flex-1 bg-border-light dark:bg-border-dark" />
+                    <span className="text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide px-2">
+                      {group.label}
+                    </span>
+                    <div className="h-px flex-1 bg-border-light dark:bg-border-dark" />
                   </div>
-                  {/* Info */}
-                  <div className="p-4">
-                    <p className="text-sm text-text-primary-light dark:text-text-primary-dark line-clamp-3">
-                      {memory.description_raw}
-                    </p>
-                    {Array.isArray(parseMetadata(memory.ai_metadata)?.nlp?.tags) && parseMetadata(memory.ai_metadata).nlp.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {parseMetadata(memory.ai_metadata).nlp.tags.slice(0, 4).map(tag => (
-                          <span key={tag} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                            {String(tag)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      className="mt-3 flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-hover transition-colors"
-                    >
-                      Ver detalle <ArrowRight size={14} />
-                    </button>
+
+                  <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                    {group.memories.map(memory => {
+                      const shared = memory.shared_by;
+                      const cardStyle = shared ? {
+                        border: `2px ${shared.border_style === 'glow' ? 'solid' : (shared.border_style || 'solid')} ${shared.border_color || '#6366f1'}`,
+                        boxShadow: shared.border_style === 'glow' ? `0 0 10px ${shared.border_color}80` : undefined,
+                      } : {};
+
+                      return (
+                        <div
+                          key={memory.id}
+                          className={`flex-shrink-0 w-56 cursor-pointer bg-surface-light dark:bg-surface-dark rounded-xl overflow-hidden hover:shadow-md transition-shadow${!shared ? ' border border-border-light dark:border-border-dark' : ''}`}
+                          style={shared ? cardStyle : undefined}
+                          onClick={() => { setLocationModal(null); navigate(`/memory/${memory.id}`); }}
+                        >
+                          <div className="relative h-40 bg-gray-100 dark:bg-gray-800">
+                            <img
+                              src={memory.thumbnail_url || memory.image_url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
+                              {new Date(memory.memory_date || memory.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </div>
+                          </div>
+                          <div className="p-3">
+                            <p className="text-sm text-text-primary-light dark:text-text-primary-dark line-clamp-2">
+                              {memory.description_raw || 'Sin descripción'}
+                            </p>
+                            <button
+                              className="mt-2 flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-hover transition-colors"
+                            >
+                              Ver detalle <ArrowRight size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-                );
-              })}
+              ))}
             </div>
           </div>
         )}
@@ -556,4 +556,21 @@ export default function Home() {
       </button>
     </div>
   );
+}
+
+function groupMemoriesByDay(memories) {
+  const sorted = [...memories].sort(
+    (a, b) => new Date(b.memory_date || b.created_at) - new Date(a.memory_date || a.created_at)
+  );
+
+  const groups = sorted.reduce((acc, memory) => {
+    const d = new Date(memory.memory_date || memory.created_at);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const label = d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (!acc[key]) acc[key] = { label, date: d, memories: [] };
+    acc[key].memories.push(memory);
+    return acc;
+  }, {});
+
+  return Object.values(groups).sort((a, b) => b.date - a.date);
 }

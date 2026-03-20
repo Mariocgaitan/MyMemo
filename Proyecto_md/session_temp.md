@@ -258,4 +258,12 @@ Fix aplicado:
 2. Home ahora carga historial completo con `getAllPages({ pageSize: 100 })`.
 3. Timeline ahora carga historial completo con `getAllPages({ pageSize: 100 })`.
 
-Siguiente: **Fase C - Cluster geoespacial dinamico (500m) + vista tipo timeline por cluster**
+✅ **FASE C IMPLEMENTADA** (pendiente commit local de esta fase)
+
+Implementado:
+1. Clustering geoespacial en frontend por distancia real (haversine) con radio dinamico por zoom.
+2. Radio base 500m y ajuste automatico al hacer zoom (se separan/agrupan dinamicamente).
+3. Click en cluster abre modal con recuerdos de ese cluster.
+4. Modal de cluster en formato timeline por dia (secciones con tarjetas horizontales).
+
+Siguiente: **Fase D - Onboarding guiado**
