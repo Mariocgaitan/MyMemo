@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Navigation, X, Check, Loader2, Search } from 'lucide-react';
-import { memoryAPI } from '../services/api';
+import { searchAPI } from '../services/api';
 
 // Default center: Mexico City
 const DEFAULT_CENTER = [19.4326, -99.1332];
@@ -48,7 +48,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
     console.log('[LocationPicker] Searching for:', query);
     setSearchLoading(true);
     try {
-      const response = await memoryAPI.placesAutocomplete(query);
+      const response = await searchAPI.placesAutocomplete(query);
       console.log('[LocationPicker] Got response:', response);
       setSearchResults(response.predictions || []);
     } catch (err) {
@@ -61,7 +61,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
 
   const reverseGeocode = useCallback(async (lat, lng) => {
     try {
-      const response = await memoryAPI.reverseGeocodePlace(lat, lng);
+      const response = await searchAPI.reverseGeocodePlace(lat, lng);
       setSearchResults(response.results || []);
     } catch {
       setSearchResults([]);
@@ -86,7 +86,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
     if (isAutocomplete) {
       // From autocomplete: need to geocode to get lat/lng
       try {
-        const geocodeResponse = await memoryAPI.geocodePlace(result.place_id);
+        const geocodeResponse = await searchAPI.geocodePlace(result.place_id);
         moveMarker(geocodeResponse.latitude, geocodeResponse.longitude);
         setSearchQuery(result.description);
       } catch {
