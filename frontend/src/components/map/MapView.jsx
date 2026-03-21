@@ -292,10 +292,10 @@ export default function MapView({ memories = [], onMemoryClick, loading = false,
 
       markerLayerRef.current.addLayer(marker);
     });
-  }, [memories, mapReady, onLocationClick, onMemoryClick, zoom]);
+  }, [memories, mapReady, onMemoryClick, zoom, navigate]);
 
   return (
-    <div className="w-full hMemoryClick, zoom, navigate
+    <div className="w-full h-full relative">
       <div
         ref={mapRef}
         className="w-full h-full"
