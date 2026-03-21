@@ -9,7 +9,7 @@ export default function BottomTabBar() {
     { id: 'map', path: '/', icon: Map, label: 'Mapa' },
     { id: 'timeline', path: '/timeline', icon: Clock, label: 'Timeline' },
     { id: 'create', path: '/create', icon: Plus, label: 'Agregar', center: true },
-    { id: 'search', path: '/search', icon: Search, label: 'Buscar' },
+    { id: 'search', path: '/generator', icon: Search, label: 'Buscar' },
     { id: 'people', path: '/people', icon: Users, label: 'Personas' },
   ];
 
