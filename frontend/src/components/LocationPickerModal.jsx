@@ -41,14 +41,18 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
 
   const searchPlaces = useCallback(async (query) => {
     if (!query.trim() || query.trim().length < 2) {
+      console.log('[LocationPicker] Query too short, clearing results');
       setSearchResults([]);
       return;
     }
+    console.log('[LocationPicker] Searching for:', query);
     setSearchLoading(true);
     try {
       const response = await memoryAPI.placesAutocomplete(query);
+      console.log('[LocationPicker] Got response:', response);
       setSearchResults(response.predictions || []);
-    } catch {
+    } catch (err) {
+      console.error('[LocationPicker] Search error:', err);
       setSearchResults([]);
     } finally {
       setSearchLoading(false);
@@ -66,9 +70,13 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
 
   const handleSearchChange = (e) => {
     const val = e.target.value;
+    console.log('[LocationPicker] Input changed:', val);
     setSearchQuery(val);
     clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => searchPlaces(val), 500);
+    searchDebounceRef.current = setTimeout(() => {
+      console.log('[LocationPicker] Debounce timeout fired for:', val);
+      searchPlaces(val);
+    }, 500);
   };
 
   const handleSelectResult = async (result) => {
