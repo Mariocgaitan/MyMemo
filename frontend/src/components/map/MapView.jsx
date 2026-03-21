@@ -66,25 +66,7 @@ const PHOTO_MARKER_CSS = `
     justify-content: center;
     font-size: 28px;
   }
-  .photo-cluster-badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    background: #1f2937;
-    color: white;
-    font-size: 11px;
-    font-weight: 700;
-    min-width: 20px;
-    height: 20px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid white;
-    padding: 0 3px;
-    line-height: 1;
-    z-index: 1;
-  }
+
 `;
 
 if (!document.getElementById('photo-marker-styles')) {
@@ -118,14 +100,11 @@ function createPhotoIcon(memory) {
 function createClusterIconFromMemory(memory, count) {
   const imgSrc = memory?.thumbnail_url || memory?.image_url;
   const html = `
-    <div style="position:relative;display:inline-block;">
-      <div class="photo-cluster-inner" style="background-color: #1f2937 !important;">
-        ${imgSrc
+    <div class="photo-cluster-inner" style="background-color: #1f2937 !important;">
+      ${imgSrc
       ? `<img src="${imgSrc}" alt="" loading="lazy" />`
       : `<div class="cluster-placeholder" style="font-size:20px;color:#6b7280;">+</div>`
     }
-      </div>
-      <span class="photo-cluster-badge">${count > 99 ? '99+' : count}</span>
     </div>
   `;
   return L.divIcon({
@@ -316,7 +295,7 @@ export default function MapView({ memories = [], onMemoryClick, loading = false,
   }, [memories, mapReady, onLocationClick, onMemoryClick, zoom]);
 
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full hMemoryClick, zoom, navigate
       <div
         ref={mapRef}
         className="w-full h-full"
