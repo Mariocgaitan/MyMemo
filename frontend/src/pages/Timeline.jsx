@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Calendar } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ChevronLeft, Calendar, MapPin } from 'lucide-react';
 import { memoryAPI } from '../services/api';
 
 const parseMetadata = (metadata) => {
@@ -13,11 +13,21 @@ const parseMetadata = (metadata) => {
 
 export default function Timeline() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // If coming from a map cluster, use those memories directly (no API call needed)
+  const clusterMemories = location.state?.clusterMemories || null;
+  const clusterLabel = location.state?.clusterLabel || null;
+
   const [memories, setMemories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!clusterMemories);
   const [showAll, setShowAll] = useState(true);
 
   useEffect(() => {
+    if (clusterMemories) {
+      setMemories(clusterMemories);
+      return;
+    }
     const load = async () => {
       try {
         setLoading(true);
@@ -52,11 +62,13 @@ export default function Timeline() {
         </button>
         <div className="flex-1">
           <h1 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
-            <Calendar size={18} className="text-primary" />
-            Línea de tiempo
+            {clusterLabel
+              ? <MapPin size={18} className="text-primary" />
+              : <Calendar size={18} className="text-primary" />}
+            {clusterLabel ? clusterLabel : 'Línea de tiempo'}
           </h1>
           <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-            {memories.length} recuerdo{memories.length !== 1 ? 's' : ''} en total
+            {memories.length} recuerdo{memories.length !== 1 ? 's' : ''}{clusterLabel ? ' en esta zona' : ' en total'}
           </p>
         </div>
         {hasOlderThanWeek && (

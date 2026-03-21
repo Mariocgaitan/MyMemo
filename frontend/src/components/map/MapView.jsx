@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -200,7 +201,8 @@ function clusterMemoriesByRadius(memories, radiusMeters) {
   return clusters;
 }
 
-export default function MapView({ memories = [], onMemoryClick, onLocationClick, loading = false, focusPoint = null }) {
+export default function MapView({ memories = [], onMemoryClick, loading = false, focusPoint = null }) {
+  const navigate = useNavigate();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerLayerRef = useRef(null);
@@ -299,19 +301,19 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
           return;
         }
 
-        if (onLocationClick) {
-          onLocationClick({
-            location_name: `Cluster (${cluster.memories.length}) - radio ~${Math.round(radiusMeters)}m`,
-            memories: cluster.memories,
-          });
-        }
+        // Navigate to Timeline with the cluster memories as state
+        const locationName = cluster.memories[0]?.location_name || 'Zona';
+        navigate('/timeline', {
+          state: {
+            clusterMemories: cluster.memories,
+            clusterLabel: locationName,
+          },
+        });
       });
 
       markerLayerRef.current.addLayer(marker);
     });
   }, [memories, mapReady, onLocationClick, onMemoryClick, zoom]);
-
-  const currentRadius = Math.round(getDynamicRadiusMeters(zoom));
 
   return (
     <div className="w-full h-full relative">
@@ -320,14 +322,6 @@ export default function MapView({ memories = [], onMemoryClick, onLocationClick,
         className="w-full h-full"
         style={{ minHeight: '400px' }}
       />
-
-      {!loading && memories.length > 0 && (
-        <div className="absolute top-4 right-4 z-[900] bg-surface-light/95 dark:bg-surface-dark/95 border border-border-light dark:border-border-dark rounded-lg px-3 py-1.5 shadow">
-          <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-            Cluster dinamico: ~{currentRadius}m (zoom {zoom.toFixed(0)})
-          </p>
-        </div>
-      )}
 
       {/* Loading overlay */}
       {loading && (
