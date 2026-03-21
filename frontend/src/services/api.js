@@ -268,6 +268,13 @@ export const searchAPI = {
     });
     return response.data;
   },
+
+  reverseGeocodePlace: async (latitude, longitude, params = {}) => {
+    const response = await api.get('/api/v1/search/places/reverse-geocode', {
+      params: { latitude, longitude, ...params }
+    });
+    return response.data;
+  },
 };
 
 // ========== Usage Endpoints ==========

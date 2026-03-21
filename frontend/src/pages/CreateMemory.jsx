@@ -529,12 +529,12 @@ export default function CreateMemory() {
       <LocationPickerModal
         isOpen={showLocationPicker}
         onClose={() => setShowLocationPicker(false)}
-        onConfirm={(lat, lng) => {
+        onConfirm={(lat, lng, locationName) => {
           setFormData(prev => ({
             ...prev,
             latitude: lat,
             longitude: lng,
-            location: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+            location: locationName || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
           }));
           setGpsStatus('success');
           setShowLocationPicker(false);

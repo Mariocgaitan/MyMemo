@@ -39,9 +39,14 @@ async def _google_get_json(url: str, params: dict) -> dict:
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Google service timeout")
     except httpx.HTTPStatusError as exc:
-        raise HTTPException(status_code=502, detail=f"Google service error ({exc.response.status_code})")
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="Google service unreachable")
+        try:
+            error_body = exc.response.json()
+            error_msg = error_body.get("error_message", str(error_body))
+        except:
+            error_msg = exc.response.text[:200]
+        raise HTTPException(status_code=502, detail=f"Google service error ({exc.response.status_code}): {error_msg}")
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Google service unreachable: {str(exc)}")
 
 
 # ============================================================
@@ -65,17 +70,23 @@ async def places_autocomplete(
     params = {
         "input": q,
         "language": language,
-        "types": "geocode",
         "key": api_key,
     }
     if country:
         params["components"] = f"country:{country.lower()}"
 
+    # DEBUG: Log the request
+    import sys
+    print(f"[DEBUG] Sending to Google: {GOOGLE_AUTOCOMPLETE_URL} with params: input={q}, language={language}, country={country}", file=sys.stderr)
+    
     payload = await _google_get_json(GOOGLE_AUTOCOMPLETE_URL, params)
     status = payload.get("status")
+    
+    # DEBUG: Log Google's response
+    print(f"[DEBUG] Google response status: {status}", file=sys.stderr)
 
     if status not in {"OK", "ZERO_RESULTS"}:
-        raise HTTPException(status_code=502, detail=f"Google autocomplete failed: {status}")
+        raise HTTPException(status_code=502, detail=f"Google autocomplete failed: {status}. Response: {payload}")
 
     predictions = payload.get("predictions", [])
     return {
@@ -136,6 +147,51 @@ async def geocode_place(
         "latitude": lat,
         "longitude": lng,
     }
+
+
+@router.get(
+    "/places/reverse-geocode",
+    summary="Reverse geocode place",
+    description="Proxy endpoint for Google Reverse Geocoding by lat/lng"
+)
+async def reverse_geocode_place(
+    latitude: float = Query(..., description="Latitude"),
+    longitude: float = Query(..., description="Longitude"),
+    language: str = Query("es", min_length=2, max_length=10),
+    current_user: User = Depends(get_current_user),
+):
+    _ = current_user
+    api_key = _ensure_google_maps_enabled()
+
+    payload = await _google_get_json(
+        GOOGLE_GEOCODE_URL,
+        {
+            "latlng": f"{latitude},{longitude}",
+            "language": language,
+            "key": api_key,
+        },
+    )
+    status = payload.get("status")
+    if status != "OK":
+        if status == "ZERO_RESULTS":
+            raise HTTPException(status_code=404, detail="No places found at this location")
+        raise HTTPException(status_code=502, detail=f"Google reverse geocode failed: {status}. Response: {payload}")
+
+    results = payload.get("results") or []
+    if not results:
+        raise HTTPException(status_code=404, detail="No places found at this location")
+
+    # Return top 5 results (most specific to most general)
+    return {
+        "results": [
+            {
+                "formatted_address": r.get("formatted_address"),
+                "place_id": r.get("place_id"),
+            }
+            for r in results[:5]
+        ]
+    }
+
 
 @router.get(
     "/text",

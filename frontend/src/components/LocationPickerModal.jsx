@@ -1,11 +1,12 @@
 /**
  * LocationPickerModal — pick a location from a Leaflet map.
- * Includes Nominatim geocoding search, GPS button, and draggable pin.
+ * Includes Google Places search, reverse geocoding, GPS button, and draggable pin.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Navigation, X, Check, Loader2, Search } from 'lucide-react';
+import { memoryAPI } from '../services/api';
 
 // Default center: Mexico City
 const DEFAULT_CENTER = [19.4326, -99.1332];
@@ -39,28 +40,27 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
   }, []);
 
   const searchPlaces = useCallback(async (query) => {
-    if (!query.trim() || query.trim().length < 3) {
+    if (!query.trim() || query.trim().length < 2) {
       setSearchResults([]);
       return;
     }
     setSearchLoading(true);
     try {
-      // Build a viewbox of ±1° around the current map center so nearby results appear first
-      const { lat, lng } = mapCenterRef.current;
-      const delta = 1.0;
-      const viewbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=6&addressdetails=1&viewbox=${viewbox}&bounded=0`;
-      const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
-      const data = await res.json();
-      // Sort: results inside the viewbox (closer to center) first
-      const centerLat = lat, centerLng = lng;
-      const dist = (r) => Math.hypot(parseFloat(r.lat) - centerLat, parseFloat(r.lon) - centerLng);
-      data.sort((a, b) => dist(a) - dist(b));
-      setSearchResults(data.slice(0, 5));
+      const response = await memoryAPI.placesAutocomplete(query);
+      setSearchResults(response.predictions || []);
     } catch {
       setSearchResults([]);
     } finally {
       setSearchLoading(false);
+    }
+  }, []);
+
+  const reverseGeocode = useCallback(async (lat, lng) => {
+    try {
+      const response = await memoryAPI.reverseGeocodePlace(lat, lng);
+      setSearchResults(response.results || []);
+    } catch {
+      setSearchResults([]);
     }
   }, []);
 
@@ -71,13 +71,27 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
     searchDebounceRef.current = setTimeout(() => searchPlaces(val), 500);
   };
 
-  const handleSelectResult = (result) => {
-    const lat = parseFloat(result.lat);
-    const lng = parseFloat(result.lon);
-    moveMarker(lat, lng);
+  const handleSelectResult = async (result) => {
+    // Determine if it's from autocomplete or reverse geocode
+    const isAutocomplete = !!result.place_id && !!result.description;
+    
+    if (isAutocomplete) {
+      // From autocomplete: need to geocode to get lat/lng
+      try {
+        const geocodeResponse = await memoryAPI.geocodePlace(result.place_id);
+        moveMarker(geocodeResponse.latitude, geocodeResponse.longitude);
+        setSearchQuery(result.description);
+      } catch {
+        // Fallback: just use description without moving marker
+        setSearchQuery(result.description);
+      }
+    } else {
+      // From reverse geocode: already have formatted_address, just use current marker position
+      setSearchQuery(result.formatted_address);
+    }
+    
     setSearchResults([]);
-    setSearchQuery(result.display_name.split(',').slice(0, 2).join(', '));
-    setSearchOpen(false); // collapse search bar
+    setSearchOpen(false);
   };
 
   // initialise map when opened
@@ -128,17 +142,23 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
 
       if (initialLat && initialLng) {
         updateCoords(initialLat, initialLng);
+        // Also fetch reverse geocode results for initial location
+        reverseGeocode(initialLat, initialLng);
       }
 
-      // Click on map → move marker
+      // Click on map → move marker and reverse geocode
       map.on('click', (e) => {
         marker.setLatLng(e.latlng);
         updateCoords(e.latlng.lat, e.latlng.lng);
+        // Show reverse geocode suggestions
+        reverseGeocode(e.latlng.lat, e.latlng.lng);
       });
-      // Drag marker
+      // Drag marker and reverse geocode
       marker.on('dragend', () => {
         const ll = marker.getLatLng();
         updateCoords(ll.lat, ll.lng);
+        // Show reverse geocode suggestions
+        reverseGeocode(ll.lat, ll.lng);
       });
       // Track map center for proximity-biased search
       map.on('moveend', () => {
@@ -196,7 +216,8 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
 
   const handleConfirm = () => {
     if (!coords) return;
-    onConfirm(coords.lat, coords.lng);
+    // Pass both coordinates and location name
+    onConfirm(coords.lat, coords.lng, searchQuery);
   };
 
   if (!isOpen) return null;
@@ -278,20 +299,28 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
           {/* Dropdown results — floats over the map */}
           {searchResults.length > 0 && (
             <div className="absolute left-4 right-4 top-full mt-1 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-xl overflow-hidden" style={{ zIndex: 2000 }}>
-              {searchResults.map((r, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSelectResult(r)}
-                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors border-b last:border-b-0 border-border-light dark:border-border-dark"
-                >
-                  <span className="font-medium text-text-primary-light dark:text-text-primary-dark line-clamp-1">
-                    {r.display_name.split(',').slice(0, 2).join(', ')}
-                  </span>
-                  <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark line-clamp-1">
-                    {r.display_name.split(',').slice(2, 4).join(', ')}
-                  </span>
-                </button>
-              ))}
+              {searchResults.map((r, i) => {
+                // Determine result type: autocomplete (has 'description') or reverse geocode (has 'formatted_address')
+                const mainText = r.description || r.formatted_address || '';
+                const secondaryText = r.main_text || '';
+                
+                return (
+                  <button
+                    key={i}
+                    onClick={() => handleSelectResult(r)}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors border-b last:border-b-0 border-border-light dark:border-border-dark"
+                  >
+                    <span className="font-medium text-text-primary-light dark:text-text-primary-dark line-clamp-1">
+                      {mainText}
+                    </span>
+                    {secondaryText && (
+                      <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark line-clamp-1">
+                        {secondaryText}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

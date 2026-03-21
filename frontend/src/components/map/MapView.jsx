@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const BASE_CLUSTER_RADIUS_METERS = 500;
+const BASE_CLUSTER_RADIUS_METERS = 1000;
 
 // Inject photo marker CSS once
 const PHOTO_MARKER_CSS = `
