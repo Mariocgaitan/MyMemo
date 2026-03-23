@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, MapPin, Navigation, ArrowRight, Users, Tag, Plus, Calendar } from 'lucide-react';
+import { Search, X, MapPin, Navigation, ArrowRight, Users, Tag, Plus, Calendar, Sparkles } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
+import WrappedModal from '../components/wrapped/WrappedModal';
 import { memoryAPI, peopleAPI, searchAPI, categoriesAPI, connectionsAPI } from '../services/api';
 
 // Helper to safely parse ai_metadata which might come as a string
@@ -38,6 +39,7 @@ export default function Home() {
   const [nearbyError, setNearbyError] = useState('');
   const [newCatLabel, setNewCatLabel] = useState('');
   const [addingCat, setAddingCat] = useState(false);
+  const [showWrapped, setShowWrapped] = useState(false);
   const searchDebounceRef = useRef(null);
   const placeDebounceRef = useRef(null);
 
@@ -399,6 +401,15 @@ export default function Home() {
               ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               : <Navigation size={16} />}
           </button>
+
+          {/* Wrapped button */}
+          <button
+            onClick={() => setShowWrapped(true)}
+            title="Ver tu MyMemo Wrapped 2025"
+            className="px-3 py-2 rounded-xl border-2 border-purple-500/50 hover:border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 transition-colors flex items-center gap-1"
+          >
+            <Sparkles size={16} />
+          </button>
         </div>
 
         {/* Place search input */}
@@ -682,6 +693,9 @@ export default function Home() {
         </div>
         <ArrowRight size={18} className="text-primary" />
       </button>
+
+      {/* Wrapped Modal */}
+      <WrappedModal isOpen={showWrapped} onClose={() => setShowWrapped(false)} />
     </div>
   );
 }

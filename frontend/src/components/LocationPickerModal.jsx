@@ -41,18 +41,14 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
 
   const searchPlaces = useCallback(async (query) => {
     if (!query.trim() || query.trim().length < 2) {
-      console.log('[LocationPicker] Query too short, clearing results');
       setSearchResults([]);
       return;
     }
-    console.log('[LocationPicker] Searching for:', query);
     setSearchLoading(true);
     try {
       const response = await searchAPI.placesAutocomplete(query);
-      console.log('[LocationPicker] Got response:', response);
       setSearchResults(response.predictions || []);
-    } catch (err) {
-      console.error('[LocationPicker] Search error:', err);
+    } catch {
       setSearchResults([]);
     } finally {
       setSearchLoading(false);
