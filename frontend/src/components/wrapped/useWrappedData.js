@@ -59,7 +59,9 @@ export function useWrappedData(memories = [], people = [], categories = []) {
     const peopleCloud = generateNonOverlappingPeopleCloud(peopleWithFrequency);
 
     // ============ PANTALLA 5: Top Persona ============
-    const topPerson = peopleWithFrequency[0] || null;
+    // Filtrar el usuario principal (if they're marked as is_main_user or is_user)
+    // Tomar la primera persona que NO sea el usuario principal
+    const topPerson = peopleWithFrequency.find(p => !p.is_main_user && !p.is_user) || null;
     const topPersonPhotos = topPerson
       ? memories
           .filter(m => {
