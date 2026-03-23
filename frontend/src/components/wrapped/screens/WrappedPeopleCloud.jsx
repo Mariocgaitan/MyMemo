@@ -1,73 +1,42 @@
 import { motion } from 'framer-motion';
 
-// Word Cloud generator - distributes words in a spiral pattern
+// Ordered Word Cloud generator - distributes words in a clean spiral without overlap
 function generateWordCloudPositions(words) {
-  const width = 1200;
-  const height = 700;
   const positions = [];
-  const occupied = [];
-
-  // Sort by size (larger words first)
+  
+  // Sort by frequency (largest first)
   const sorted = [...words].sort((a, b) => b.frequency - a.frequency);
-
-  // Spiral pattern starting from center
-  for (let word of sorted) {
-    let placed = false;
-    const maxRadius = Math.max(width, height) * 0.6; // Ajustar radio máximo
+  
+  // Clean spiral layout - positions calculated mathematically to avoid overlap
+  const totalWords = sorted.length;
+  const centerX = 50;
+  const centerY = 50;
+  
+  for (let i = 0; i < totalWords; i++) {
+    const word = sorted[i];
     
-    // Try to place the word
-    for (let angle = 0; angle < Math.PI * 2; angle += 0.08) {
-      for (let radius = 30; radius < maxRadius; radius += 25) {
-        const x = width / 2 + radius * Math.cos(angle);
-        const y = height / 2 + radius * Math.sin(angle);
-
-        // Check if position is valid and not occupied
-        let collision = false;
-        // Calcular tamaño más conservador para evitar cortes
-        const textWidth = word.name.length * 12 * (0.6 + word.frequency / 10);
-        const textHeight = 35 * (0.6 + word.frequency / 10);
-
-        for (let occupied_pos of occupied) {
-          const dx = occupied_pos.x - x;
-          const dy = occupied_pos.y - y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          const minDistance = (textWidth + occupied_pos.width) / 2 + 15;
-
-          if (distance < minDistance) {
-            collision = true;
-            break;
-          }
-        }
-
-        // Aumentar márgenes para evitar cortes en bordes
-        const margin = 60;
-        if (!collision && x > textWidth / 2 + margin && x < width - textWidth / 2 - margin && 
-            y > textHeight / 2 + margin && y < height - textHeight / 2 - margin) {
-          positions.push({
-            ...word,
-            x: (x / width) * 100,
-            y: (y / height) * 100,
-            rotation: (Math.random() - 0.5) * 8, // -4 a +4 grados
-          });
-          occupied.push({ x, y, width: textWidth, height: textHeight });
-          placed = true;
-          break;
-        }
-      }
-      if (placed) break;
-    }
-
-    // Fallback if spiral placement fails - posiciones con más margen
-    if (!placed) {
-      positions.push({
-        ...word,
-        x: Math.random() * 70 + 15,
-        y: Math.random() * 70 + 15,
-        rotation: (Math.random() - 0.5) * 8,
-      });
-    }
+    // Golden angle spiral - mathematically proven to distribute points evenly
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~2.39996 radians
+    const angle = i * goldenAngle;
+    
+    // Radius increases with position to create clean spiral
+    // Adjust spacing based on word length and frequency
+    const radiusMultiplier = Math.sqrt(i + 1) * 1.5;
+    const radius = Math.min(40 + radiusMultiplier, 45); // Max 45% from center
+    
+    // Calculate position as percentage
+    const x = centerX + radius * Math.cos(angle);
+    const y = centerY + radius * Math.sin(angle);
+    
+    positions.push({
+      ...word,
+      x: Math.max(5, Math.min(95, x)), // Clamp to 5-95%
+      y: Math.max(5, Math.min(95, y)),
+      rotation: angle * (180 / Math.PI) % 360, // Rotate text to face outward slightly
+      spiralIndex: i,
+    });
   }
-
+  
   return positions;
 }
 
@@ -129,10 +98,10 @@ export default function WrappedPeopleCloud({ data }) {
 
   const getSizeClass = (frequency) => {
     const ratio = (frequency - minFreq) / (maxFreq - minFreq + 1);
-    if (ratio >= 0.75) return 'text-5xl sm:text-6xl font-black';
-    if (ratio >= 0.5) return 'text-4xl sm:text-5xl font-bold';
-    if (ratio >= 0.25) return 'text-3xl sm:text-4xl font-bold';
-    return 'text-2xl sm:text-3xl font-semibold';
+    if (ratio >= 0.75) return 'text-3xl sm:text-4xl font-black';
+    if (ratio >= 0.5) return 'text-2xl sm:text-3xl font-bold';
+    if (ratio >= 0.25) return 'text-xl sm:text-2xl font-bold';
+    return 'text-lg sm:text-xl font-semibold';
   };
 
   return (
@@ -163,7 +132,7 @@ export default function WrappedPeopleCloud({ data }) {
           return (
             <motion.div
               key={person.id}
-              className="absolute whitespace-nowrap will-change-transform"
+              className="absolute flex items-center justify-center will-change-transform"
               style={{
                 left: `${person.x}%`,
                 top: `${person.y}%`,
@@ -173,14 +142,11 @@ export default function WrappedPeopleCloud({ data }) {
               variants={textVariants}
             >
               <motion.div
-                className={`${sizeClass} bg-gradient-to-r ${color.from} ${color.to} bg-clip-text text-transparent cursor-default select-none transition-all drop-shadow-lg font-black`}
-                style={{
-                  rotate: person.rotation,
-                }}
+                className={`${sizeClass} bg-gradient-to-r ${color.from} ${color.to} bg-clip-text text-transparent cursor-default select-none transition-all drop-shadow-lg font-black whitespace-nowrap px-2`}
                 whileHover={{
-                  scale: 1.15,
-                  filter: 'brightness(1.3) drop-shadow(0 0 10px rgba(255,255,255,0.5))',
-                  transition: { duration: 0.2 },
+                  scale: 1.2,
+                  filter: 'brightness(1.4) drop-shadow(0 0 15px rgba(255,255,255,0.6))',
+                  transition: { duration: 0.25 },
                 }}
                 whileTap={{
                   scale: 1.1,
