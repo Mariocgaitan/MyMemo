@@ -129,6 +129,9 @@ class MemoryResponse(BaseModel):
     updated_at: datetime
     # Populated only for memories shared by a connected user
     shared_by: Optional["SharedByInfo"] = None
+    # Tagged people and categories
+    tagged_people: Optional[List[UUID]] = None
+    categories: Optional[List[str]] = None
     
     model_config = ConfigDict(
         from_attributes=True,

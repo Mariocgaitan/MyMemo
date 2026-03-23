@@ -36,7 +36,11 @@ router = APIRouter(prefix="/memories", tags=["memories"])
 # HELPER FUNCTIONS
 # ============================================================
 
-def memory_to_response(memory: Memory) -> MemoryResponse:
+def memory_to_response(
+    memory: Memory,
+    tagged_people_ids: Optional[List[uuid.UUID]] = None,
+    categories: Optional[List[str]] = None,
+) -> MemoryResponse:
     """Convert Memory ORM model to response schema with fresh presigned URLs"""
     # Extract coordinates from Geography column
     from geoalchemy2.shape import to_shape
@@ -76,6 +80,10 @@ def memory_to_response(memory: Memory) -> MemoryResponse:
                     storage_service.thumbnails_bucket
                 )
 
+    # Extract categories from ai_metadata if not provided
+    if categories is None:
+        categories = safe_metadata.get("user_categories", [])
+
     return MemoryResponse(
         id=memory.id,
         user_id=memory.user_id,
@@ -90,7 +98,9 @@ def memory_to_response(memory: Memory) -> MemoryResponse:
         visibility=memory.visibility,
         memory_date=memory.memory_date,
         created_at=memory.created_at,
-        updated_at=memory.updated_at
+        updated_at=memory.updated_at,
+        tagged_people=tagged_people_ids,
+        categories=categories,
     )
 
 
@@ -528,12 +538,29 @@ async def list_memories(
     mem_result = await db.execute(select(Memory).where(Memory.id.in_(page_ids)))
     memories_map: dict[uuid.UUID, Memory] = {m.id: m for m in mem_result.scalars().all()}
 
+    # Load tagged people for all memories in this page
+    tagged_people_map: dict[uuid.UUID, list[uuid.UUID]] = {}
+    if page_ids:
+        tagged_result = await db.execute(
+            select(MemoryPerson.memory_id, MemoryPerson.person_id)
+            .where(MemoryPerson.memory_id.in_(page_ids))
+        )
+        for mem_id, person_id in tagged_result.all():
+            if mem_id not in tagged_people_map:
+                tagged_people_map[mem_id] = []
+            tagged_people_map[mem_id].append(person_id)
+
     memory_responses: list[MemoryResponse] = []
     for _, mid in page_entries:
         mem = memories_map.get(mid)
         if not mem:
             continue
-        resp = memory_to_response(mem)
+        
+        # Get tagged people and categories for this memory
+        tagged_people = tagged_people_map.get(mid, [])
+        categories = mem.ai_metadata.get("user_categories", []) if mem.ai_metadata else []
+        
+        resp = memory_to_response(mem, tagged_people_ids=tagged_people, categories=categories)
         resp.shared_by = shared_info_map.get(mid)
         memory_responses.append(resp)
 
