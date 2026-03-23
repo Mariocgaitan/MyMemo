@@ -5,68 +5,61 @@ import { searchAPI } from '../../../services/api';
 
 /**
  * Picks the best city-level name from Google reverse geocode results.
- * Google returns results from most-specific (street) to most-general (country).
+ * Google returns results from most-specific to most-general.
  * We want roughly index 2-3: neighborhood or city, never street or country.
- *
- * Strategy: prefer a result whose formatted_address contains a comma
- * and is neither too short (country-only) nor too long (full street).
  */
 function pickBestResult(results = []) {
   if (!results.length) return null;
 
-  // Try to find a result that is city/neighborhood-level.
-  // Usually Google returns: 0=street, 1=route/postal, 2=locality/sublocality, 3=city, 4=state/country
-  // We prefer index 2 or 3, but fallback gracefully.
-  const candidates = results.slice(1, 4); // skip the most specific (street)
-  for (const r of candidates) {
-    const addr = r.formatted_address || '';
-    const parts = addr.split(',').map(p => p.trim());
-    // Good candidates: 2-3 parts, first part is the neighborhood or city name (not a number = street number)
-    if (parts.length >= 2 && parts.length <= 4 && !/^\d/.test(parts[0])) {
-      return parts[0]; // e.g. "Polanco" or "Ciudad de México"
+  // Skip index 0 (usually street address), try 1-4 for city/neighborhood level
+  for (const r of results.slice(1, 5)) {
+    const addr = (r.formatted_address || '').trim();
+    // Good candidates: readable parts, not starting with a number (= street address)
+    const parts = addr.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length >= 1 && !/^\d/.test(parts[0]) && parts[0].length > 2) {
+      return parts[0]; // e.g. "Polanco", "Cancún", "Guadalajara"
     }
   }
 
-  // Fallback: use the first result's first comma segment if readable
-  const fallback = (results[2] || results[1] || results[0])?.formatted_address || '';
-  const firstPart = fallback.split(',')[0].trim();
-  return /^\d/.test(firstPart) ? fallback.split(',')[1]?.trim() || 'Lugar visitado' : firstPart;
-}
+  // Fallback: first readable segment from any result
+  for (const r of results) {
+    const addr = (r.formatted_address || '').trim();
+    const firstPart = addr.split(',')[0]?.trim();
+    if (firstPart && !/^\d/.test(firstPart) && firstPart.length > 2) {
+      return firstPart;
+    }
+  }
 
-/**
- * Returns true if a string looks like raw coordinates (no letters).
- */
-function isCoordinates(str) {
-  return /^[-\d.,\s]+$/.test((str || '').trim());
+  return null;
 }
 
 export default function WrappedCities({ data }) {
+  // Map: "lat,lng" -> resolved location name
   const [locationNames, setLocationNames] = useState({});
   const [geocoding, setGeocoding] = useState(false);
 
   const { cities } = data || {};
 
-  // Batch reverse-geocode cities that have coordinates but a coordinate-like name
   useEffect(() => {
     if (!cities?.length) return;
 
-    const toGeocode = cities.filter(
-      c => c.latitude && c.longitude && (!c.name || isCoordinates(c.name) || isCoordinates(c.country))
-    );
-
+    // Geocode ALL cities that have valid lat/lng coordinates.
+    // We always use the numeric lat/lng from the DB, regardless of what location_name says.
+    const toGeocode = cities.filter(c => c.latitude != null && c.longitude != null);
     if (!toGeocode.length) return;
 
     setGeocoding(true);
 
     Promise.allSettled(
       toGeocode.map(async (city) => {
+        const coordKey = `${city.latitude},${city.longitude}`;
         try {
           const resp = await searchAPI.reverseGeocodePlace(city.latitude, city.longitude);
           const results = resp?.results || [];
           const name = pickBestResult(results);
-          return { key: city.name, name: name || city.name };
+          return { key: coordKey, name };
         } catch {
-          return { key: city.name, name: city.name };
+          return { key: coordKey, name: null };
         }
       })
     ).then((settled) => {
@@ -120,16 +113,30 @@ export default function WrappedCities({ data }) {
   const sortedCities = [...cities].sort((a, b) => b.count - a.count);
 
   /**
-   * Gets the best display name for a city:
-   * 1. Reverse-geocoded result (if available)
-   * 2. Raw location_name if it's not coordinate-like
-   * 3. "Lugar visitado" fallback
+   * Returns the best display name for a city, in priority order:
+   * 1. Google-geocoded result (using lat,lng as key)
+   * 2. Raw location_name if it looks like a real name (not coordinates)
+   * 3. country field if it looks readable
+   * 4. "Lugar visitado" as last resort
    */
   const getDisplayName = (city) => {
-    const geocoded = locationNames[city.name];
+    const coordKey = `${city.latitude},${city.longitude}`;
+    const geocoded = locationNames[coordKey];
     if (geocoded) return geocoded;
-    if (!isCoordinates(city.name)) return city.name;
-    if (!isCoordinates(city.country) && city.country) return city.country;
+
+    // Still geocoding — show a light placeholder
+    if (geocoding && city.latitude != null) return '…';
+
+    // Fallback: use location_name if it looks like a real name
+    const name = city.name || '';
+    const isOnlyCoords = /^[-\d.,\s°NnSsEeWw]+$/.test(name.trim());
+    if (!isOnlyCoords && name.length > 2) return name.split(',')[0].trim();
+
+    // Fallback: country field
+    const country = city.country || '';
+    const countryIsCoords = /^[-\d.,\s°NnSsEeWw]+$/.test(country.trim());
+    if (!countryIsCoords && country.length > 2 && country !== 'Ubicación') return country;
+
     return 'Lugar visitado';
   };
 
@@ -167,18 +174,15 @@ export default function WrappedCities({ data }) {
               variants={cardVariants}
             >
               <div className="bg-[#1E1A17] rounded-xl p-3 h-full flex flex-col justify-between">
-                {/* City name */}
                 <h3 className="text-[#EDE8E3] text-sm sm:text-base font-black leading-tight mb-1 line-clamp-2">
                   {displayName}
                 </h3>
 
-                {/* Location icon */}
                 <div className="flex items-center gap-1 text-[#8C8078] text-[10px] sm:text-xs mb-2">
                   <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
                   <span className="truncate">Ubicación</span>
                 </div>
 
-                {/* Count badge */}
                 <div className={`self-start px-2 py-0.5 rounded-full bg-gradient-to-r ${getGradient(index)} text-[#141110] text-xs font-black`}>
                   {city.count} {city.count === 1 ? 'recuerdo' : 'recuerdos'}
                 </div>
