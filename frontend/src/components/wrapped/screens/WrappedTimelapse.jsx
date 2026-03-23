@@ -7,7 +7,7 @@ export default function WrappedTimelapse({ data }) {
 
   if (!data?.memoriesThisYear?.length) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424]">
         <div className="text-center text-white">
           <p className="text-2xl font-bold">No hay recuerdos disponibles</p>
         </div>
@@ -36,7 +36,7 @@ export default function WrappedTimelapse({ data }) {
     .slice(0, 6);
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 relative overflow-hidden">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] relative overflow-hidden">
       {/* Background photos carousel */}
       <div className="absolute inset-0">
         {photos.map((photo, idx) => (
@@ -93,7 +93,7 @@ export default function WrappedTimelapse({ data }) {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
         >
-          <span className="text-8xl sm:text-9xl font-black bg-gradient-to-r from-cyan-500 via-pink-500 to-purple-500 bg-clip-text text-transparent drop-shadow-lg">
+          <span className="text-8xl sm:text-9xl font-black bg-gradient-to-r from-indigo-400 via-violet-400 to-sky-400 bg-clip-text text-transparent drop-shadow-lg">
             {data.totalMemories}
           </span>
         </motion.div>

@@ -8,7 +8,7 @@ const MONTHS = [
 export default function WrappedTimeline({ data }) {
   if (!data?.timeline || data.timeline.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424]">
         <p className="text-white/60">No hay datos de línea de tiempo</p>
       </div>
     );
@@ -62,7 +62,7 @@ export default function WrappedTimeline({ data }) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-8">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8">
       <motion.div
         className="text-center mb-12"
         initial={{ opacity: 0, y: -20 }}

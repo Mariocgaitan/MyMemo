@@ -4,7 +4,7 @@ import { useMemo } from 'react';
  * Hook que procesa datos crudos de memorias, personas y categorías
  * para generar estadísticas visuales para el Wrapped.
  */
-export function useWrappedData(memories = [], people = [], categories = []) {
+export function useWrappedData(memories = [], people = [], categories = [], selfPersonId = null) {
   return useMemo(() => {
     if (!memories.length) {
       return null;
@@ -55,13 +55,17 @@ export function useWrappedData(memories = [], people = [], categories = []) {
       .filter(p => p.frequency > 0)
       .sort((a, b) => b.frequency - a.frequency);
 
-    // Generar cloud sin solapamiento
-    const peopleCloud = generateNonOverlappingPeopleCloud(peopleWithFrequency);
+    // Generar cloud sin solapamiento (excluir al usuario principal)
+    const peopleForCloud = selfPersonId
+      ? peopleWithFrequency.filter(p => String(p.id) !== String(selfPersonId))
+      : peopleWithFrequency;
+    const peopleCloud = generateNonOverlappingPeopleCloud(peopleForCloud);
 
     // ============ PANTALLA 5: Top Persona ============
-    // Filtrar el usuario principal (if they're marked as is_main_user or is_user)
-    // Tomar la primera persona que NO sea el usuario principal
-    const topPerson = peopleWithFrequency.find(p => !p.is_main_user && !p.is_user) || null;
+    // Excluir al usuario principal por ID (self_person_id del endpoint /me)
+    const topPerson = peopleWithFrequency.find(
+      p => !selfPersonId || String(p.id) !== String(selfPersonId)
+    ) || null;
     const topPersonPhotos = topPerson
       ? memories
           .filter(m => {

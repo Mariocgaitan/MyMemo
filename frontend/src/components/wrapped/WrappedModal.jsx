@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { memoryAPI, peopleAPI, categoriesAPI } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import { useWrappedData } from './useWrappedData';
 import WrappedTimelapse from './screens/WrappedTimelapse';
 import WrappedFirstLast from './screens/WrappedFirstLast';
@@ -21,7 +22,8 @@ export default function WrappedModal({ isOpen, onClose }) {
   const [error, setError] = useState(null);
   const [rawData, setRawData] = useState({ memories: [], people: [], categories: [] });
 
-  const wrappedData = useWrappedData(rawData.memories, rawData.people, rawData.categories);
+  const { user } = useAuth();
+  const wrappedData = useWrappedData(rawData.memories, rawData.people, rawData.categories, user?.self_person_id);
 
   // Fetch datos cuando se abre el modal
   useEffect(() => {
@@ -42,15 +44,6 @@ export default function WrappedModal({ isOpen, onClose }) {
         const rawMemories = memoriesResp.memories || [];
         const rawPeople = peopleResp || [];
         const rawCategories = categoriesResp || [];
-
-        // Debug logs
-        console.log('Wrapped data loaded:', {
-          memoriesCount: rawMemories.length,
-          peopleCount: rawPeople.length,
-          categoriesCount: rawCategories.length,
-          sampleMemory: rawMemories[0],
-          samplePerson: rawPeople[0],
-        });
 
         setRawData({
           memories: rawMemories,
@@ -97,7 +90,7 @@ export default function WrappedModal({ isOpen, onClose }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[100] bg-black overflow-hidden"
+      className="fixed inset-0 z-[2000] bg-black overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -114,7 +107,7 @@ export default function WrappedModal({ isOpen, onClose }) {
       {/* Progress bar */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-white/10">
         <motion.div
-          className="h-full bg-gradient-to-r from-primary to-pink-500"
+          className="h-full bg-gradient-to-r from-indigo-500 to-violet-500"
           initial={{ width: '0%' }}
           animate={{ width: `${((currentScreen + 1) / TOTAL_SCREENS) * 100}%` }}
           transition={{ duration: 0.3 }}

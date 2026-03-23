@@ -4,7 +4,7 @@ import { Camera, Calendar, TrendingUp } from 'lucide-react';
 export default function WrappedStats({ data }) {
   if (!data?.stats) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424]">
         <p className="text-white/60">No hay datos disponibles</p>
       </div>
     );
@@ -54,30 +54,30 @@ export default function WrappedStats({ data }) {
       icon: Camera,
       title: 'Fotos',
       value: stats.totalMemories || 0,
-      color: 'from-purple-500 to-pink-500',
-      bgColor: 'bg-purple-500/10',
-      borderColor: 'border-purple-500/20',
+      color: 'from-indigo-400 to-violet-500',
+      bgColor: 'bg-indigo-500/10',
+      borderColor: 'border-indigo-500/20',
     },
     {
       icon: Calendar,
       title: 'Días activos',
       value: stats.activeDays || 0,
-      color: 'from-blue-500 to-cyan-500',
-      bgColor: 'bg-blue-500/10',
-      borderColor: 'border-blue-500/20',
+      color: 'from-violet-400 to-purple-500',
+      bgColor: 'bg-violet-500/10',
+      borderColor: 'border-violet-500/20',
     },
     {
       icon: TrendingUp,
       title: 'Promedio por semana',
       value: stats.averagePerWeek?.toFixed(1) || 0,
-      color: 'from-green-500 to-emerald-500',
-      bgColor: 'bg-green-500/10',
-      borderColor: 'border-green-500/20',
+      color: 'from-sky-400 to-indigo-500',
+      bgColor: 'bg-sky-500/10',
+      borderColor: 'border-sky-500/20',
     },
   ];
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-8">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8">
       <motion.div
         className="text-center mb-12"
         initial={{ opacity: 0, y: -20 }}

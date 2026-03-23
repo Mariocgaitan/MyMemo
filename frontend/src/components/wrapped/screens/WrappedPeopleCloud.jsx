@@ -44,7 +44,7 @@ function generateWordCloudPositions(words) {
 export default function WrappedPeopleCloud({ data }) {
   if (!data?.peopleCloud || data.peopleCloud.length === 0) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-8">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8">
         <h1 className="text-4xl font-black text-white mb-4">Sin datos</h1>
         <p className="text-white/60 text-center max-w-sm">
           No hemos registrado personas en tus recuerdos este año. ¡Empieza a etiquetar personas en tus fotos!
@@ -106,7 +106,7 @@ export default function WrappedPeopleCloud({ data }) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-4 sm:p-6">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-4 sm:p-6">
       <motion.div
         className="text-center mb-6 flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}

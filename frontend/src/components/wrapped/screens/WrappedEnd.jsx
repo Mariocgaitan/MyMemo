@@ -113,7 +113,7 @@ export default function WrappedEnd({ data, onClose }) {
   }));
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-8 relative overflow-hidden">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8 relative overflow-hidden">
       {/* Confetti animation */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {confetti.map((piece) => (

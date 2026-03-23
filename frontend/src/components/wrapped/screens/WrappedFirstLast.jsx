@@ -16,7 +16,7 @@ function truncateText(text, maxLength = 50) {
 export default function WrappedFirstLast({ data }) {
   if (!data?.firstMemory || !data?.lastMemory) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424]">
         <div className="text-center text-white">
           <p className="text-2xl font-bold">No hay recuerdos disponibles</p>
         </div>
@@ -43,7 +43,7 @@ export default function WrappedFirstLast({ data }) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-8">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8">
       <motion.div
         className="text-center mb-12"
         initial={{ opacity: 0, y: -20 }}
