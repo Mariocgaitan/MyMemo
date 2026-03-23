@@ -79,7 +79,7 @@ export default function WrappedStats({ data }) {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] p-4 sm:p-8">
       <motion.div
-        className="text-center mb-12"
+        className="text-center mb-4 sm:mb-12"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
@@ -120,7 +120,7 @@ export default function WrappedStats({ data }) {
                 className="mb-3"
                 variants={numberVariants}
               >
-                <p className={`text-5xl sm:text-6xl font-black bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}>
+                <p className={`text-4xl sm:text-5xl font-black bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}>
                   {card.value}
                 </p>
               </motion.div>

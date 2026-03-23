@@ -88,12 +88,12 @@ export default function WrappedTimelapse({ data }) {
         </motion.h1>
 
         <motion.div
-          className="mb-6"
+          className="mb-3 sm:mb-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
         >
-          <span className="text-8xl sm:text-9xl font-black bg-gradient-to-r from-[#C9A97A] via-[#8B6F47] to-[#F0E8DC] bg-clip-text text-transparent drop-shadow-lg">
+          <span className="text-6xl sm:text-9xl font-black bg-gradient-to-r from-[#C9A97A] via-[#8B6F47] to-[#F0E8DC] bg-clip-text text-transparent drop-shadow-lg">
             {data.totalMemories}
           </span>
         </motion.div>
