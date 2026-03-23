@@ -2,8 +2,8 @@ import { motion } from 'framer-motion';
 
 // Word Cloud generator - distributes words in a spiral pattern
 function generateWordCloudPositions(words) {
-  const width = 1000;
-  const height = 600;
+  const width = 1200;
+  const height = 700;
   const positions = [];
   const occupied = [];
 
@@ -13,24 +13,25 @@ function generateWordCloudPositions(words) {
   // Spiral pattern starting from center
   for (let word of sorted) {
     let placed = false;
-    const maxRadius = Math.max(width, height);
+    const maxRadius = Math.max(width, height) * 0.6; // Ajustar radio máximo
     
     // Try to place the word
-    for (let angle = 0; angle < Math.PI * 2; angle += 0.1) {
-      for (let radius = 50; radius < maxRadius; radius += 20) {
+    for (let angle = 0; angle < Math.PI * 2; angle += 0.08) {
+      for (let radius = 30; radius < maxRadius; radius += 25) {
         const x = width / 2 + radius * Math.cos(angle);
         const y = height / 2 + radius * Math.sin(angle);
 
         // Check if position is valid and not occupied
         let collision = false;
-        const textWidth = word.name.length * 15 * (0.5 + word.size / 3);
-        const textHeight = 30 * (0.5 + word.size / 3);
+        // Calcular tamaño más conservador para evitar cortes
+        const textWidth = word.name.length * 12 * (0.6 + word.frequency / 10);
+        const textHeight = 35 * (0.6 + word.frequency / 10);
 
         for (let occupied_pos of occupied) {
           const dx = occupied_pos.x - x;
           const dy = occupied_pos.y - y;
           const distance = Math.sqrt(dx * dx + dy * dy);
-          const minDistance = (textWidth + occupied_pos.width) / 2 + 10;
+          const minDistance = (textWidth + occupied_pos.width) / 2 + 15;
 
           if (distance < minDistance) {
             collision = true;
@@ -38,13 +39,15 @@ function generateWordCloudPositions(words) {
           }
         }
 
-        if (!collision && x > textWidth / 2 && x < width - textWidth / 2 && 
-            y > textHeight / 2 && y < height - textHeight / 2) {
+        // Aumentar márgenes para evitar cortes en bordes
+        const margin = 60;
+        if (!collision && x > textWidth / 2 + margin && x < width - textWidth / 2 - margin && 
+            y > textHeight / 2 + margin && y < height - textHeight / 2 - margin) {
           positions.push({
             ...word,
             x: (x / width) * 100,
             y: (y / height) * 100,
-            rotation: (Math.random() - 0.5) * 10, // -5 to +5 degrees
+            rotation: (Math.random() - 0.5) * 8, // -4 a +4 grados
           });
           occupied.push({ x, y, width: textWidth, height: textHeight });
           placed = true;
@@ -54,13 +57,13 @@ function generateWordCloudPositions(words) {
       if (placed) break;
     }
 
-    // Fallback if spiral placement fails
+    // Fallback if spiral placement fails - posiciones con más margen
     if (!placed) {
       positions.push({
         ...word,
-        x: Math.random() * 80 + 10,
-        y: Math.random() * 80 + 10,
-        rotation: (Math.random() - 0.5) * 10,
+        x: Math.random() * 70 + 15,
+        y: Math.random() * 70 + 15,
+        rotation: (Math.random() - 0.5) * 8,
       });
     }
   }
@@ -133,22 +136,22 @@ export default function WrappedPeopleCloud({ data }) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-8">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-4 sm:p-6">
       <motion.div
-        className="text-center mb-8"
+        className="text-center mb-6 flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <h1 className="text-5xl sm:text-6xl font-black text-white mb-2">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white mb-2">
           Tu gente
         </h1>
-        <p className="text-white/60 text-lg">Los que comparten tus momentos</p>
+        <p className="text-white/60 text-sm sm:text-base md:text-lg">Los que comparten tus momentos</p>
       </motion.div>
 
-      {/* Word Cloud Container */}
+      {/* Word Cloud Container - Expandido */}
       <motion.div
-        className="relative w-full max-w-5xl h-96 sm:h-[500px] flex items-center justify-center"
+        className="relative w-full flex-1 min-h-0 flex items-center justify-center"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -160,23 +163,27 @@ export default function WrappedPeopleCloud({ data }) {
           return (
             <motion.div
               key={person.id}
-              className="absolute whitespace-nowrap"
+              className="absolute whitespace-nowrap will-change-transform"
               style={{
                 left: `${person.x}%`,
                 top: `${person.y}%`,
                 transform: 'translate(-50%, -50%)',
+                zIndex: Math.floor(person.frequency),
               }}
               variants={textVariants}
             >
               <motion.div
-                className={`${sizeClass} bg-gradient-to-r ${color.from} ${color.to} bg-clip-text text-transparent cursor-default select-none transition-all`}
+                className={`${sizeClass} bg-gradient-to-r ${color.from} ${color.to} bg-clip-text text-transparent cursor-default select-none transition-all drop-shadow-lg font-black`}
                 style={{
                   rotate: person.rotation,
                 }}
                 whileHover={{
                   scale: 1.15,
-                  filter: 'brightness(1.2)',
+                  filter: 'brightness(1.3) drop-shadow(0 0 10px rgba(255,255,255,0.5))',
                   transition: { duration: 0.2 },
+                }}
+                whileTap={{
+                  scale: 1.1,
                 }}
               >
                 {person.name}
@@ -188,7 +195,7 @@ export default function WrappedPeopleCloud({ data }) {
 
       {/* Stats footer */}
       <motion.div
-        className="mt-8 text-center text-white/60 text-sm"
+        className="mt-4 flex-shrink-0 text-center text-white/60 text-xs sm:text-sm"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.8 }}
