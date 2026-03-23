@@ -20,9 +20,10 @@ function generateWordCloudPositions(words) {
     const angle = i * goldenAngle;
     
     // Radius increases with position to create clean spiral
-    // Adjust spacing based on word length and frequency
-    const radiusMultiplier = Math.sqrt(i + 1) * 1.5;
-    const radius = Math.min(40 + radiusMultiplier, 45); // Max 45% from center
+    // Keep radius tight to prevent text from going outside container
+    // Reduce from 45% to 35% max radius
+    const radiusMultiplier = Math.sqrt(i + 1) * 1.2;
+    const radius = Math.min(25 + radiusMultiplier, 35); // Max 35% from center (reduced from 45%)
     
     // Calculate position as percentage
     const x = centerX + radius * Math.cos(angle);
@@ -30,8 +31,8 @@ function generateWordCloudPositions(words) {
     
     positions.push({
       ...word,
-      x: Math.max(5, Math.min(95, x)), // Clamp to 5-95%
-      y: Math.max(5, Math.min(95, y)),
+      x: Math.max(8, Math.min(92, x)), // Tighter clamp: 8-92% (was 5-95%)
+      y: Math.max(8, Math.min(92, y)),
       rotation: angle * (180 / Math.PI) % 360, // Rotate text to face outward slightly
       spiralIndex: i,
     });
@@ -98,10 +99,10 @@ export default function WrappedPeopleCloud({ data }) {
 
   const getSizeClass = (frequency) => {
     const ratio = (frequency - minFreq) / (maxFreq - minFreq + 1);
-    if (ratio >= 0.75) return 'text-3xl sm:text-4xl font-black';
-    if (ratio >= 0.5) return 'text-2xl sm:text-3xl font-bold';
-    if (ratio >= 0.25) return 'text-xl sm:text-2xl font-bold';
-    return 'text-lg sm:text-xl font-semibold';
+    if (ratio >= 0.75) return 'text-2xl sm:text-3xl font-black';
+    if (ratio >= 0.5) return 'text-xl sm:text-2xl font-bold';
+    if (ratio >= 0.25) return 'text-base sm:text-xl font-bold';
+    return 'text-sm sm:text-base font-semibold';
   };
 
   return (
@@ -120,7 +121,7 @@ export default function WrappedPeopleCloud({ data }) {
 
       {/* Word Cloud Container - Expandido */}
       <motion.div
-        className="relative w-full flex-1 min-h-0 flex items-center justify-center"
+        className="relative w-full flex-1 min-h-0 flex items-center justify-center overflow-hidden"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -132,7 +133,7 @@ export default function WrappedPeopleCloud({ data }) {
           return (
             <motion.div
               key={person.id}
-              className="absolute flex items-center justify-center will-change-transform"
+              className="absolute flex items-center justify-center will-change-transform overflow-hidden"
               style={{
                 left: `${person.x}%`,
                 top: `${person.y}%`,
