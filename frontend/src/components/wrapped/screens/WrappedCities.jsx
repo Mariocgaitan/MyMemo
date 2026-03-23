@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
+import OverlappingCollage from '../OverlappingCollage';
 
 export default function WrappedCities({ data }) {
   if (!data?.cities || data.cities.length === 0) {
@@ -10,7 +11,10 @@ export default function WrappedCities({ data }) {
     );
   }
 
-  const { cities } = data;
+  const { cities, cityPhotos } = data;
+
+  // Recolectar fotos de todas las ciudades
+  const allCityPhotos = cityPhotos?.flat() || [];
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -51,9 +55,10 @@ export default function WrappedCities({ data }) {
   const sortedCities = [...cities].sort((a, b) => b.count - a.count);
 
   return (
-    <div className="w-full h-full flex flex-col bg-gradient-to-br from-gray-900 via-black to-gray-900 p-8 overflow-y-auto">
+    <div className="w-full h-full flex flex-col bg-gradient-to-br from-gray-900 via-black to-gray-900 overflow-hidden">
+      {/* Header */}
       <motion.div
-        className="text-center mb-10"
+        className="text-center pt-8 px-8 flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
@@ -64,8 +69,22 @@ export default function WrappedCities({ data }) {
         <p className="text-white/60 text-lg">Los lugares que visitaste</p>
       </motion.div>
 
+      {/* Collage de fotos si existen */}
+      {allCityPhotos.length > 0 && (
+        <div className="flex-1 relative overflow-hidden mt-6">
+          <OverlappingCollage
+            photos={allCityPhotos}
+            maxPhotos={20}
+            containerClassName="absolute inset-0"
+            imageClassName="rounded-lg shadow-2xl border border-white/20"
+            staggerDelay={0.02}
+          />
+        </div>
+      )}
+
+      {/* Cities Grid */}
       <motion.div
-        className="grid grid-cols-1 sm:grid-cols-2 gap-6 flex-1"
+        className="flex-shrink-0 grid grid-cols-1 sm:grid-cols-2 gap-4 px-8 py-6 overflow-y-auto max-h-[40%]"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -73,43 +92,32 @@ export default function WrappedCities({ data }) {
         {sortedCities.map((city, index) => (
           <motion.div
             key={city.name}
-            className={`bg-gradient-to-br ${getGradient(index)} p-0.5 rounded-2xl`}
+            className={`bg-gradient-to-br ${getGradient(index)} p-0.5 rounded-xl`}
             variants={cardVariants}
           >
-            <div className="bg-black rounded-2xl p-6 h-full flex flex-col justify-between">
+            <div className="bg-black/90 backdrop-blur-sm rounded-xl p-4 h-full flex flex-col justify-between">
               <div>
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
-                    <h3 className="text-white text-2xl font-black mb-1">
+                    <h3 className="text-white text-lg font-black mb-1">
                       {city.name}
                     </h3>
-                    <div className="flex items-center gap-2 text-white/60 text-sm">
-                      <MapPin className="w-4 h-4" />
+                    <div className="flex items-center gap-2 text-white/60 text-xs">
+                      <MapPin className="w-3 h-3" />
                       <span>{city.country || 'Ubicación'}</span>
                     </div>
                   </div>
 
                   <div
-                    className={`text-3xl font-black bg-gradient-to-r ${getGradient(index)} bg-clip-text text-transparent`}
+                    className={`text-2xl font-black bg-gradient-to-r ${getGradient(index)} bg-clip-text text-transparent`}
                   >
                     {city.count}
                   </div>
                 </div>
-
-                {city.latitude && city.longitude && (
-                  <div className="text-white/50 text-xs space-y-1">
-                    <p>
-                      <span className="text-white/70">Lat:</span> {city.latitude.toFixed(4)}
-                    </p>
-                    <p>
-                      <span className="text-white/70">Lng:</span> {city.longitude.toFixed(4)}
-                    </p>
-                  </div>
-                )}
               </div>
 
-              <div className="mt-4 pt-4 border-t border-white/10">
-                <p className="text-white/60 text-sm">
+              <div className="mt-2 pt-2 border-t border-white/10">
+                <p className="text-white/60 text-xs">
                   {city.count === 1 ? '1 recuerdo' : `${city.count} recuerdos`}
                 </p>
               </div>
@@ -120,7 +128,7 @@ export default function WrappedCities({ data }) {
 
       {/* Summary */}
       <motion.div
-        className="mt-10 text-center text-white/60 text-sm"
+        className="flex-shrink-0 text-center pb-4 text-white/60 text-sm"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.8 }}

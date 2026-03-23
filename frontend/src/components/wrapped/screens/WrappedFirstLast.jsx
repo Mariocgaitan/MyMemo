@@ -57,72 +57,96 @@ export default function WrappedFirstLast({ data }) {
       </motion.div>
 
       <motion.div
-        className="grid grid-cols-1 sm:grid-cols-2 gap-8 w-full max-w-4xl"
+        className="relative w-full max-w-4xl"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
-        {/* First Memory */}
-        <motion.div
-          className="flex flex-col"
-          variants={itemVariants}
-        >
-          <div className="relative mb-4 rounded-2xl overflow-hidden h-64 sm:h-72">
-            <motion.img
-              src={firstMemory.image}
-              alt="Primer recuerdo"
-              className="w-full h-full object-cover"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.6 }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 sm:gap-0">
+          {/* First Memory */}
+          <motion.div
+            className="flex flex-col"
+            variants={itemVariants}
+          >
+            <div className="relative mb-4 rounded-2xl overflow-hidden h-64 sm:h-72 sm:mr-8 shadow-2xl border-2 border-white/20 hover:border-white/40 transition-colors group">
+              <motion.img
+                src={firstMemory.image}
+                alt="Primer recuerdo"
+                className="w-full h-full object-cover"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.6 }}
+                whileHover={{
+                  scale: 1.08,
+                  transition: { duration: 0.3 },
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
 
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <p className="text-white/60 text-sm mb-1">Tu primer recuerdo</p>
-              <p className="text-white font-bold text-sm">
-                {formatDate(firstMemory.date)}
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <p className="text-white/60 text-sm mb-1">Tu primer recuerdo</p>
+                <p className="text-white font-bold text-sm">
+                  {formatDate(firstMemory.date)}
+                </p>
+              </div>
+
+              {/* Efecto de brillo al hover */}
+              <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-2xl transition-all duration-300" />
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex-1 hover:bg-white/10 transition-colors">
+              <p className="text-white/80 text-sm line-clamp-4">
+                {truncateText(firstMemory?.description || firstMemory?.description_raw, 100)}
               </p>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex-1">
-            <p className="text-white/80 text-sm line-clamp-4">
-              {truncateText(firstMemory?.description || firstMemory?.description_raw, 100)}
-            </p>
-          </div>
-        </motion.div>
+          {/* Last Memory */}
+          <motion.div
+            className="flex flex-col"
+            variants={itemVariants}
+          >
+            <div className="relative mb-4 rounded-2xl overflow-hidden h-64 sm:h-72 sm:ml-8 shadow-2xl border-2 border-white/20 hover:border-white/40 transition-colors group">
+              <motion.img
+                src={lastMemory.image}
+                alt="Último recuerdo"
+                className="w-full h-full object-cover"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                whileHover={{
+                  scale: 1.08,
+                  transition: { duration: 0.3 },
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
 
-        {/* Last Memory */}
-        <motion.div
-          className="flex flex-col"
-          variants={itemVariants}
-        >
-          <div className="relative mb-4 rounded-2xl overflow-hidden h-64 sm:h-72">
-            <motion.img
-              src={lastMemory.image}
-              alt="Último recuerdo"
-              className="w-full h-full object-cover"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <p className="text-white/60 text-sm mb-1">Tu último recuerdo</p>
+                <p className="text-white font-bold text-sm">
+                  {formatDate(lastMemory.date)}
+                </p>
+              </div>
 
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <p className="text-white/60 text-sm mb-1">Tu último recuerdo</p>
-              <p className="text-white font-bold text-sm">
-                {formatDate(lastMemory.date)}
+              {/* Efecto de brillo al hover */}
+              <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-2xl transition-all duration-300" />
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex-1 hover:bg-white/10 transition-colors">
+              <p className="text-white/80 text-sm line-clamp-4">
+                {truncateText(lastMemory?.description || lastMemory?.description_raw, 100)}
               </p>
             </div>
-          </div>
+          </motion.div>
+        </div>
 
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex-1">
-            <p className="text-white/80 text-sm line-clamp-4">
-              {truncateText(lastMemory?.description || lastMemory?.description_raw, 100)}
-            </p>
-          </div>
-        </motion.div>
+        {/* Connecting line between memories */}
+        <motion.div
+          className="hidden sm:block absolute top-1/4 left-1/2 transform -translate-x-1/2 w-0.5 h-1/2 bg-gradient-to-b from-white/0 via-white/40 to-white/0 -z-10"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, delay: 0.4 }}
+        />
       </motion.div>
 
       {/* Timeline indicator */}

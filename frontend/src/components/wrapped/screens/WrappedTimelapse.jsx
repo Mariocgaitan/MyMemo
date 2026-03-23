@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import OverlappingCollage from '../OverlappingCollage';
 
 export default function WrappedTimelapse({ data }) {
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -29,6 +30,11 @@ export default function WrappedTimelapse({ data }) {
     return () => clearInterval(interval);
   }, [photos.length]);
 
+  // Seleccionar fotos para collage (diferentes a la actual)
+  const collagePhotos = photos
+    .filter((_, idx) => idx !== photoIndex)
+    .slice(0, 6);
+
   return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 relative overflow-hidden">
       {/* Background photos carousel */}
@@ -48,19 +54,32 @@ export default function WrappedTimelapse({ data }) {
           />
         ))}
 
-        {/* Overlay oscuro */}
-        <div className="absolute inset-0 bg-black/60" />
+        {/* Overlay oscuro con gradiente */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80" />
       </div>
+
+      {/* Collage de preview en los bordes */}
+      {collagePhotos.length > 0 && (
+        <div className="absolute inset-0 pointer-events-none">
+          <OverlappingCollage
+            photos={collagePhotos}
+            maxPhotos={6}
+            containerClassName="absolute inset-0 opacity-40"
+            imageClassName="rounded-lg shadow-xl border border-white/10"
+            staggerDelay={0.05}
+          />
+        </div>
+      )}
 
       {/* Text content */}
       <motion.div
-        className="relative z-10 text-center text-white px-8"
+        className="relative z-20 text-center text-white px-8"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, delay: 0.2 }}
       >
         <motion.h1
-          className="text-6xl sm:text-7xl font-black mb-6"
+          className="text-6xl sm:text-7xl font-black mb-6 drop-shadow-lg"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
@@ -74,13 +93,13 @@ export default function WrappedTimelapse({ data }) {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
         >
-          <span className="text-8xl sm:text-9xl font-black bg-gradient-to-r from-primary via-pink-500 to-purple-500 bg-clip-text text-transparent">
+          <span className="text-8xl sm:text-9xl font-black bg-gradient-to-r from-cyan-500 via-pink-500 to-purple-500 bg-clip-text text-transparent drop-shadow-lg">
             {data.totalMemories}
           </span>
         </motion.div>
 
         <motion.p
-          className="text-3xl sm:text-4xl font-bold"
+          className="text-3xl sm:text-4xl font-bold drop-shadow-lg"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.7 }}
@@ -91,7 +110,7 @@ export default function WrappedTimelapse({ data }) {
 
       {/* Photo counter */}
       <motion.div
-        className="absolute bottom-8 left-8 z-10 text-white/60 text-sm font-medium"
+        className="absolute bottom-8 left-8 z-20 text-white/60 text-sm font-medium"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
