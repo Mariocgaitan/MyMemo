@@ -1,45 +1,48 @@
 import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
-import OverlappingCollage from '../OverlappingCollage';
+
+/**
+ * Returns a short, readable location label from whatever is stored in city.country.
+ * The field may contain coordinates ("23.4, -99.1") or a real country name.
+ * If it looks like coordinates, we just show a generic fallback.
+ */
+function getLocationLabel(country) {
+  if (!country) return 'Lugar visitado';
+  // Detect coordinate-like strings (digits, dots, commas, minus signs, spaces only)
+  const isCoords = /^[-\d.,\s]+$/.test(country.trim());
+  if (isCoords) return 'Lugar visitado';
+  return country;
+}
 
 export default function WrappedCities({ data }) {
   if (!data?.cities || data.cities.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110]">
-        <p className="text-white/60">No hay datos de ubicaciones</p>
+        <p className="text-[#8C8078] text-sm">No hay datos de ubicaciones</p>
       </div>
     );
   }
 
-  const { cities, cityPhotos } = data;
-
-  // Recolectar fotos de todas las ciudades
-  const allCityPhotos = cityPhotos?.flat() || [];
+  const { cities } = data;
 
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
+      transition: { staggerChildren: 0.08, delayChildren: 0.15 },
     },
   };
 
   const cardVariants = {
-    hidden: { opacity: 0, x: -20 },
+    hidden: { opacity: 0, y: 16 },
     visible: {
       opacity: 1,
-      x: 0,
-      transition: {
-        duration: 0.5,
-        ease: 'easeOut',
-      },
+      y: 0,
+      transition: { duration: 0.4, ease: 'easeOut' },
     },
   };
 
-  // Color gradients for cities — warm sepia/amber palette  
+  // Warm sepia/amber gradient borders
   const gradients = [
     'from-[#C9A97A] to-[#8B6F47]',
     'from-[#8B6F47] to-[#7A5F3A]',
@@ -51,40 +54,27 @@ export default function WrappedCities({ data }) {
 
   const getGradient = (index) => gradients[index % gradients.length];
 
-  // Sort cities by memory count
   const sortedCities = [...cities].sort((a, b) => b.count - a.count);
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] overflow-hidden">
-      {/* Header */}
+      {/* Header — compact */}
       <motion.div
-        className="text-center pt-8 px-8 flex-shrink-0"
-        initial={{ opacity: 0, y: -20 }}
+        className="text-center pt-5 px-6 pb-3 flex-shrink-0"
+        initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
+        transition={{ duration: 0.5 }}
       >
-        <h1 className="text-5xl sm:text-6xl font-black text-white mb-2">
-          Tu mundo
-        </h1>
-        <p className="text-white/60 text-lg">Los lugares que visitaste</p>
+        <h1 className="text-3xl sm:text-5xl font-black text-[#EDE8E3] mb-1">Tu mundo</h1>
+        <p className="text-[#8C8078] text-xs sm:text-base">
+          Visitaste {sortedCities.length} lugar{sortedCities.length !== 1 ? 'es' : ''} distintos
+        </p>
       </motion.div>
 
-      {/* Collage de fotos si existen */}
-      {allCityPhotos.length > 0 && (
-        <div className="flex-1 relative overflow-hidden mt-6">
-          <OverlappingCollage
-            photos={allCityPhotos}
-            maxPhotos={20}
-            containerClassName="absolute inset-0"
-            imageClassName="rounded-lg shadow-2xl border border-white/20"
-            staggerDelay={0.02}
-          />
-        </div>
-      )}
-
-      {/* Cities Grid */}
+      {/* Cities Grid — fills all remaining space */}
       <motion.div
-        className="flex-shrink-0 grid grid-cols-1 sm:grid-cols-2 gap-4 px-8 py-6 overflow-y-auto max-h-[40%]"
+        className="flex-1 grid grid-cols-2 gap-2.5 px-4 pb-4 overflow-y-auto"
+        style={{ alignContent: 'start' }}
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -92,48 +82,28 @@ export default function WrappedCities({ data }) {
         {sortedCities.map((city, index) => (
           <motion.div
             key={city.name}
-            className={`bg-gradient-to-br ${getGradient(index)} p-0.5 rounded-xl`}
+            className={`bg-gradient-to-br ${getGradient(index)} p-px rounded-xl`}
             variants={cardVariants}
           >
-            <div className="bg-black/90 backdrop-blur-sm rounded-xl p-4 h-full flex flex-col justify-between">
-              <div>
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <h3 className="text-white text-lg font-black mb-1">
-                      {city.name}
-                    </h3>
-                    <div className="flex items-center gap-2 text-white/60 text-xs">
-                      <MapPin className="w-3 h-3" />
-                      <span>{city.country || 'Ubicación'}</span>
-                    </div>
-                  </div>
+            <div className="bg-[#1E1A17] rounded-xl p-3 h-full flex flex-col justify-between">
+              {/* City name */}
+              <h3 className="text-[#EDE8E3] text-sm sm:text-base font-black leading-tight mb-1">
+                {city.name}
+              </h3>
 
-                  <div
-                    className={`text-2xl font-black bg-gradient-to-r ${getGradient(index)} bg-clip-text text-transparent`}
-                  >
-                    {city.count}
-                  </div>
-                </div>
+              {/* Location label */}
+              <div className="flex items-center gap-1 text-[#8C8078] text-[10px] sm:text-xs mb-2">
+                <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
+                <span className="truncate">{getLocationLabel(city.country)}</span>
               </div>
 
-              <div className="mt-2 pt-2 border-t border-white/10">
-                <p className="text-white/60 text-xs">
-                  {city.count === 1 ? '1 recuerdo' : `${city.count} recuerdos`}
-                </p>
+              {/* Count badge */}
+              <div className={`self-start px-2 py-0.5 rounded-full bg-gradient-to-r ${getGradient(index)} text-[#141110] text-xs font-black`}>
+                {city.count} {city.count === 1 ? 'recuerdo' : 'recuerdos'}
               </div>
             </div>
           </motion.div>
         ))}
-      </motion.div>
-
-      {/* Summary */}
-      <motion.div
-        className="flex-shrink-0 text-center pb-4 text-white/60 text-sm"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.6, delay: 0.8 }}
-      >
-        <p>Viajaste a {sortedCities.length} lugar{sortedCities.length !== 1 ? 'es' : ''} distintos este año</p>
       </motion.div>
     </div>
   );

@@ -79,7 +79,7 @@ export default function WrappedTimelapse({ data }) {
         transition={{ duration: 0.8, delay: 0.2 }}
       >
         <motion.h1
-          className="text-6xl sm:text-7xl font-black mb-6 drop-shadow-lg"
+          className="text-4xl sm:text-6xl font-black mb-4 drop-shadow-lg"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
@@ -99,7 +99,7 @@ export default function WrappedTimelapse({ data }) {
         </motion.div>
 
         <motion.p
-          className="text-3xl sm:text-4xl font-bold drop-shadow-lg"
+          className="text-2xl sm:text-3xl font-bold drop-shadow-lg"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.7 }}

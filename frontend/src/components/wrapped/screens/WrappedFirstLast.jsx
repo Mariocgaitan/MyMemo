@@ -43,17 +43,17 @@ export default function WrappedFirstLast({ data }) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] p-8">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] p-4 sm:p-8">
       <motion.div
-        className="text-center mb-12"
+        className="text-center mb-4 sm:mb-12"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <h1 className="text-5xl sm:text-6xl font-black text-white mb-2">
+        <h1 className="text-3xl sm:text-5xl font-black text-[#EDE8E3] mb-1">
           Tu viaje
         </h1>
-        <p className="text-white/60 text-lg">Del primero al último</p>
+        <p className="text-[#8C8078] text-sm sm:text-lg">Del primero al último</p>
       </motion.div>
 
       <motion.div

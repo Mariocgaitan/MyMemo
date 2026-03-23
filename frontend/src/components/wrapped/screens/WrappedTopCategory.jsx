@@ -56,12 +56,12 @@ export default function WrappedTopCategory({ data }) {
           </div>
         </motion.div>
 
-        <h1 className="text-4xl sm:text-5xl font-black text-white mb-2">
+        <h1 className="text-2xl sm:text-4xl font-black text-[#EDE8E3] mb-1">
           Tu tema favorito
         </h1>
-        <p className="text-white/60 text-sm sm:text-base">Este año en MyMemo</p>
-        <p className="text-white/80 text-2xl sm:text-3xl font-bold mt-3">
-          {topCategory.count} <span className="text-white/60 text-base sm:text-lg">momentos</span>
+        <p className="text-[#8C8078] text-xs sm:text-base">Este año en MyMemo</p>
+        <p className="text-[#C9A97A] text-xl sm:text-3xl font-bold mt-2">
+          {topCategory.count} <span className="text-[#8C8078] text-sm sm:text-lg">momentos</span>
         </p>
       </motion.div>
 

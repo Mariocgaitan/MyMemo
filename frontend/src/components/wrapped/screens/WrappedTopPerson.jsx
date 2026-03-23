@@ -27,12 +27,12 @@ export default function WrappedTopPerson({ data }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <h1 className="text-4xl sm:text-5xl font-black text-white mb-2">
+        <h1 className="text-2xl sm:text-4xl font-black text-[#EDE8E3] mb-2">
           {topPerson.name}
         </h1>
-        <p className="text-white/60 text-sm sm:text-base">Tu persona favorita este año</p>
-        <p className="text-white/80 text-2xl sm:text-3xl font-bold mt-3">
-          {topPerson.count} <span className="text-white/60 text-base sm:text-lg">recuerdos juntos</span>
+        <p className="text-[#8C8078] text-xs sm:text-base">Tu persona favorita este año</p>
+        <p className="text-[#C9A97A] text-xl sm:text-3xl font-bold mt-2">
+          {topPerson.count} <span className="text-[#8C8078] text-sm sm:text-lg">recuerdos juntos</span>
         </p>
       </motion.div>
 

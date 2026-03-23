@@ -157,14 +157,14 @@ export default function WrappedEnd({ data, onClose }) {
 
         {/* Main title */}
         <motion.h1
-          className="text-6xl sm:text-7xl font-black text-white mb-4"
+          className="text-4xl sm:text-6xl font-black text-[#EDE8E3] mb-4"
           variants={itemVariants}
         >
           Gracias
         </motion.h1>
 
         <motion.p
-          className="text-xl sm:text-2xl text-white/70 mb-12"
+          className="text-base sm:text-2xl text-[#8C8078] mb-8 sm:mb-12"
           variants={itemVariants}
         >
           Por documentar tu vida en MyMemo
