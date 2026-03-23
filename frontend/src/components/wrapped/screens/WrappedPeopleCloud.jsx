@@ -3,8 +3,11 @@ import { motion } from 'framer-motion';
 export default function WrappedPeopleCloud({ data }) {
   if (!data?.peopleCloud || data.peopleCloud.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
-        <p className="text-white/60">No hay personas registradas</p>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-8">
+        <h1 className="text-4xl font-black text-white mb-4">Sin datos</h1>
+        <p className="text-white/60 text-center max-w-sm">
+          No hemos registrado personas en tus recuerdos este año. ¡Empieza a etiquetar personas en tus fotos!
+        </p>
       </div>
     );
   }

@@ -38,20 +38,28 @@ export function useWrappedData(memories = [], people = [], categories = []) {
     const personFrequencyMap = {};
     
     memories.forEach(memory => {
-      if (memory.tagged_people && memory.tagged_people.length) {
-        memory.tagged_people.forEach(personId => {
+      // Intentar obtener tagged_people - puede ser array directo o venir de otras fuentes
+      let taggedPeople = memory.tagged_people || [];
+      
+      // Si no hay tagged_people pero hay un campo people_ids
+      if (!taggedPeople.length && memory.people_ids) {
+        taggedPeople = Array.isArray(memory.people_ids) ? memory.people_ids : [memory.people_ids];
+      }
+      
+      if (taggedPeople && taggedPeople.length) {
+        taggedPeople.forEach(personId => {
           personFrequencyMap[personId] = (personFrequencyMap[personId] || 0) + 1;
         });
       }
     });
 
-    // Crear array de personas con frecuencia
+    // Crear array de personas con frecuencia (filtrar solo las que tienen memories)
     const peopleWithFrequency = people
-      .filter(p => personFrequencyMap[p.id] > 0)
       .map(p => ({
         ...p,
-        frequency: personFrequencyMap[p.id],
+        frequency: personFrequencyMap[p.id] || 0,
       }))
+      .filter(p => p.frequency > 0)
       .sort((a, b) => b.frequency - a.frequency);
 
     // Generar cloud sin solapamiento
@@ -61,7 +69,10 @@ export function useWrappedData(memories = [], people = [], categories = []) {
     const topPerson = peopleWithFrequency[0] || null;
     const topPersonPhotos = topPerson
       ? memories
-          .filter(m => m.tagged_people && m.tagged_people.includes(topPerson.id))
+          .filter(m => {
+            const taggedPeople = m.tagged_people || m.people_ids || [];
+            return taggedPeople.includes(topPerson.id);
+          })
           .slice(0, 15)
           .map(m => ({ id: m.id, url: m.thumbnail_url || m.image_url }))
       : [];
@@ -69,32 +80,46 @@ export function useWrappedData(memories = [], people = [], categories = []) {
     // ============ PANTALLA 6: Top Categoría ============
     const categoryFrequencyMap = {};
     memories.forEach(memory => {
-      if (memory.categories) {
-        const cats = typeof memory.categories === 'string'
-          ? memory.categories.split(',')
-          : memory.categories;
+      let cats = memory.categories || [];
+      
+      // Manejar diferentes formatos de categorías
+      if (typeof cats === 'string') {
+        cats = cats.split(',').map(c => c.trim());
+      } else if (!Array.isArray(cats)) {
+        cats = [];
+      }
+      
+      // Si hay category_id en lugar de categories
+      if (!cats.length && memory.category_id) {
+        cats = [memory.category_id];
+      }
+      
+      if (cats && cats.length) {
         cats.forEach(cat => {
-          categoryFrequencyMap[cat] = (categoryFrequencyMap[cat] || 0) + 1;
+          const catKey = typeof cat === 'string' ? cat : cat.id || cat.value || cat;
+          categoryFrequencyMap[catKey] = (categoryFrequencyMap[catKey] || 0) + 1;
         });
       }
     });
 
     const categoriesWithFrequency = categories
-      .filter(c => (categoryFrequencyMap[c.value] || 0) > 0)
       .map(c => ({
         ...c,
-        frequency: categoryFrequencyMap[c.value] || 0,
+        frequency: categoryFrequencyMap[c.value] || categoryFrequencyMap[c.id] || 0,
       }))
+      .filter(c => c.frequency > 0)
       .sort((a, b) => b.frequency - a.frequency);
 
     const topCategory = categoriesWithFrequency[0] || null;
     const topCategoryPhotos = topCategory
       ? memories
           .filter(m => {
-            const cats = typeof m.categories === 'string'
-              ? m.categories.split(',')
-              : m.categories || [];
-            return cats.includes(topCategory.value);
+            let cats = m.categories || [];
+            if (typeof cats === 'string') {
+              cats = cats.split(',').map(c => c.trim());
+            }
+            const catKey = typeof cats[0] === 'string' ? cats[0] : (cats[0]?.id || cats[0]?.value);
+            return cats.includes(topCategory.value) || cats.includes(topCategory.id) || catKey === topCategory.value;
           })
           .slice(0, 15)
           .map(m => ({ id: m.id, url: m.thumbnail_url || m.image_url }))

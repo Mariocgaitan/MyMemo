@@ -3,10 +3,13 @@ import Masonry from 'react-masonry-css';
 import '../masonry.css';
 
 export default function WrappedTopPerson({ data }) {
-  if (!data?.topPerson || !data?.topPersonMemories) {
+  if (!data?.topPerson) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
-        <p className="text-white/60">No hay datos de personas</p>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-8">
+        <h1 className="text-4xl font-black text-white mb-4">Sin datos</h1>
+        <p className="text-white/60 text-center max-w-sm">
+          No hemos encontrado una persona destacada en tus recuerdos. ¡Etiqueta personas para verlas aquí!
+        </p>
       </div>
     );
   }
@@ -66,21 +69,23 @@ export default function WrappedTopPerson({ data }) {
       </motion.div>
 
       {/* Hero image */}
-      <motion.div
-        className="mb-10 flex justify-center"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-      >
-        <div className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-          <img
-            src={topPerson.mainPhoto}
-            alt={topPerson.name}
-            className="w-full h-80 object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        </div>
-      </motion.div>
+      {topPerson.mainPhoto && (
+        <motion.div
+          className="mb-10 flex justify-center"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
+          <div className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
+            <img
+              src={topPerson.mainPhoto}
+              alt={topPerson.name}
+              className="w-full h-80 object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+          </div>
+        </motion.div>
+      )}
 
       {/* Photo grid */}
       <motion.div

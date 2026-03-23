@@ -39,10 +39,23 @@ export default function WrappedModal({ isOpen, onClose }) {
           categoriesAPI.getAll(),
         ]);
 
+        const rawMemories = memoriesResp.memories || [];
+        const rawPeople = peopleResp || [];
+        const rawCategories = categoriesResp || [];
+
+        // Debug logs
+        console.log('Wrapped data loaded:', {
+          memoriesCount: rawMemories.length,
+          peopleCount: rawPeople.length,
+          categoriesCount: rawCategories.length,
+          sampleMemory: rawMemories[0],
+          samplePerson: rawPeople[0],
+        });
+
         setRawData({
-          memories: memoriesResp.memories || [],
-          people: peopleResp || [],
-          categories: categoriesResp || [],
+          memories: rawMemories,
+          people: rawPeople,
+          categories: rawCategories,
         });
       } catch (err) {
         console.error('Error loading wrapped data:', err);
