@@ -44,7 +44,7 @@ function generateWordCloudPositions(words) {
 export default function WrappedPeopleCloud({ data }) {
   if (!data?.peopleCloud || data.peopleCloud.length === 0) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] p-8">
         <h1 className="text-4xl font-black text-white mb-4">Sin datos</h1>
         <p className="text-white/60 text-center max-w-sm">
           No hemos registrado personas en tus recuerdos este año. ¡Empieza a etiquetar personas en tus fotos!
@@ -79,16 +79,16 @@ export default function WrappedPeopleCloud({ data }) {
     },
   };
 
-  // Color palette for word cloud
+  // Color palette warm sepia/amber — matching the site's tobacco/analog palette
   const colors = [
-    { from: 'from-pink-400', to: 'to-red-500' },
-    { from: 'from-purple-400', to: 'to-pink-500' },
-    { from: 'from-blue-400', to: 'to-purple-500' },
-    { from: 'from-cyan-400', to: 'to-blue-500' },
-    { from: 'from-emerald-400', to: 'to-cyan-500' },
-    { from: 'from-yellow-400', to: 'to-emerald-500' },
-    { from: 'from-orange-400', to: 'to-yellow-500' },
-    { from: 'from-red-400', to: 'to-orange-500' },
+    { from: 'from-[#C9A97A]', to: 'to-[#8B6F47]' },
+    { from: 'from-[#F0E8DC]', to: 'to-[#C9A97A]' },
+    { from: 'from-[#8B6F47]', to: 'to-[#7A5F3A]' },
+    { from: 'from-[#D4B896]', to: 'to-[#8B6F47]' },
+    { from: 'from-[#EDE8E3]', to: 'to-[#C9A97A]' },
+    { from: 'from-[#C9A97A]', to: 'to-[#F0E8DC]' },
+    { from: 'from-[#A8845C]', to: 'to-[#8B6F47]' },
+    { from: 'from-[#F0E8DC]', to: 'to-[#8B6F47]' },
   ];
 
   const getColor = (index) => colors[index % colors.length];
@@ -106,7 +106,7 @@ export default function WrappedPeopleCloud({ data }) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-4 sm:p-6">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] p-4 sm:p-6">
       <motion.div
         className="text-center mb-6 flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}

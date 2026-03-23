@@ -8,7 +8,7 @@ const MONTHS = [
 export default function WrappedTimeline({ data }) {
   if (!data?.timeline || data.timeline.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424]">
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110]">
         <p className="text-white/60">No hay datos de línea de tiempo</p>
       </div>
     );
@@ -53,16 +53,16 @@ export default function WrappedTimeline({ data }) {
   };
 
   const getColor = (count) => {
-    if (count === 0) return 'text-white/20';
-    if (count >= maxMonthCount * 0.8) return 'text-pink-400';
-    if (count >= maxMonthCount * 0.6) return 'text-purple-400';
-    if (count >= maxMonthCount * 0.4) return 'text-blue-400';
-    if (count >= maxMonthCount * 0.2) return 'text-cyan-400';
-    return 'text-white/40';
+    if (count === 0) return 'text-[#2E2822]';
+    if (count >= maxMonthCount * 0.8) return 'text-[#F0E8DC]';
+    if (count >= maxMonthCount * 0.6) return 'text-[#D4B896]';
+    if (count >= maxMonthCount * 0.4) return 'text-[#C9A97A]';
+    if (count >= maxMonthCount * 0.2) return 'text-[#A8845C]';
+    return 'text-[#8C8078]';
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] p-8">
       <motion.div
         className="text-center mb-12"
         initial={{ opacity: 0, y: -20 }}
@@ -129,7 +129,7 @@ export default function WrappedTimeline({ data }) {
       >
         <p>
           El tamaño de cada número representa cuántos recuerdos guardaste ese mes.
-          Tu mes más activo fue <span className="text-pink-400 font-semibold">
+          Tu mes más activo fue <span className="text-[#C9A97A] font-semibold">
             {MONTHS[timeline.indexOf(timeline.reduce((max, m) => (m.count > max.count ? m : max)))]}
           </span>.
         </p>

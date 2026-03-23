@@ -90,7 +90,7 @@ export default function WrappedModal({ isOpen, onClose }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[2000] bg-black overflow-hidden"
+      className="fixed inset-0 z-[2000] bg-[#141110] overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -107,7 +107,7 @@ export default function WrappedModal({ isOpen, onClose }) {
       {/* Progress bar */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-white/10">
         <motion.div
-          className="h-full bg-gradient-to-r from-indigo-500 to-violet-500"
+          className="h-full bg-gradient-to-r from-[#C9A97A] to-[#8B6F47]"
           initial={{ width: '0%' }}
           animate={{ width: `${((currentScreen + 1) / TOTAL_SCREENS) * 100}%` }}
           transition={{ duration: 0.3 }}

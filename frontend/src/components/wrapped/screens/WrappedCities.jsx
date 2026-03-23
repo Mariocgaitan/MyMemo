@@ -5,7 +5,7 @@ import OverlappingCollage from '../OverlappingCollage';
 export default function WrappedCities({ data }) {
   if (!data?.cities || data.cities.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424]">
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110]">
         <p className="text-white/60">No hay datos de ubicaciones</p>
       </div>
     );
@@ -39,14 +39,14 @@ export default function WrappedCities({ data }) {
     },
   };
 
-  // Color gradients for cities
+  // Color gradients for cities — warm sepia/amber palette  
   const gradients = [
-    'from-red-500 to-orange-500',
-    'from-blue-500 to-cyan-500',
-    'from-purple-500 to-pink-500',
-    'from-green-500 to-emerald-500',
-    'from-yellow-500 to-orange-500',
-    'from-indigo-500 to-blue-500',
+    'from-[#C9A97A] to-[#8B6F47]',
+    'from-[#8B6F47] to-[#7A5F3A]',
+    'from-[#F0E8DC] to-[#C9A97A]',
+    'from-[#D4B896] to-[#8B6F47]',
+    'from-[#A8845C] to-[#7A5F3A]',
+    'from-[#EDE8E3] to-[#C9A97A]',
   ];
 
   const getGradient = (index) => gradients[index % gradients.length];
@@ -55,7 +55,7 @@ export default function WrappedCities({ data }) {
   const sortedCities = [...cities].sort((a, b) => b.count - a.count);
 
   return (
-    <div className="w-full h-full flex flex-col bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] overflow-hidden">
+    <div className="w-full h-full flex flex-col bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] overflow-hidden">
       {/* Header */}
       <motion.div
         className="text-center pt-8 px-8 flex-shrink-0"

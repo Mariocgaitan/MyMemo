@@ -113,13 +113,13 @@ export default function WrappedEnd({ data, onClose }) {
   }));
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8 relative overflow-hidden">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] p-8 relative overflow-hidden">
       {/* Confetti animation */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {confetti.map((piece) => (
           <motion.div
             key={piece.id}
-            className="absolute w-2 h-2 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full"
+            className="absolute w-2 h-2 bg-gradient-to-r from-[#C9A97A] to-[#8B6F47] rounded-full"
             style={{
               left: `${piece.left}%`,
               top: '-10px',
@@ -196,8 +196,8 @@ export default function WrappedEnd({ data, onClose }) {
             disabled={isExporting || exported}
             className={`px-6 py-3 rounded-full font-bold flex items-center gap-2 transition-all ${
               exported
-                ? 'bg-green-500 text-white'
-                : 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:shadow-lg hover:shadow-pink-500/50'
+                ? 'bg-[#4A7C59] text-white'
+                : 'bg-gradient-to-r from-[#C9A97A] to-[#8B6F47] text-white hover:shadow-lg hover:shadow-[#8B6F47]/40'
             }`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}

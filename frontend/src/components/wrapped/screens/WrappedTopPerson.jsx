@@ -4,7 +4,7 @@ import OverlappingCollage from '../OverlappingCollage';
 export default function WrappedTopPerson({ data }) {
   if (!data?.topPerson) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] p-8">
         <h1 className="text-4xl font-black text-white mb-4">Sin datos</h1>
         <p className="text-white/60 text-center max-w-sm">
           No hemos encontrado una persona destacada en tus recuerdos. ¡Etiqueta personas para verlas aquí!
@@ -19,7 +19,7 @@ export default function WrappedTopPerson({ data }) {
   const photos = topPersonMemories.slice(0, 15);
 
   return (
-    <div className="w-full h-full flex flex-col bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] overflow-hidden">
+    <div className="w-full h-full flex flex-col bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] overflow-hidden">
       {/* Header */}
       <motion.div
         className="text-center pt-8 px-8 flex-shrink-0"

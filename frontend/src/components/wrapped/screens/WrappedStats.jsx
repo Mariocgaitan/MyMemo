@@ -4,7 +4,7 @@ import { Camera, Calendar, TrendingUp } from 'lucide-react';
 export default function WrappedStats({ data }) {
   if (!data?.stats) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424]">
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110]">
         <p className="text-white/60">No hay datos disponibles</p>
       </div>
     );
@@ -54,30 +54,30 @@ export default function WrappedStats({ data }) {
       icon: Camera,
       title: 'Fotos',
       value: stats.totalMemories || 0,
-      color: 'from-indigo-400 to-violet-500',
-      bgColor: 'bg-indigo-500/10',
-      borderColor: 'border-indigo-500/20',
+      color: 'from-[#C9A97A] to-[#8B6F47]',
+      bgColor: 'bg-[#8B6F47]/10',
+      borderColor: 'border-[#8B6F47]/20',
     },
     {
       icon: Calendar,
       title: 'Días activos',
       value: stats.activeDays || 0,
-      color: 'from-violet-400 to-purple-500',
-      bgColor: 'bg-violet-500/10',
-      borderColor: 'border-violet-500/20',
+      color: 'from-[#F0E8DC] to-[#C9A97A]',
+      bgColor: 'bg-[#C9A97A]/10',
+      borderColor: 'border-[#C9A97A]/20',
     },
     {
       icon: TrendingUp,
       title: 'Promedio por semana',
       value: stats.averagePerWeek?.toFixed(1) || 0,
-      color: 'from-sky-400 to-indigo-500',
-      bgColor: 'bg-sky-500/10',
-      borderColor: 'border-sky-500/20',
+      color: 'from-[#8B6F47] to-[#7A5F3A]',
+      bgColor: 'bg-[#7A5F3A]/10',
+      borderColor: 'border-[#7A5F3A]/20',
     },
   ];
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#0d1424] p-8">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#141110] via-[#1E1A17] to-[#141110] p-8">
       <motion.div
         className="text-center mb-12"
         initial={{ opacity: 0, y: -20 }}
