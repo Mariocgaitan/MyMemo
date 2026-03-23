@@ -9,6 +9,7 @@ function formatDate(date) {
 }
 
 function truncateText(text, maxLength = 50) {
+  if (!text) return 'Sin descripción';
   return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
 }
 
@@ -87,7 +88,7 @@ export default function WrappedFirstLast({ data }) {
 
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex-1">
             <p className="text-white/80 text-sm line-clamp-4">
-              {truncateText(firstMemory.description, 100)}
+              {truncateText(firstMemory?.description || firstMemory?.description_raw, 100)}
             </p>
           </div>
         </motion.div>
@@ -118,7 +119,7 @@ export default function WrappedFirstLast({ data }) {
 
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex-1">
             <p className="text-white/80 text-sm line-clamp-4">
-              {truncateText(lastMemory.description, 100)}
+              {truncateText(lastMemory?.description || lastMemory?.description_raw, 100)}
             </p>
           </div>
         </motion.div>

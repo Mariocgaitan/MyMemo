@@ -174,12 +174,12 @@ export function useWrappedData(memories = [], people = [], categories = []) {
       firstMemory: firstMemory ? {
         date: new Date(firstMemory.memory_date || firstMemory.created_at),
         image: firstMemory.thumbnail_url || firstMemory.image_url,
-        description: firstMemory.description,
+        description: firstMemory.description || firstMemory.description_raw || 'Sin descripción',
       } : null,
       lastMemory: lastMemory ? {
         date: new Date(lastMemory.memory_date || lastMemory.created_at),
         image: lastMemory.thumbnail_url || lastMemory.image_url,
-        description: lastMemory.description,
+        description: lastMemory.description || lastMemory.description_raw || 'Sin descripción',
       } : null,
 
       // Pantalla 3
