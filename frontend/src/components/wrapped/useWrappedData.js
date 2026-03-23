@@ -34,26 +34,19 @@ export function useWrappedData(memories = [], people = [], categories = []) {
     const avgPerWeek = (totalMemories / 52).toFixed(1);
 
     // ============ PANTALLA 4: Cloud de Personas ============
-    // Contar frecuencia de cada persona
+    // Usar tagged_people directamente de las memorias (ahora viene del backend)
     const personFrequencyMap = {};
     
     memories.forEach(memory => {
-      // Intentar obtener tagged_people - puede ser array directo o venir de otras fuentes
-      let taggedPeople = memory.tagged_people || [];
-      
-      // Si no hay tagged_people pero hay un campo people_ids
-      if (!taggedPeople.length && memory.people_ids) {
-        taggedPeople = Array.isArray(memory.people_ids) ? memory.people_ids : [memory.people_ids];
-      }
-      
-      if (taggedPeople && taggedPeople.length) {
+      const taggedPeople = memory.tagged_people || [];
+      if (Array.isArray(taggedPeople) && taggedPeople.length) {
         taggedPeople.forEach(personId => {
           personFrequencyMap[personId] = (personFrequencyMap[personId] || 0) + 1;
         });
       }
     });
 
-    // Crear array de personas con frecuencia (filtrar solo las que tienen memories)
+    // Crear array de personas con frecuencia
     const peopleWithFrequency = people
       .map(p => ({
         ...p,
@@ -70,31 +63,21 @@ export function useWrappedData(memories = [], people = [], categories = []) {
     const topPersonPhotos = topPerson
       ? memories
           .filter(m => {
-            const taggedPeople = m.tagged_people || m.people_ids || [];
-            return taggedPeople.includes(topPerson.id);
+            const taggedPeople = m.tagged_people || [];
+            return Array.isArray(taggedPeople) && taggedPeople.includes(topPerson.id);
           })
           .slice(0, 15)
           .map(m => ({ id: m.id, url: m.thumbnail_url || m.image_url }))
       : [];
 
     // ============ PANTALLA 6: Top Categoría ============
+    // Usar categories directamente de las memorias (ahora viene del backend)
     const categoryFrequencyMap = {};
+    
     memories.forEach(memory => {
-      let cats = memory.categories || [];
+      const cats = memory.categories || [];
       
-      // Manejar diferentes formatos de categorías
-      if (typeof cats === 'string') {
-        cats = cats.split(',').map(c => c.trim());
-      } else if (!Array.isArray(cats)) {
-        cats = [];
-      }
-      
-      // Si hay category_id en lugar de categories
-      if (!cats.length && memory.category_id) {
-        cats = [memory.category_id];
-      }
-      
-      if (cats && cats.length) {
+      if (Array.isArray(cats) && cats.length) {
         cats.forEach(cat => {
           const catKey = typeof cat === 'string' ? cat : cat.id || cat.value || cat;
           categoryFrequencyMap[catKey] = (categoryFrequencyMap[catKey] || 0) + 1;
@@ -114,12 +97,8 @@ export function useWrappedData(memories = [], people = [], categories = []) {
     const topCategoryPhotos = topCategory
       ? memories
           .filter(m => {
-            let cats = m.categories || [];
-            if (typeof cats === 'string') {
-              cats = cats.split(',').map(c => c.trim());
-            }
-            const catKey = typeof cats[0] === 'string' ? cats[0] : (cats[0]?.id || cats[0]?.value);
-            return cats.includes(topCategory.value) || cats.includes(topCategory.id) || catKey === topCategory.value;
+            const cats = m.categories || [];
+            return Array.isArray(cats) && cats.includes(topCategory.value);
           })
           .slice(0, 15)
           .map(m => ({ id: m.id, url: m.thumbnail_url || m.image_url }))
