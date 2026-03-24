@@ -55,18 +55,25 @@
     z-index: 0;
   }
 
-  /* Dark mode adjustments for Leaflet */
+  /* Dark mode adjustments for Leaflet - only affect map background, not images */
   .dark .leaflet-container {
-    filter: brightness(0.9) hue-rotate(180deg);
+    background-color: #0a0a0a;
   }
 
   .dark .leaflet-popup-content-wrapper,
-  .dark .leaflet-popup-tip,
+  .dark .leaflet-popup-tip {
+    /* Keep popups without color filters */
+  }
+  
+  /* Important: Do NOT apply hue-rotate to images - it causes color shift on Android */
   .dark .photo-marker img,
-  .dark .photo-cluster img,
+  .dark .photo-cluster img {
+    filter: none;
+  }
+  
   .dark .photo-marker-inner,
   .dark .photo-cluster-inner {
-    filter: hue-rotate(-180deg);
+    /* No color filters - let images display naturally */
   }
 
   /* Custom popup styles */
