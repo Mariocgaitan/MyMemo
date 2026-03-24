@@ -1,19 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, Loader2, Save } from 'lucide-react';
+import { ChevronLeft, Loader2, Save, Plus, X, MapPin } from 'lucide-react';
 import { Button, Input, Textarea, Chip } from '../components/ui';
-import { memoryAPI } from '../services/api';
-
-const INITIAL_CATEGORIES = [
-    { id: 'cat_1', label: 'GeitanVida', value: 'geitanvida' },
-    { id: 'cat_2', label: 'ComidaBienRica', value: 'comidabienrica' },
-    { id: 'cat_3', label: 'ConLasGuarras', value: 'conlasguarras' },
-    { id: 'cat_4', label: 'Onichans', value: 'onichans' },
-    { id: 'cat_5', label: 'Fititit', value: 'fititit' },
-    { id: 'cat_6', label: 'Aestetik?', value: 'aestetik' },
-    { id: 'cat_7', label: 'NerdBoy', value: 'nerdboy' },
-    { id: 'cat_8', label: 'Famituki', value: 'famituki' },
-];
+import { memoryAPI, categoriesAPI } from '../services/api';
+import LocationPickerModal from '../components/LocationPickerModal';
 
 export default function EditMemory() {
     const navigate = useNavigate();
@@ -28,6 +18,19 @@ export default function EditMemory() {
     const [description, setDescription] = useState('');
     const [locationName, setLocationName] = useState('');
     const [selectedCategories, setSelectedCategories] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [addingCat, setAddingCat] = useState(false);
+    const [newCatLabel, setNewCatLabel] = useState('');
+    const [showLocationPicker, setShowLocationPicker] = useState(false);
+    const [latitude, setLatitude] = useState(null);
+    const [longitude, setLongitude] = useState(null);
+
+    // Load categories from API
+    useEffect(() => {
+        categoriesAPI.getAll().then(cats => {
+            if (cats && cats.length) setCategories(cats);
+        }).catch(() => {});
+    }, []);
 
     // Load memory data
     useEffect(() => {
@@ -37,16 +40,16 @@ export default function EditMemory() {
                 setMemory(data);
                 setDescription(data.description_raw || '');
                 setLocationName(data.location_name || '');
+                setLatitude(data.latitude || null);
+                setLongitude(data.longitude || null);
                 // Parse current categories from ai_metadata
                 const meta = data.ai_metadata || {};
                 const existingCats = [
                     ...(meta.user_categories || []),
                     ...(meta.nlp?.themes || []),
                 ];
-                // Match against INITIAL_CATEGORIES by value
-                const matched = INITIAL_CATEGORIES
-                    .filter(c => existingCats.includes(c.value) || existingCats.includes(c.label))
-                    .map(c => c.value);
+                // Match categories by value
+                const matched = existingCats.filter(cat => cat && cat.length > 0);
                 setSelectedCategories(matched);
             } catch (e) {
                 setError('No se pudo cargar el recuerdo');
@@ -61,6 +64,24 @@ export default function EditMemory() {
         setSelectedCategories(prev =>
             prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
         );
+    };
+
+    const addCategory = async () => {
+        if (!newCatLabel.trim()) return;
+        const label = newCatLabel.trim();
+        const value = label.toLowerCase().replace(/\s+/g, '_');
+        const newCat = { id: `cat_${Date.now()}`, label, value };
+        const updated = [...categories, newCat];
+        setCategories(updated);
+        // Automatically select the new category
+        setSelectedCategories(prev => [...prev, value]);
+        setNewCatLabel('');
+        setAddingCat(false);
+        try {
+            await categoriesAPI.save(updated);
+        } catch (e) {
+            console.error('Error saving category:', e);
+        }
     };
 
     const handleSave = async (e) => {
@@ -137,20 +158,39 @@ export default function EditMemory() {
                     />
 
                     {/* Location */}
-                    <Input
-                        label="Nombre del lugar"
-                        value={locationName}
-                        onChange={e => setLocationName(e.target.value)}
-                        placeholder="Ej: Parque Mexico, Cafe Tacuba..."
-                    />
-
-                    {/* Categories */}
                     <div className="space-y-2">
                         <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
-                            Categorias
+                            Ubicación
+                        </label>
+                        <div className="flex gap-2 items-stretch">
+                            <button
+                                type="button"
+                                onClick={() => setShowLocationPicker(true)}
+                                title="Elegir en mapa"
+                                className="flex items-center justify-center w-11 rounded-xl border-2 border-border-light dark:border-border-dark hover:border-primary hover:text-primary text-text-secondary-light dark:text-text-secondary-dark transition-colors flex-shrink-0 bg-surface-light dark:bg-surface-dark"
+                            >
+                                <MapPin size={20} />
+                            </button>
+                            <input
+                                type="text"
+                                value={locationName}
+                                onChange={e => setLocationName(e.target.value)}
+                                onFocus={() => {
+                                    if (!locationName) setShowLocationPicker(true);
+                                }}
+                                placeholder="Toca el 📍 o escribe el nombre del lugar"
+                                className="flex-1 px-4 py-3 rounded-xl bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark text-text-primary-light dark:text-text-primary-dark placeholder:text-text-tertiary-light placeholder:dark:text-text-tertiary-dark focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Categories */}
+                    <div className="space-y-3">
+                        <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
+                            Categorías
                         </label>
                         <div className="flex flex-wrap gap-2">
-                            {INITIAL_CATEGORIES.map(cat => (
+                            {categories.map(cat => (
                                 <Chip
                                     key={cat.id}
                                     selected={selectedCategories.includes(cat.value)}
@@ -159,6 +199,44 @@ export default function EditMemory() {
                                     {cat.label}
                                 </Chip>
                             ))}
+                            {/* Add new category button/input */}
+                            {addingCat ? (
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        autoFocus
+                                        value={newCatLabel}
+                                        onChange={e => setNewCatLabel(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') addCategory();
+                                            if (e.key === 'Escape') { setAddingCat(false); setNewCatLabel(''); }
+                                        }}
+                                        placeholder="Nombre..."
+                                        className="text-sm px-3 py-2 rounded-full border-2 border-primary bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all w-32"
+                                    />
+                                    <button 
+                                        type="button"
+                                        onClick={addCategory} 
+                                        className="text-sm text-primary font-medium hover:text-primary-hover flex-shrink-0 px-2 py-1"
+                                    >
+                                        OK
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => { setAddingCat(false); setNewCatLabel(''); }} 
+                                        className="flex-shrink-0 text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light dark:hover:text-text-primary-dark"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setAddingCat(true)}
+                                    className="flex items-center gap-1.5 text-sm text-primary hover:text-primary-hover font-medium px-3 py-2 rounded-full border-2 border-dashed border-primary/40 hover:border-primary transition-colors"
+                                >
+                                    <Plus size={14} /> Nueva
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -190,6 +268,20 @@ export default function EditMemory() {
                     </Button>
                 </form>
             </div>
+
+            {/* Location Picker Modal */}
+            <LocationPickerModal
+                isOpen={showLocationPicker}
+                onClose={() => setShowLocationPicker(false)}
+                onConfirm={(lat, lng, locName) => {
+                    setLatitude(lat);
+                    setLongitude(lng);
+                    setLocationName(locName);
+                    setShowLocationPicker(false);
+                }}
+                initialLat={latitude}
+                initialLng={longitude}
+            />
         </div>
     );
 }

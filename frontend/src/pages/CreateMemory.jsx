@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Camera, Upload, MapPin, Loader2, Calendar } from 'lucide-react';
+import { ChevronLeft, Camera, Upload, MapPin, Loader2, Calendar, Plus, X } from 'lucide-react';
 import { Button, Input, Textarea, Chip } from '../components/ui';
 import { memoryAPI, categoriesAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -67,6 +67,8 @@ export default function CreateMemory() {
   const [createdMemoryId, setCreatedMemoryId] = useState(null);
   const [createdMemoryUrl, setCreatedMemoryUrl] = useState(null);
   const [showCreateTutorial, setShowCreateTutorial] = useState(false);
+  const [addingCat, setAddingCat] = useState(false);
+  const [newCatLabel, setNewCatLabel] = useState('');
   const [formData, setFormData] = useState({
     image: null,
     imagePreview: null,
@@ -208,6 +210,27 @@ export default function CreateMemory() {
         ? prev.selectedCategories.filter(c => c !== catValue)
         : [...prev.selectedCategories, catValue]
     }));
+  };
+
+  const addCategory = async () => {
+    if (!newCatLabel.trim()) return;
+    const label = newCatLabel.trim();
+    const value = label.toLowerCase().replace(/\s+/g, '_');
+    const newCat = { id: `cat_${Date.now()}`, label, value };
+    const updated = [...categories, newCat];
+    setCategories(updated);
+    // Automatically select the new category
+    setFormData(prev => ({
+      ...prev,
+      selectedCategories: [...prev.selectedCategories, value]
+    }));
+    setNewCatLabel('');
+    setAddingCat(false);
+    try {
+      await categoriesAPI.save(updated);
+    } catch (e) {
+      console.error('Error saving category:', e);
+    }
   };
 
   const convertImageToBase64 = (file) => {
@@ -461,6 +484,44 @@ export default function CreateMemory() {
                   {cat.label}
                 </Chip>
               ))}
+              {/* Add new category button/input */}
+              {addingCat ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    autoFocus
+                    value={newCatLabel}
+                    onChange={e => setNewCatLabel(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') addCategory();
+                      if (e.key === 'Escape') { setAddingCat(false); setNewCatLabel(''); }
+                    }}
+                    placeholder="Nombre..."
+                    className="text-sm px-3 py-2 rounded-full border-2 border-primary bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all w-32"
+                  />
+                  <button 
+                    type="button"
+                    onClick={addCategory} 
+                    className="text-sm text-primary font-medium hover:text-primary-hover flex-shrink-0 px-2 py-1"
+                  >
+                    OK
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => { setAddingCat(false); setNewCatLabel(''); }} 
+                    className="flex-shrink-0 text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light dark:hover:text-text-primary-dark"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAddingCat(true)}
+                  className="flex items-center gap-1.5 text-sm text-primary hover:text-primary-hover font-medium px-3 py-2 rounded-full border-2 border-dashed border-primary/40 hover:border-primary transition-colors"
+                >
+                  <Plus size={14} /> Nueva
+                </button>
+              )}
             </div>
           </div>
 
