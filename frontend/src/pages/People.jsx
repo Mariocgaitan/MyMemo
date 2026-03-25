@@ -324,7 +324,7 @@ function AcceptModal({ request, allPeople, onAccept, onCancel }) {
 }
 
 // ─── Person Card ──────────────────────────────────────────────────────────────
-function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onLink, onClick }) {
+function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onLink, onSelectThumbnail, onClick }) {
     const isUnknown = person.name?.startsWith('Unknown Person');
     return (
         <div className="bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark p-4 flex items-center gap-4 hover:shadow-md transition-shadow">
@@ -359,6 +359,10 @@ function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onLink, on
                         <Link2 size={16} />
                     </button>
                 )}
+                <button onClick={() => onSelectThumbnail(person)}
+                    className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Cambiar portada">
+                    <ScanFace size={16} />
+                </button>
                 <button onClick={() => onRename(person)}
                     className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Renombrar">
                     <Edit2 size={16} />
@@ -380,7 +384,7 @@ function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onLink, on
 }
 
 // ─── Person Memories Panel ────────────────────────────────────────────────────
-function PersonMemories({ person, onBack, onMemoryClick }) {
+function PersonMemories({ person, onBack, onMemoryClick, onSelectThumbnail }) {
     const [memories, setMemories] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -406,6 +410,28 @@ function PersonMemories({ person, onBack, onMemoryClick }) {
                     {person.name?.startsWith('Unknown') ? 'Persona desconocida' : person.name}
                 </span>
             </div>
+
+            {/* Thumbnail with edit button */}
+            {person.thumbnail_url && (
+                <div className="relative w-32 h-32 rounded-2xl overflow-hidden border border-border-light dark:border-border-dark bg-primary/10 flex items-center justify-center">
+                    <img 
+                        src={person.thumbnail_url}
+                        alt={person.name}
+                        className="w-full h-full object-cover"
+                        onError={e => {
+                            e.target.style.display = 'none';
+                        }}
+                    />
+                    <button
+                        onClick={() => onSelectThumbnail(person)}
+                        className="absolute top-2 right-2 p-1.5 bg-white/90 dark:bg-surface-dark/90 rounded-lg hover:bg-white dark:hover:bg-surface-dark transition-colors shadow-md"
+                        title="Cambiar portada"
+                    >
+                        <Edit2 size={16} className="text-primary" />
+                    </button>
+                </div>
+            )}
+
             {loading ? (
                 <div className="flex justify-center py-12"><Loader2 size={32} className="animate-spin text-primary" /></div>
             ) : memories.length === 0 ? (
@@ -490,6 +516,131 @@ function LinkPersonModal({ conn, currentUserId, allPeople, onSave, onCancel }) {
     );
 }
 
+// ─── Select Thumbnail Modal ───────────────────────────────────────────────────
+function SelectThumbnailModal({ person, onSave, onCancel }) {
+    const [faces, setFaces] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedFaceUrl, setSelectedFaceUrl] = useState(person?.thumbnail_url || '');
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        const loadFaces = async () => {
+            try {
+                // Obtener todas las memorias donde aparece esta persona
+                const memories = await peopleAPI.getMemoriesByPerson(person.id);
+                const allFaces = [];
+                
+                // Extraer todos los recortes de cara de las memorias
+                memories.forEach(memory => {
+                    if (memory.ai_metadata?.faces) {
+                        memory.ai_metadata.faces.forEach(face => {
+                            if (face.person_id === person.id && face.thumbnail_url) {
+                                allFaces.push({
+                                    url: face.thumbnail_url,
+                                    memory_id: memory.id,
+                                    confidence: face.confidence,
+                                    created_at: memory.created_at
+                                });
+                            }
+                        });
+                    }
+                });
+                
+                // Remover duplicados por URL
+                const uniqueFaces = Array.from(
+                    new Map(allFaces.map(f => [f.url, f])).values()
+                );
+                setFaces(uniqueFaces);
+            } catch (e) {
+                console.error('Error loading faces:', e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        loadFaces();
+    }, [person.id]);
+
+    const handleSave = async () => {
+        if (!selectedFaceUrl) return;
+        setSaving(true);
+        try {
+            await onSave(person.id, selectedFaceUrl);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative z-10 bg-surface-light dark:bg-surface-dark rounded-2xl shadow-xl p-6 w-full max-w-md border border-border-light dark:border-border-dark">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <ScanFace size={24} className="text-primary" />
+                </div>
+                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark text-center mb-1">
+                    Elegir portada de {person?.name?.startsWith('Unknown') ? 'persona' : person?.name}
+                </h2>
+                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark text-center mb-5">
+                    Selecciona cuál foto de cara mostrar como portada
+                </p>
+
+                {loading ? (
+                    <div className="flex justify-center py-8">
+                        <Loader2 size={32} className="animate-spin text-primary" />
+                    </div>
+                ) : faces.length === 0 ? (
+                    <div className="text-center py-8">
+                        <p className="text-text-secondary-light dark:text-text-secondary-dark">Sin recortes de cara disponibles</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-3 gap-3 mb-5 max-h-64 overflow-y-auto">
+                        {faces.map((face) => (
+                            <div
+                                key={face.url}
+                                onClick={() => setSelectedFaceUrl(face.url)}
+                                className={`relative rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${
+                                    selectedFaceUrl === face.url
+                                        ? 'border-primary ring-2 ring-primary'
+                                        : 'border-border-light dark:border-border-dark hover:border-primary'
+                                }`}
+                            >
+                                <img
+                                    src={face.url}
+                                    alt="Face crop"
+                                    className="w-full h-20 object-cover"
+                                    onError={e => e.target.style.display = 'none'}
+                                />
+                                {selectedFaceUrl === face.url && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                        <Check size={20} className="text-white" />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <div className="flex gap-3 mt-5">
+                    <button
+                        onClick={onCancel}
+                        className="flex-1 py-3 rounded-xl border-2 border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark hover:border-primary transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={saving || !selectedFaceUrl || selectedFaceUrl === person.thumbnail_url}
+                        className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                        {saving && <Loader2 size={16} className="animate-spin" />} Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function People() {
     const navigate = useNavigate();
@@ -509,6 +660,7 @@ export default function People() {
     const [pendingRequests, setPendingRequests] = useState([]);
     const [toast, setToast] = useState(null); // { type: 'success'|'error', msg: string }
     const [trainModalOpen, setTrainModalOpen] = useState(false);
+    const [selectingThumbnailPerson, setSelectingThumbnailPerson] = useState(null);
 
     const fetchPeople = async () => {
         try {
@@ -561,6 +713,23 @@ export default function People() {
             if (selectedPerson?.id === mergingPerson.id) setSelectedPerson(null);
         } catch (e) { console.error(e); }
         finally { setIsMerging(false); }
+    };
+
+    const handleSelectThumbnail = async (personId, thumbnailUrl) => {
+        try {
+            await peopleAPI.updateThumbnail(personId, thumbnailUrl);
+            setPeople(prev => prev.map(p => 
+                p.id === personId ? { ...p, thumbnail_url: thumbnailUrl } : p
+            ));
+            if (selectedPerson?.id === personId) {
+                setSelectedPerson(prev => ({ ...prev, thumbnail_url: thumbnailUrl }));
+            }
+            setSelectingThumbnailPerson(null);
+            showToast('success', 'Portada actualizada ✔️');
+        } catch (e) {
+            console.error(e);
+            showToast('error', 'Error al actualizar la portada');
+        }
     };
 
     const showToast = (type, msg) => {
@@ -681,6 +850,7 @@ export default function People() {
                             person={selectedPerson}
                             onBack={() => setSelectedPerson(null)}
                             onMemoryClick={id => navigate(`/memory/${id}`)}
+                            onSelectThumbnail={setSelectingThumbnailPerson}
                         />
                     ) : (
                         <div className="space-y-6">
@@ -815,6 +985,13 @@ export default function People() {
                     allPeople={people}
                     onSave={handleLinkPersonToConnection}
                     onCancel={() => setLinkingConnection(null)}
+                />
+            )}
+            {selectingThumbnailPerson && (
+                <SelectThumbnailModal
+                    person={selectingThumbnailPerson}
+                    onSave={handleSelectThumbnail}
+                    onCancel={() => setSelectingThumbnailPerson(null)}
                 />
             )}
             <TrainFaceModal
