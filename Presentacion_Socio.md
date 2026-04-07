@@ -1,33 +1,56 @@
-# MyMemo / LifeLog AI — Presentación para Socio
+# MyMemo - Resumen de Trabajo Realizado (Febrero-Marzo 2026)
 
-MyMemo es una plataforma web que permite a las personas guardar sus recuerdos de manera fácil y segura. Imagina un diario digital, pero mucho más inteligente: puedes subir fotos, escribir lo que viviste y registrar el lugar donde ocurrió, todo desde tu celular o computadora.
+Este documento resume exclusivamente lo que se construyo y corrigio en el proyecto.
 
+## Base construida
 
-## ¿Qué abarca y cómo funciona MyMemo?
+- Aplicacion PWA para memorias con foto, descripcion y ubicacion.
+- Backend en FastAPI con cola asincrona Celery/Redis.
+- Persistencia en PostgreSQL con PostGIS, pgvector y JSONB.
+- Almacenamiento de imagenes y thumbnails en AWS S3.
+- NLP con OpenAI gpt-4o-mini.
+- Reconocimiento facial con face_recognition/dlib.
+- Despliegue en AWS Lightsail con Nginx y SSL.
 
-MyMemo es una plataforma pensada para que cualquier persona pueda guardar y revivir sus recuerdos de manera sencilla y segura. El objetivo inicial es ayudar a organizar la vida personal, permitiendo registrar momentos importantes y acceder a ellos fácilmente.
+## Implementaciones principales
 
-### ¿Qué puedes hacer?
+- Endpoints de memories, people, search y usage.
+- CRUD de memorias y detalle con informacion de IA.
+- Pantalla de personas con rename, merge y relacion con memorias.
+- Busqueda por texto, tags, fechas y nearby.
+- Mapa con visualizacion de memorias y clustering.
+- Timeline de memorias.
+- Flujo de creacion y edicion de memoria.
+- Dashboard de metricas/costos en Streamlit.
+- Feature Wrapped (9 pantallas) implementada y refinada.
 
-- **Guardar recuerdos:** Puedes subir fotos, escribir lo que viviste y registrar el lugar donde ocurrió. Así, cada momento queda guardado con todos sus detalles.
-- **Identificar personas en tus recuerdos:** El sistema reconoce automáticamente las personas que aparecen en tus fotos, lo que ayuda a organizar y encontrar recuerdos relacionados con amigos o familiares.
-- **Analizar emociones y temas:** Cuando escribes sobre un recuerdo, la plataforma detecta si fue una experiencia positiva o negativa, identifica temas como comida, actividades o personas mencionadas, y resume lo más importante.
-- **Buscar recuerdos fácilmente:** Puedes encontrar recuerdos por palabras clave, lugares, fechas o personas. Por ejemplo, buscar “cumpleaños”, “viaje a la playa” o “momentos con Mario”.
-- **Compartir recuerdos con otros:** Si lo deseas, puedes vincular tu cuenta con la de otra persona para compartir automáticamente los recuerdos donde ambos aparecen, manteniendo siempre la privacidad.
-- **Privacidad y control:** Tú decides qué recuerdos compartir y con quién. Los recuerdos privados siempre están protegidos.
-- **Funciona sin internet:** Si no tienes señal, puedes guardar recuerdos y la aplicación los sincroniza cuando vuelvas a conectarte.
+## Correcciones tecnicas cerradas
 
-### ¿Qué busca MyMemo?
+- race condition al combinar resultados NLP/Faces en JSONB.
+- problemas async/sync entre FastAPI y Celery.
+- conversion de tipos numpy en persistencia SQL.
+- conflictos por multiples jobs en Celery.
+- expiracion/uso de URLs de imagen en S3.
+- bug de paginacion que ocultaba historicos en mapa/timeline.
+- ajustes de cache PWA y comportamiento de assets.
+- fixes de UI: estados de carga, fallback de imagenes, z-index, crashes puntuales.
 
-La idea principal es crear un espacio personal donde cada usuario pueda:
-- Organizar su vida y revivir momentos importantes.
-- Tener control total sobre su información y privacidad.
-- Compartir recuerdos significativos con personas cercanas, de manera sencilla.
-- Aprovechar la tecnología para facilitar la búsqueda y el registro de experiencias, sin complicaciones.
+## Rediseño y evolucion de interfaz
 
-Todo está diseñado para que cualquier persona, sin conocimientos técnicos, pueda aprovechar la plataforma y disfrutar de sus recuerdos.
+- Nueva navegacion con bottom tabs.
+- Header simplificado.
+- Cluster geoespacial dinamico por zoom.
+- Modal de cluster con vista timeline por dia.
+- Onboarding inicial y tutorial contextual de primer recuerdo.
+- Flujo de persona principal en primer login.
+- Ajustes mobile continuos (incluyendo wrapped y vistas de mapa/personas).
 
+## Estado al cierre del periodo
 
-## ¿Por qué es valioso?
+- Producto desplegado y operativo.
+- Backend y frontend funcionales.
+- Desarrollo enfocado en estabilizacion, UX y refinamiento de comportamiento en produccion.
 
-MyMemo es más que un diario digital: es una herramienta para preservar la memoria personal, compartirla de forma segura y revivir momentos importantes. Todo está pensado para que sea fácil de usar, útil y confiable.
+Documentos de soporte creados para contexto tecnico:
+- Proyecto_md/SOCIO_TECNICO_ONBOARDING.md
+- Proyecto_md/AI_CONTEXT_COMPACT.md

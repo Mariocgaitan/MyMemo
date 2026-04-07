@@ -100,3 +100,16 @@ logs/
 *.log
 # CV / Personal documents
 Proyecto_md/CV_Project_Summary.md
+
+# Generated commit exports and ad-hoc reports
+commits_*.txt
+Proyecto_md/commits_*.txt
+
+# Temporary local diagnostics
+frontend/build_error.txt
+frontend/eslint*.txt
+backend/eslint*.txt
+local_people.json
+
+# Root-level ad-hoc test scripts
+test_*.py
