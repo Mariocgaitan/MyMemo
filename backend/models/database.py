@@ -70,6 +70,7 @@ class Memory(Base):
         nullable=False,
         server_default='visible'
     )
+    travel_shared = Column(Boolean, default=False, nullable=False, server_default='false')
     
     # Timestamps
     memory_date = Column(DateTime(timezone=True), nullable=True)  # User-set date; falls back to created_at if None
@@ -262,3 +263,8 @@ class UserConnection(Base):
     # Relationships
     requester = relationship("User", foreign_keys=[requester_id])
     addressee = relationship("User", foreign_keys=[addressee_id])
+
+
+# Ensure TravelMemo models are imported so metadata registration is complete.
+# Import is intentionally placed at end to avoid circular references during class declarations.
+from models import travel_models  # noqa: F401,E402

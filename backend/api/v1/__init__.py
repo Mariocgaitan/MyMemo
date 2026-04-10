@@ -2,7 +2,7 @@
 API v1 - Version 1 endpoints
 """
 from fastapi import APIRouter
-from api.v1.endpoints import auth, memories, people, search, usage, connections, admin
+from api.v1.endpoints import auth, memories, people, search, usage, connections, admin, travel
 
 # Create main API router for v1
 api_router = APIRouter()
@@ -15,3 +15,4 @@ api_router.include_router(search.router, prefix="/v1", tags=["search"])
 api_router.include_router(usage.router, prefix="/v1", tags=["usage"])
 api_router.include_router(connections.router, prefix="/v1", tags=["connections"])
 api_router.include_router(admin.router, prefix="/v1", tags=["admin"])
+api_router.include_router(travel.router, prefix="/v1", tags=["travel"])

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, MapPin, Trash2, Loader2, Brain, CheckCircle, Edit2, User, X, RefreshCw, Check } from 'lucide-react';
 import { Button, Chip } from '../components/ui';
-import { memoryAPI, peopleAPI } from '../services/api';
+import { memoryAPI, peopleAPI, travelAPI } from '../services/api';
+import ShareModal from '../components/travel/ShareModal';
 
 // ─── Delete Confirmation Modal ───────────────────────────────────────────────
 function DeleteConfirmModal({ isOpen, onConfirm, onCancel, isDeleting }) {
@@ -135,6 +136,9 @@ export default function MemoryDetail() {
   const [jobs, setJobs] = useState([]);
   const [pollingActive, setPollingActive] = useState(false);
   const pollingRef = useRef(null);
+  const [travelLoading, setTravelLoading] = useState(false);
+  const [travelMessage, setTravelMessage] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Fetch fresh person names for faces in this memory
   const fetchPersonNames = useCallback(async () => {
@@ -239,6 +243,44 @@ export default function MemoryDetail() {
       console.error('rerunFaces error:', e);
     } finally {
       setRerunLoading(false);
+    }
+  };
+
+  const handleTravelToggle = async () => {
+    if (!memory?.id) return;
+    if (!memory.travel_shared) {
+      setShowShareModal(true);
+      return;
+    }
+
+    setTravelLoading(true);
+    setTravelMessage('');
+    try {
+      if (memory.travel_shared) {
+        await travelAPI.unshareMemory(memory.id);
+        setMemory(prev => ({ ...prev, travel_shared: false }));
+        setTravelMessage('Memoria despublicada de TravelMemo.');
+      }
+    } catch (e) {
+      setTravelMessage('No se pudo actualizar el estado de publicacion. Intenta de nuevo.');
+    } finally {
+      setTravelLoading(false);
+    }
+  };
+
+  const handleConfirmShare = async () => {
+    if (!memory?.id) return;
+    setTravelLoading(true);
+    setTravelMessage('');
+    try {
+      await travelAPI.shareMemory(memory.id);
+      setMemory(prev => ({ ...prev, travel_shared: true }));
+      setTravelMessage('Memoria enviada a moderacion para publicarse en TravelMemo.');
+      setShowShareModal(false);
+    } catch (e) {
+      setTravelMessage('No se pudo actualizar el estado de publicacion. Intenta de nuevo.');
+    } finally {
+      setTravelLoading(false);
     }
   };
 
@@ -581,6 +623,36 @@ export default function MemoryDetail() {
               )}
             </div>
           )}
+
+          {/* TravelMemo Share Control */}
+          <div className="bg-surface-light dark:bg-surface-dark rounded-2xl p-4 border border-border-light dark:border-border-dark">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
+                  Compartir en TravelMemo
+                </p>
+                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1">
+                  Publica foto, lugar, descripcion y emocion. No se publican caras ni datos privados.
+                </p>
+              </div>
+              <button
+                onClick={handleTravelToggle}
+                disabled={travelLoading}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                  memory.travel_shared
+                    ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-300'
+                    : 'bg-primary text-white hover:bg-primary-hover'
+                }`}
+              >
+                {travelLoading ? 'Procesando...' : memory.travel_shared ? 'Despublicar' : 'Compartir'}
+              </button>
+            </div>
+            {travelMessage && (
+              <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-3">
+                {travelMessage}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -590,6 +662,19 @@ export default function MemoryDetail() {
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteModal(false)}
         isDeleting={deleting}
+      />
+
+      <ShareModal
+        isOpen={showShareModal}
+        onConfirm={handleConfirmShare}
+        onCancel={() => setShowShareModal(false)}
+        isSubmitting={travelLoading}
+        preview={{
+          hasPhoto: Boolean(memory?.image_url || memory?.thumbnail_url),
+          locationName: memory?.location_name,
+          description: memory?.description_raw,
+          emotionLabel: (memory?.ai_metadata?.nlp || {}).emotion,
+        }}
       />
     </>
   );

@@ -161,6 +161,80 @@ export const memoryAPI = {
   },
 };
 
+// ========== Travel Endpoints ==========
+
+export const travelAPI = {
+  shareMemory: async (memoryId) => {
+    const response = await api.post(`/api/v1/travel/share/${memoryId}`);
+    return response.data;
+  },
+
+  unshareMemory: async (memoryId) => {
+    const response = await api.delete(`/api/v1/travel/share/${memoryId}`);
+    return response.data;
+  },
+
+  getMyPublicMemories: async () => {
+    const response = await api.get('/api/v1/travel/my');
+    return response.data;
+  },
+
+  getPlaceDetail: async (placeId) => {
+    const response = await api.get(`/api/v1/travel/places/${placeId}`);
+    return response.data;
+  },
+
+  getFeed: async (params) => {
+    const response = await api.get('/api/v1/travel/feed', { params });
+    return response.data;
+  },
+
+  getMapClusters: async (params) => {
+    const response = await api.get('/api/v1/travel/map', { params });
+    return response.data;
+  },
+
+  getPreferences: async () => {
+    const response = await api.get('/api/v1/travel/preferences');
+    return response.data;
+  },
+
+  updatePreferences: async (payload) => {
+    const response = await api.post('/api/v1/travel/preferences', payload);
+    return response.data;
+  },
+
+  createEvent: async (payload) => {
+    const response = await api.post('/api/v1/travel/events', payload);
+    return response.data;
+  },
+
+  savePlace: async (placeId) => {
+    const response = await api.post(`/api/v1/travel/save/${placeId}`);
+    return response.data;
+  },
+
+  unsavePlace: async (placeId) => {
+    const response = await api.delete(`/api/v1/travel/save/${placeId}`);
+    return response.data;
+  },
+
+  getSavedPlaces: async () => {
+    const response = await api.get('/api/v1/travel/saved');
+    return response.data;
+  },
+
+  getProfile: async () => {
+    const response = await api.get('/api/v1/travel/profile');
+    return response.data;
+  },
+
+  reportPublicMemory: async (publicMemoryId, reason) => {
+    const response = await api.post(`/api/v1/travel/report/${publicMemoryId}`, { reason });
+    return response.data;
+  },
+};
+
 // ========== Categories Endpoints ==========
 
 export const categoriesAPI = {

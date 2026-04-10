@@ -9,4 +9,5 @@ export { default as Login } from './Login';
 export { default as Register } from './Register';
 export { default as Generator } from './Generator';
 export { default as SearchMemory } from './SearchMemory';
+export { default as TravelMemo } from './TravelMemo';
 

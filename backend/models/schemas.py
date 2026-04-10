@@ -124,6 +124,7 @@ class MemoryResponse(BaseModel):
     ai_metadata: Dict[str, Any]
     faces_processed: bool
     visibility: VisibilityEnum
+    travel_shared: bool = False
     memory_date: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
@@ -152,6 +153,7 @@ class MemoryResponse(BaseModel):
                 },
                 "faces_processed": False,
                 "visibility": "visible",
+                "travel_shared": False,
                 "created_at": "2026-02-16T18:30:00Z",
                 "updated_at": "2026-02-16T18:30:00Z"
             }

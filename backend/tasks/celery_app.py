@@ -11,7 +11,9 @@ celery_app = Celery(
     backend=settings.REDIS_URL,
     include=[
         "tasks.face_recognition",
-        "tasks.nlp_extraction"
+        "tasks.nlp_extraction",
+        "tasks.travel_moderation",
+        "tasks.travel_maintenance"
     ]
 )
 

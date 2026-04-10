@@ -3,7 +3,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/layout';
 import ProtectedRoute from './components/ProtectedRoute';
-import { Home, CreateMemory, MemoryDetail, People, EditMemory, Timeline, Login, Register, Generator, SearchMemory } from './pages';
+import { Home, CreateMemory, MemoryDetail, People, EditMemory, Timeline, Login, Register, Generator, SearchMemory, TravelMemo } from './pages';
 import './App.css';
 
 function App() {
@@ -93,6 +93,16 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Generator />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/travel"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <TravelMemo />
                   </Layout>
                 </ProtectedRoute>
               }

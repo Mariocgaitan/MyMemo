@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Map, Clock, Plus, Search, Users } from 'lucide-react';
+import { Map, Clock, Plus, Search, Users, Compass } from 'lucide-react';
 
 export default function BottomTabBar() {
   const navigate = useNavigate();
@@ -11,6 +11,7 @@ export default function BottomTabBar() {
     { id: 'create', path: '/create', icon: Plus, label: 'Agregar', center: true },
     { id: 'search', path: '/generator', icon: Search, label: 'Buscar' },
     { id: 'people', path: '/people', icon: Users, label: 'Personas' },
+    { id: 'travel', path: '/travel', icon: Compass, label: 'Travel' },
   ];
 
   const isActive = (path) => {

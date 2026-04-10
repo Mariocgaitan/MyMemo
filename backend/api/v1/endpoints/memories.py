@@ -96,6 +96,7 @@ def memory_to_response(
         ai_metadata=safe_metadata,
         faces_processed=memory.faces_processed,
         visibility=memory.visibility,
+        travel_shared=bool(getattr(memory, "travel_shared", False)),
         memory_date=memory.memory_date,
         created_at=memory.created_at,
         updated_at=memory.updated_at,
