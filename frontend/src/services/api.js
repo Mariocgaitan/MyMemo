@@ -159,6 +159,12 @@ export const memoryAPI = {
   removePerson: async (memoryId, personId) => {
     await api.delete(`/api/v1/memories/${memoryId}/people/${personId}`);
   },
+
+  // Manually add/link a person to a memory by name.
+  addPerson: async (memoryId, name) => {
+    const response = await api.post(`/api/v1/memories/${memoryId}/people`, { name });
+    return response.data;
+  },
 };
 
 // ========== Categories Endpoints ==========

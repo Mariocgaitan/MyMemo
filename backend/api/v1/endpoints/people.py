@@ -69,6 +69,37 @@ async def _patch_ai_metadata_face_id(
         flag_modified(mem, "ai_metadata")
 
 
+async def _patch_ai_metadata_face_name_for_person(
+    db: AsyncSession,
+    person_id: uuid.UUID,
+    person_name: str,
+):
+    """Patch cached ai_metadata.faces[].person_name for all memories linked to a person."""
+    mem_ids_result = await db.execute(
+        select(MemoryPerson.memory_id).where(MemoryPerson.person_id == person_id)
+    )
+    mem_ids = [row[0] for row in mem_ids_result.fetchall()]
+    if not mem_ids:
+        return
+
+    mems_result = await db.execute(select(Memory).where(Memory.id.in_(mem_ids)))
+    memories = mems_result.scalars().all()
+    for mem in memories:
+        if not mem.ai_metadata:
+            continue
+        faces = mem.ai_metadata.get("faces", [])
+        if not isinstance(faces, list):
+            continue
+        changed = False
+        for face in faces:
+            if str(face.get("person_id")) == str(person_id):
+                if face.get("person_name") != person_name:
+                    face["person_name"] = person_name
+                    changed = True
+        if changed:
+            flag_modified(mem, "ai_metadata")
+
+
 def person_to_response(person: Person) -> PersonResponse:
     """Convert Person ORM model to response schema with fresh presigned URL"""
     fresh_thumbnail_url = None
@@ -305,6 +336,7 @@ async def update_person(
     # (reasignar las memorias al existente y eliminar el duplicado)
     try:
         person.name = person_data.name
+        await _patch_ai_metadata_face_name_for_person(db, person.id, person_data.name)
         await db.commit()
         await db.refresh(person)
         return person_to_response(person)

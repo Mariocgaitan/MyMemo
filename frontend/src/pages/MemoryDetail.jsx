@@ -127,6 +127,8 @@ export default function MemoryDetail() {
   const [renamingFaceId, setRenamingFaceId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [faceLoading, setFaceLoading] = useState(null); // person_id being actioned
+  const [addingPerson, setAddingPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState('');
   const [rerunLoading, setRerunLoading] = useState(false);
   // Fresh person names from DB — overrides stale ai_metadata names after a rename
   const [personNamesById, setPersonNamesById] = useState({});
@@ -275,12 +277,30 @@ export default function MemoryDetail() {
         return { ...prev, ai_metadata: meta };
       });
       setPersonNamesById(prev => ({ ...prev, [String(face.person_id)]: renameValue.trim() }));
+      await fetchPersonNames();
       setRenamingFaceId(null);
       setRenameValue('');
     } catch (e) {
       console.error('rename error:', e);
     } finally {
       setFaceLoading(null);
+    }
+  };
+
+  const handleAddPerson = async () => {
+    const clean = newPersonName.trim();
+    if (!clean) return;
+
+    setAddingPerson(true);
+    try {
+      const updated = await memoryAPI.addPerson(id, clean);
+      setMemory(updated);
+      setNewPersonName('');
+      await fetchPersonNames();
+    } catch (e) {
+      console.error('addPerson error:', e);
+    } finally {
+      setAddingPerson(false);
     }
   };
 
@@ -446,14 +466,39 @@ export default function MemoryDetail() {
                 <h3 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
                   Personas
                 </h3>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleRerunFaces}
+                    disabled={rerunLoading || jobs.some(j => j.status === 'pending' || j.status === 'processing')}
+                    className="flex items-center gap-1.5 text-xs text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors disabled:opacity-40"
+                    title="Volver a detectar caras"
+                  >
+                    <RefreshCw size={12} className={rerunLoading ? 'animate-spin' : ''} />
+                    Volver a detectar
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <input
+                  value={newPersonName}
+                  onChange={(e) => setNewPersonName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddPerson();
+                    }
+                  }}
+                  placeholder="Agregar persona manual (aunque no haya cara detectada)"
+                  className="flex-1 text-sm px-3 py-2 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark"
+                />
                 <button
-                  onClick={handleRerunFaces}
-                  disabled={rerunLoading || jobs.some(j => j.status === 'pending' || j.status === 'processing')}
-                  className="flex items-center gap-1.5 text-xs text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors disabled:opacity-40"
-                  title="Volver a detectar caras"
+                  onClick={handleAddPerson}
+                  disabled={addingPerson || !newPersonName.trim()}
+                  className="px-3 py-2 text-sm rounded-xl bg-primary text-white hover:bg-primary-hover disabled:opacity-40 flex items-center gap-1.5"
                 >
-                  <RefreshCw size={12} className={rerunLoading ? 'animate-spin' : ''} />
-                  Volver a detectar
+                  {addingPerson && <Loader2 size={12} className="animate-spin" />}
+                  Agregar persona
                 </button>
               </div>
 

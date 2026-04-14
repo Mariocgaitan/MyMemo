@@ -308,6 +308,11 @@ class MemoryPersonLink(BaseModel):
     confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0)
 
 
+class MemoryPersonAddRequest(BaseModel):
+    """Request schema to manually add/link a person to a memory"""
+    name: str = Field(..., min_length=1, max_length=255, description="Person name to link into this memory")
+
+
 # ============================================================
 # PROCESSING JOB SCHEMAS
 # ============================================================
