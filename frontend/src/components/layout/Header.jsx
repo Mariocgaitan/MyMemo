@@ -1,4 +1,4 @@
-import { Moon, Sun, RefreshCw, LogOut, CircleHelp } from 'lucide-react';
+import { Moon, Sun, RefreshCw, LogOut, CircleHelp, Compass } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -49,6 +49,16 @@ export default function Header() {
 
         {/* Right: Actions (minimal) */}
         <div className="flex items-center gap-3">
+          {/* TravelMemo switch */}
+          <button
+            onClick={() => navigate('/travel/feed')}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark hover:text-primary hover:bg-primary/5 transition-colors border border-border-light dark:border-border-dark"
+            title="Ir a TravelMemo"
+          >
+            <Compass size={15} />
+            <span className="hidden sm:inline">TravelMemo</span>
+          </button>
+
           <Button
             variant="ghost"
             size="icon"

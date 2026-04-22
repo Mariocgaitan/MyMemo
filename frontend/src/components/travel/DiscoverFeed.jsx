@@ -1,81 +1,67 @@
-import { useState } from 'react';
-import { Bookmark, Flag, MapPin } from 'lucide-react';
-import { travelAPI } from '../../services/api';
+import { MapPin } from 'lucide-react';
 
-export default function DiscoverFeed({ items, onLoadMore, hasMore, loading, onSaved, onOpenPlace }) {
-  const [busyPlace, setBusyPlace] = useState(null);
-  const [busyReport, setBusyReport] = useState(null);
-
-  const handleSave = async (placeId) => {
-    setBusyPlace(placeId);
-    try {
-      await travelAPI.savePlace(placeId);
-      onSaved?.(placeId);
-    } finally {
-      setBusyPlace(null);
-    }
-  };
-
-  const handleReport = async (item) => {
-    const reason = window.prompt('Motivo del reporte:');
-    if (!reason) return;
-    setBusyReport(item.id);
-    try {
-      await travelAPI.reportPublicMemory(item.id, reason);
-    } finally {
-      setBusyReport(null);
-    }
-  };
+export default function DiscoverFeed({ items, onLoadMore, hasMore, loading, onOpenPlace }) {
+  if (!items || items.length === 0) {
+    return (
+      <div className="py-16 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark px-6">
+        No hay momentos cerca todavía. Intenta más tarde.
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="divide-y divide-border-light dark:divide-border-dark">
       {items.map((item) => (
-        <article key={item.id} className="rounded-2xl overflow-hidden border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-card">
+        <article key={item.id} className="bg-surface-light dark:bg-surface-dark">
           {item.public_photo_url && (
-            <button className="block w-full" onClick={() => onOpenPlace?.(item.place_id, item.id)}>
-              <img src={item.public_photo_url} alt={item.place_name} className="h-56 w-full object-cover" />
-            </button>
-          )}
-          <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-primary">{item.emotion_label || 'Momento'}</p>
-                <button onClick={() => onOpenPlace?.(item.place_id, item.id)} className="text-left text-lg font-semibold text-text-primary-light dark:text-text-primary-dark hover:text-primary">
-                  {item.place_name}
-                </button>
-                <div className="mt-1 flex items-center gap-1 text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                  <MapPin size={12} />
-                  <span>{item.place_city || item.place_country || 'Lugar compartido'}{typeof item.distance_km === 'number' ? ` · ${item.distance_km} km` : ''}</span>
-                </div>
-                {item.context_badge && (
-                  <div className="mt-2">
-                    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">{item.context_badge}</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => handleSave(item.place_id)} disabled={busyPlace === item.place_id} className="rounded-lg border border-border-light dark:border-border-dark p-2 text-text-secondary-light dark:text-text-secondary-dark">
-                  <Bookmark size={16} />
-                </button>
-                <button onClick={() => handleReport(item)} disabled={busyReport === item.id} className="rounded-lg border border-border-light dark:border-border-dark p-2 text-text-secondary-light dark:text-text-secondary-dark">
-                  <Flag size={16} />
-                </button>
-              </div>
+            <div className="w-full aspect-[4/3] overflow-hidden">
+              <img
+                src={item.public_photo_url}
+                alt={item.place_name}
+                className="w-full h-full object-cover"
+              />
             </div>
-            {item.public_description && (
-              <p className="text-sm text-text-primary-light dark:text-text-primary-dark">{item.public_description}</p>
+          )}
+          <div className="px-4 py-4 space-y-2">
+            {item.emotion_label && (
+              <span className="inline-block rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                {item.emotion_label}
+              </span>
             )}
-            {item.why_this && (
-              <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">{item.why_this}</p>
+            <button
+              onClick={() => onOpenPlace?.(item.place_id, item.id)}
+              className="block text-left w-full group"
+            >
+              <h2 className="text-base font-semibold text-text-primary-light dark:text-text-primary-dark group-hover:text-primary transition-colors">
+                {item.place_name}
+              </h2>
+              <div className="flex items-center gap-1 mt-0.5 text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                <MapPin size={11} />
+                <span>
+                  {[item.place_city, item.place_country].filter(Boolean).join(', ')}
+                  {typeof item.distance_km === 'number' ? ` · ${item.distance_km} km` : ''}
+                </span>
+              </div>
+            </button>
+            {item.public_description && (
+              <p className="text-sm text-text-primary-light dark:text-text-primary-dark leading-relaxed">
+                {item.public_description}
+              </p>
             )}
           </div>
         </article>
       ))}
 
       {hasMore && (
-        <button onClick={onLoadMore} disabled={loading} className="w-full rounded-xl border border-border-light dark:border-border-dark px-4 py-3 text-sm font-medium text-text-primary-light dark:text-text-primary-dark disabled:opacity-50">
-          {loading ? 'Cargando...' : 'Cargar mas'}
-        </button>
+        <div className="py-4 flex justify-center">
+          <button
+            onClick={onLoadMore}
+            disabled={loading}
+            className="rounded-xl border border-border-light dark:border-border-dark px-6 py-2.5 text-sm font-medium text-text-primary-light dark:text-text-primary-dark disabled:opacity-50"
+          >
+            {loading ? 'Cargando...' : 'Ver más'}
+          </button>
+        </div>
       )}
     </div>
   );

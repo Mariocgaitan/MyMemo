@@ -1,9 +1,14 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/layout';
 import ProtectedRoute from './components/ProtectedRoute';
-import { Home, CreateMemory, MemoryDetail, People, EditMemory, Timeline, Login, Register, Generator, SearchMemory, TravelMemo } from './pages';
+import TravelLayout from './components/travel/TravelLayout';
+import FeedPage from './pages/travel/FeedPage';
+import MapPage from './pages/travel/MapPage';
+import SavedPage from './pages/travel/SavedPage';
+import ProfilePage from './pages/travel/ProfilePage';
+import { Home, CreateMemory, MemoryDetail, People, EditMemory, Timeline, Login, Register, Generator, SearchMemory } from './pages';
 import './App.css';
 
 function App() {
@@ -101,12 +106,16 @@ function App() {
               path="/travel"
               element={
                 <ProtectedRoute>
-                  <Layout>
-                    <TravelMemo />
-                  </Layout>
+                  <TravelLayout />
                 </ProtectedRoute>
               }
-            />
+            >
+              <Route index element={<Navigate to="/travel/feed" replace />} />
+              <Route path="feed" element={<FeedPage />} />
+              <Route path="map" element={<MapPage />} />
+              <Route path="saved" element={<SavedPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+            </Route>
           </Routes>
         </Router>
       </AuthProvider>
