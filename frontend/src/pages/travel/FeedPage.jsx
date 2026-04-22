@@ -46,7 +46,7 @@ export default function FeedPage() {
   const needsColdStart = !preferences || !preferences.preferred_types || preferences.preferred_types.length < 3;
 
   return (
-    <div className="py-4 space-y-4">
+    <div className="py-5 space-y-4">
       {needsColdStart && (
         <div className="px-4">
           <ColdStartFlow onSubmit={handleSavePreferences} isSaving={savingPrefs} />
@@ -58,7 +58,7 @@ export default function FeedPage() {
       </div>
 
       {loading && (
-        <div className="flex items-center justify-center gap-2 py-12 text-text-secondary-light dark:text-text-secondary-dark">
+        <div className="flex items-center justify-center gap-2 py-16 text-text-secondary-light dark:text-text-secondary-dark">
           <Loader2 size={18} className="animate-spin" />
           <span className="text-sm">Cargando feed...</span>
         </div>

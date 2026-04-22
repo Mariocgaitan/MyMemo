@@ -8,7 +8,7 @@ export default function TravelLayout() {
     <TravelProvider>
       <div className="min-h-screen bg-background-light dark:bg-background-dark">
         <TravelHeader />
-        <main className="max-w-2xl mx-auto pb-20">
+        <main className="max-w-3xl mx-auto pb-20">
           <Outlet />
         </main>
         <TravelBottomNav />

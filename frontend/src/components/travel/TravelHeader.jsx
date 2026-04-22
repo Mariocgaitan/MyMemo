@@ -6,7 +6,7 @@ export default function TravelHeader() {
 
   return (
     <header className="sticky top-0 z-40 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark px-4 py-3 shadow-sm">
-      <div className="max-w-2xl mx-auto flex items-center justify-between">
+      <div className="max-w-3xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Compass size={22} className="text-primary" />
           <span className="font-serif italic text-xl tracking-tight text-text-primary-light dark:text-text-primary-dark">

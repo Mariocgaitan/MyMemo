@@ -16,7 +16,7 @@ export default function TravelBottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark shadow-2xl safe-bottom">
-      <div className="max-w-2xl mx-auto px-0 py-2 flex items-center justify-around">
+      <div className="max-w-3xl mx-auto px-0 py-2 flex items-center justify-around">
         {tabs.map(({ id, path, icon: Icon, label }) => {
           const active = isActive(path);
           return (
