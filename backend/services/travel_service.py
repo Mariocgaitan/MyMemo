@@ -261,12 +261,28 @@ class TravelService:
         )
         places = candidates_result.scalars().all()
 
-        filtered_places = []
+        # Adaptive geo window so the feed never looks empty on cold content.
+        nearby_50km = []
+        nearby_500km = []
+        typed_places = []
+
         for place in places:
             if type_filter and type_filter not in (place.types or []):
                 continue
-            if self._haversine_km(lat, lng, place.lat, place.lng) <= 50:
-                filtered_places.append(place)
+
+            typed_places.append(place)
+            distance = self._haversine_km(lat, lng, place.lat, place.lng)
+            if distance <= 50:
+                nearby_50km.append(place)
+            if distance <= 500:
+                nearby_500km.append(place)
+
+        if nearby_50km:
+            filtered_places = nearby_50km
+        elif nearby_500km:
+            filtered_places = nearby_500km
+        else:
+            filtered_places = typed_places
 
         feed_candidates: List[FeedCandidate] = []
         for place in filtered_places:
