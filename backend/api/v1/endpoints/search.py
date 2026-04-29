@@ -9,18 +9,26 @@ from shapely.geometry import Point
 from typing import List, Optional
 from datetime import datetime, date
 import httpx
+import uuid
 
 from core.database import get_db
 from core.deps import get_current_user
 from core.config import settings
-from models.database import Memory, User
+from models.database import Memory, User, UsageMetric
 from models.schemas import MemoryListResponse
 from api.v1.endpoints.memories import memory_to_response
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 router = APIRouter(prefix="/search", tags=["search"])
 GOOGLE_AUTOCOMPLETE_URL = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
 GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+
+# Estimated costs (USD) used for internal FinOps visibility.
+# These values can be adjusted centrally if Google pricing changes.
+GOOGLE_AUTOCOMPLETE_ESTIMATED_USD = 0.00283
+GOOGLE_GEOCODE_ESTIMATED_USD = 0.00500
+GOOGLE_REVERSE_GEOCODE_ESTIMATED_USD = 0.00500
 
 
 def _ensure_google_maps_enabled() -> str:
@@ -49,6 +57,29 @@ async def _google_get_json(url: str, params: dict) -> dict:
         raise HTTPException(status_code=502, detail=f"Google service unreachable: {str(exc)}")
 
 
+async def _record_google_usage(
+    db: AsyncSession,
+    user_id,
+    metric_type: str,
+    estimated_cost_usd: float,
+    extra_data: dict,
+) -> None:
+    try:
+        db.add(
+            UsageMetric(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                metric_type=metric_type,
+                metric_value=1.0,
+                cost_usd=estimated_cost_usd,
+                extra_data=extra_data,
+            )
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+
+
 # ============================================================
 # ENDPOINTS
 # ============================================================
@@ -62,6 +93,7 @@ async def places_autocomplete(
     q: str = Query(..., min_length=2, max_length=120, description="Search query"),
     language: str = Query("es", min_length=2, max_length=10),
     country: Optional[str] = Query("mx", min_length=2, max_length=2, description="Country code, e.g. mx"),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     _ = current_user
@@ -89,6 +121,21 @@ async def places_autocomplete(
         raise HTTPException(status_code=502, detail=f"Google autocomplete failed: {status}. Response: {payload}")
 
     predictions = payload.get("predictions", [])
+
+    await _record_google_usage(
+        db=db,
+        user_id=current_user.id,
+        metric_type="google_places_autocomplete",
+        estimated_cost_usd=GOOGLE_AUTOCOMPLETE_ESTIMATED_USD,
+        extra_data={
+            "query": q,
+            "language": language,
+            "country": country,
+            "status": status,
+            "results_count": len(predictions),
+        },
+    )
+
     return {
         "predictions": [
             {
@@ -111,6 +158,7 @@ async def places_autocomplete(
 async def geocode_place(
     place_id: str = Query(..., min_length=5, max_length=256),
     language: str = Query("es", min_length=2, max_length=10),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     _ = current_user
@@ -141,6 +189,19 @@ async def geocode_place(
     if lat is None or lng is None:
         raise HTTPException(status_code=502, detail="Invalid geocode response")
 
+    await _record_google_usage(
+        db=db,
+        user_id=current_user.id,
+        metric_type="google_places_geocode",
+        estimated_cost_usd=GOOGLE_GEOCODE_ESTIMATED_USD,
+        extra_data={
+            "place_id": place_id,
+            "language": language,
+            "status": status,
+            "formatted_address": first.get("formatted_address"),
+        },
+    )
+
     return {
         "place_id": place_id,
         "formatted_address": first.get("formatted_address"),
@@ -158,6 +219,7 @@ async def reverse_geocode_place(
     latitude: float = Query(..., description="Latitude"),
     longitude: float = Query(..., description="Longitude"),
     language: str = Query("es", min_length=2, max_length=10),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     _ = current_user
@@ -180,6 +242,20 @@ async def reverse_geocode_place(
     results = payload.get("results") or []
     if not results:
         raise HTTPException(status_code=404, detail="No places found at this location")
+
+    await _record_google_usage(
+        db=db,
+        user_id=current_user.id,
+        metric_type="google_places_reverse_geocode",
+        estimated_cost_usd=GOOGLE_REVERSE_GEOCODE_ESTIMATED_USD,
+        extra_data={
+            "latitude": latitude,
+            "longitude": longitude,
+            "language": language,
+            "status": status,
+            "results_count": len(results),
+        },
+    )
 
     # Return top 5 results (most specific to most general)
     return {
