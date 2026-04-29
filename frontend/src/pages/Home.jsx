@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, MapPin, Navigation, ArrowRight, Users, Tag, Plus, Calendar, Sparkles } from 'lucide-react';
+import { Search, X, MapPin, Navigation, ArrowRight, Users, Tag, Plus, Sparkles } from 'lucide-react';
 import { Input, Chip } from '../components/ui';
 import Modal from '../components/ui/Modal';
 import MapView from '../components/map/MapView';
@@ -596,7 +596,7 @@ export default function Home() {
       </div>
 
       {/* Map Container - 60% height */}
-      <div className="flex-[3] relative">
+      <div className="flex-[3] relative z-0">
         <MapView
           memories={filteredMemories}
           onMemoryClick={handleMemoryClick}
@@ -674,25 +674,6 @@ export default function Home() {
           </div>
         )}
       </Modal>
-
-      {/* Timeline pill — compact, navigates to /timeline */}
-      <button
-        onClick={() => navigate('/timeline')}
-        className="bg-surface-light dark:bg-surface-dark border-t-2 border-border-light dark:border-border-dark px-5 py-5 flex items-center justify-between hover:bg-primary/5 active:bg-primary/10 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Calendar size={16} className="text-primary" />
-          </div>
-          <div className="flex flex-col items-start">
-            <span className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark leading-tight">Línea de tiempo</span>
-            <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-              {memories.length > 0 ? `${memories.length} recuerdo${memories.length !== 1 ? 's' : ''}` : 'Ver todos los recuerdos'}
-            </span>
-          </div>
-        </div>
-        <ArrowRight size={18} className="text-primary" />
-      </button>
 
       {/* Wrapped Modal */}
       <WrappedModal isOpen={showWrapped} onClose={() => setShowWrapped(false)} />

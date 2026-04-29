@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, User, Edit2, Trash2, ChevronRight, Loader2, GitMerge, Link2, Unlink, Check, X, UserPlus, ScanFace } from 'lucide-react';
+import { ChevronLeft, User, Edit2, Trash2, ChevronRight, Loader2, GitMerge, Link2, Unlink, Check, X, UserPlus, ScanFace, MoreVertical } from 'lucide-react';
 import { Input } from '../components/ui';
 import { peopleAPI, connectionsAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -326,6 +326,63 @@ function AcceptModal({ request, allPeople, onAccept, onCancel }) {
 // ─── Person Card ──────────────────────────────────────────────────────────────
 function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onLink, onSelectThumbnail, onClick }) {
     const isUnknown = person.name?.startsWith('Unknown Person');
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    const actionItems = [
+        {
+            key: 'view',
+            label: 'Ver recuerdos',
+            description: 'Abre la galeria de memorias de esta persona.',
+            icon: ChevronRight,
+            onSelect: onClick,
+        },
+        {
+            key: 'thumbnail',
+            label: 'Cambiar portada',
+            description: 'Elige la foto principal que se muestra en la lista.',
+            icon: ScanFace,
+            onSelect: () => onSelectThumbnail(person),
+        },
+        {
+            key: 'rename',
+            label: 'Renombrar',
+            description: 'Actualiza el nombre visible de esta persona.',
+            icon: Edit2,
+            onSelect: () => onRename(person),
+        },
+        ...(!isUnknown
+            ? [{
+                key: 'link',
+                label: 'Vincular con usuario',
+                description: 'Conecta esta cara con un companero de recuerdos.',
+                icon: Link2,
+                onSelect: () => onLink(person),
+            }]
+            : []),
+        ...(allPeople.length > 1
+            ? [{
+                key: 'merge',
+                label: 'Fusionar personas',
+                description: 'Une duplicados para mantener un solo perfil.',
+                icon: GitMerge,
+                onSelect: () => onMerge(person),
+            }]
+            : []),
+        {
+            key: 'delete',
+            label: 'Eliminar persona',
+            description: 'Borra esta persona y sus detecciones asociadas.',
+            icon: Trash2,
+            tone: 'danger',
+            onSelect: () => onDelete(person),
+        },
+    ];
+
+    const handleAction = (onSelect) => {
+        setMenuOpen(false);
+        onSelect();
+    };
+
     return (
         <div className="bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark p-4 flex items-center gap-4 hover:shadow-md transition-shadow">
             {/* Avatar */}
@@ -352,32 +409,99 @@ function PersonCard({ person, allPeople, onRename, onDelete, onMerge, onLink, on
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-1 flex-shrink-0">
-                {!isUnknown && (
-                    <button onClick={() => onLink(person)}
-                        className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Vincular con usuario">
-                        <Link2 size={16} />
-                    </button>
-                )}
-                <button onClick={() => onSelectThumbnail(person)}
-                    className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Cambiar portada">
-                    <ScanFace size={16} />
+            <div className="relative flex items-center gap-1 flex-shrink-0">
+                <button
+                    onClick={() => setMenuOpen(true)}
+                    className="p-2 rounded-lg border border-border-light dark:border-border-dark hover:bg-primary/10 transition-colors text-text-secondary-light dark:text-text-secondary-dark"
+                    title="Acciones de persona"
+                >
+                    <MoreVertical size={16} />
                 </button>
-                <button onClick={() => onRename(person)}
-                    className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Renombrar">
-                    <Edit2 size={16} />
-                </button>
-                {allPeople.length > 1 && (
-                    <button onClick={() => onMerge(person)}
-                        className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary" title="Fusionar con otra persona">
-                        <GitMerge size={16} />
-                    </button>
-                )}
-                <button onClick={() => onDelete(person)}
-                    className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-500" title="Eliminar">
-                    <Trash2 size={16} />
-                </button>
+
                 <ChevronRight size={16} className="text-text-secondary-light dark:text-text-secondary-dark ml-1 cursor-pointer" onClick={onClick} />
+
+                {menuOpen && (
+                    <>
+                        <button
+                            type="button"
+                            className="fixed inset-0 z-40 bg-transparent"
+                            onClick={() => setMenuOpen(false)}
+                            aria-label="Cerrar menu de acciones"
+                        />
+
+                        <div className="hidden sm:block absolute right-0 top-11 z-50 w-80 rounded-2xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-xl p-2">
+                            {actionItems.map((action) => {
+                                const Icon = action.icon;
+                                const isDanger = action.tone === 'danger';
+                                return (
+                                    <button
+                                        key={action.key}
+                                        type="button"
+                                        onClick={() => handleAction(action.onSelect)}
+                                        className={`w-full text-left rounded-xl px-3 py-2.5 transition-colors ${isDanger
+                                            ? 'hover:bg-red-100 dark:hover:bg-red-900/20'
+                                            : 'hover:bg-primary/10'}`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className={`mt-0.5 ${isDanger ? 'text-red-500' : 'text-primary'}`}>
+                                                <Icon size={16} />
+                                            </div>
+                                            <div>
+                                                <p className={`text-sm font-semibold ${isDanger
+                                                    ? 'text-red-500'
+                                                    : 'text-text-primary-light dark:text-text-primary-dark'}`}>
+                                                    {action.label}
+                                                </p>
+                                                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                                                    {action.description}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div className="sm:hidden fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-4 shadow-2xl">
+                            <div className="w-10 h-1 rounded-full bg-border-light dark:bg-border-dark mx-auto mb-3" />
+                            <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark mb-2 px-1">
+                                Acciones de persona
+                            </p>
+                            <div className="space-y-1 max-h-[65vh] overflow-y-auto pb-2">
+                                {actionItems.map((action) => {
+                                    const Icon = action.icon;
+                                    const isDanger = action.tone === 'danger';
+                                    return (
+                                        <button
+                                            key={action.key}
+                                            type="button"
+                                            onClick={() => handleAction(action.onSelect)}
+                                            className={`w-full text-left rounded-xl px-3 py-3 transition-colors ${isDanger
+                                                ? 'hover:bg-red-100 dark:hover:bg-red-900/20'
+                                                : 'hover:bg-primary/10'}`}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className={`mt-0.5 ${isDanger ? 'text-red-500' : 'text-primary'}`}>
+                                                    <Icon size={17} />
+                                                </div>
+                                                <div>
+                                                    <p className={`text-sm font-semibold ${isDanger
+                                                        ? 'text-red-500'
+                                                        : 'text-text-primary-light dark:text-text-primary-dark'}`}>
+                                                        {action.label}
+                                                    </p>
+                                                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                                                        {action.description}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -792,6 +916,7 @@ export default function People() {
                         onDelete={setDeletingPerson}
                         onMerge={setMergingPerson}
                         onLink={setLinkingPerson}
+                        onSelectThumbnail={setSelectingThumbnailPerson}
                         onClick={() => setSelectedPerson(p)}
                     />
                 ))}

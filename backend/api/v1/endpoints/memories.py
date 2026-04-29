@@ -24,6 +24,7 @@ from models.schemas import (
     SharedByInfo,
     EvaluateMatchRequest,
     EvaluateMatchResponse,
+    MemoryPersonAddRequest,
 )
 from services.storage_service import storage_service
 from tasks.celery_app import celery_app
@@ -889,3 +890,95 @@ async def remove_person_from_memory(
 
     await db.commit()
     return None
+
+
+@router.post(
+    "/{memory_id}/people",
+    response_model=MemoryResponse,
+    summary="Add person to memory manually",
+    description="Link an existing person (by name) to this memory or create one if it does not exist.",
+)
+async def add_person_to_memory(
+    memory_id: uuid.UUID,
+    payload: MemoryPersonAddRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user = current_user
+    clean_name = payload.name.strip()
+    if not clean_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required")
+
+    memory_result = await db.execute(
+        select(Memory).where(and_(Memory.id == memory_id, Memory.user_id == user.id))
+    )
+    memory = memory_result.scalar_one_or_none()
+    if not memory:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Memory not found")
+
+    # Reuse existing person by name if present, otherwise create a new manual person.
+    person_result = await db.execute(
+        select(Person).where(and_(Person.user_id == user.id, Person.name == clean_name))
+    )
+    person = person_result.scalar_one_or_none()
+    created_now = False
+    if not person:
+        person = Person(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            name=clean_name,
+            face_embedding=json.dumps([]),
+            times_detected=0,
+        )
+        db.add(person)
+        await db.flush()
+        created_now = True
+
+    link_result = await db.execute(
+        select(MemoryPerson).where(
+            and_(MemoryPerson.memory_id == memory_id, MemoryPerson.person_id == person.id)
+        )
+    )
+    link = link_result.scalar_one_or_none()
+    if not link:
+        db.add(
+            MemoryPerson(
+                memory_id=memory_id,
+                person_id=person.id,
+                confidence_score=1.0,
+            )
+        )
+        person.times_detected = max(0, int(person.times_detected or 0)) + 1
+        person.last_seen = datetime.utcnow()
+
+    # Keep ai_metadata cache in sync for immediate UI reflection.
+    meta = dict(memory.ai_metadata or {})
+    faces = meta.get("faces")
+    if not isinstance(faces, list):
+        faces = []
+
+    exists_in_meta = any(str(f.get("person_id")) == str(person.id) for f in faces)
+    if not exists_in_meta:
+        faces.append(
+            {
+                "person_id": str(person.id),
+                "person_name": person.name,
+                "confidence": 1.0,
+                "source": "manual",
+            }
+        )
+
+    meta["faces"] = faces
+    memory.ai_metadata = meta
+    memory.updated_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(memory)
+
+    # Return response with updated tagged people list
+    tagged_result = await db.execute(
+        select(MemoryPerson.person_id).where(MemoryPerson.memory_id == memory_id)
+    )
+    tagged_people = [row[0] for row in tagged_result.all()]
+
+    return memory_to_response(memory, tagged_people_ids=tagged_people)

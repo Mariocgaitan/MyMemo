@@ -4,7 +4,6 @@ import { ChevronLeft, Camera, Upload, MapPin, Loader2, Calendar, Plus, X } from 
 import { Button, Input, Textarea, Chip } from '../components/ui';
 import { memoryAPI, categoriesAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import FaceTagModal from '../components/FaceTagModal';
 import LocationPickerModal from '../components/LocationPickerModal';
 import TourOverlay from '../components/onboarding/TourOverlay';
 
@@ -62,10 +61,7 @@ export default function CreateMemory() {
   const [uploadStep, setUploadStep] = useState(null); // 'prepare' | 'upload' | 'ai'
   const [error, setError] = useState('');
   const [gpsStatus, setGpsStatus] = useState('loading'); // 'loading', 'success', 'error'
-  const [showFaceTagModal, setShowFaceTagModal] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [createdMemoryId, setCreatedMemoryId] = useState(null);
-  const [createdMemoryUrl, setCreatedMemoryUrl] = useState(null);
   const [showCreateTutorial, setShowCreateTutorial] = useState(false);
   const [addingCat, setAddingCat] = useState(false);
   const [newCatLabel, setNewCatLabel] = useState('');
@@ -233,27 +229,42 @@ export default function CreateMemory() {
     }
   };
 
-  const convertImageToBase64 = (file) => {
+  const convertImageToBase64 = async (file) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error('No se pudo inicializar canvas');
+    }
+
+    // Prefer EXIF-aware decoding when available so portrait/landscape render correctly.
+    if (typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close?.();
+        return canvas.toDataURL('image/jpeg', 0.92);
+      } catch (err) {
+        console.warn('createImageBitmap orientation fallback:', err);
+      }
+    }
+
+    // Fallback path for older browsers.
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          // Convert to canvas to normalize format (no flip - keep original for face detection)
-          const canvas = document.createElement('canvas');
           canvas.width = img.width;
           canvas.height = img.height;
-
-          const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, img.width, img.height);
-
-          // Convert canvas to base64 JPEG at high quality
-          const base64 = canvas.toDataURL('image/jpeg', 0.92);
-          resolve(base64);
+          resolve(canvas.toDataURL('image/jpeg', 0.92));
         };
         img.onerror = reject;
-        img.src = e.target.result;
+        img.src = e.target?.result;
       };
       reader.onerror = (error) => reject(error);
     });
@@ -303,10 +314,8 @@ export default function CreateMemory() {
       setUploadStep('ai');
       await new Promise(r => setTimeout(r, 800)); // brief visual pause
 
-      // Store memory ID and image URL, then show face tagging modal
-      setCreatedMemoryId(response.id);
-      setCreatedMemoryUrl(response.image_url || null);
-      setShowFaceTagModal(true);
+      // Go directly to memory detail; faces and names are managed there.
+      navigate(`/memory/${response.id}`);
 
     } catch (err) {
       console.error('Error creating memory:', err);
@@ -315,12 +324,6 @@ export default function CreateMemory() {
       setLoading(false);
       setUploadStep(null);
     }
-  };
-
-  const handleFaceTagComplete = () => {
-    // Navigate to home after face tagging
-    navigate('/');
-    window.location.reload();
   };
 
   return (
@@ -347,11 +350,11 @@ export default function CreateMemory() {
           {/* Image Upload */}
           <div className="space-y-3" data-onboarding-create="photo">
             {formData.imagePreview ? (
-              <div className="relative aspect-[3/2] rounded-2xl overflow-hidden">
+              <div className="relative rounded-2xl overflow-hidden min-h-[220px] max-h-[60vh] bg-black/5 dark:bg-black/20 flex items-center justify-center">
                 <img
                   src={formData.imagePreview}
                   alt="Preview"
-                  className="w-full h-full object-cover"
+                  className="w-full h-auto max-h-[60vh] object-contain"
                   style={{ transform: 'scaleX(-1)' }}
                 />
                 <button
@@ -602,16 +605,6 @@ export default function CreateMemory() {
         }}
         initialLat={formData.latitude}
         initialLng={formData.longitude}
-      />
-
-      {/* Face Tagging Modal */}
-      <FaceTagModal
-        isOpen={showFaceTagModal}
-        onClose={() => { setShowFaceTagModal(false); navigate('/'); }}
-        memoryId={createdMemoryId}
-        memoryImageUrl={createdMemoryUrl}
-        onComplete={handleFaceTagComplete}
-        prefilledNames={formData.people ? formData.people.split(',').map(n => n.trim()) : []}
       />
     </div>
   );
