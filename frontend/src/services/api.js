@@ -189,6 +189,11 @@ export const travelAPI = {
     return response.data;
   },
 
+  getDiscover: async (params) => {
+    const response = await api.get('/api/v1/travel/discover', { params });
+    return response.data;
+  },
+
   getMapClusters: async (params) => {
     const response = await api.get('/api/v1/travel/map', { params });
     return response.data;

@@ -79,6 +79,33 @@ class PlaceMemoriesResponse(BaseModel):
     visit_context: Optional[str] = None
 
 
+# ---------------------------------------------------------------------------
+# Discovery feed — Google Places enriched with MyMemo memories
+# ---------------------------------------------------------------------------
+
+class DiscoverPlaceCard(BaseModel):
+    """A place from Google Places, enriched with MyMemo public memory data."""
+    google_place_id: str
+    name: str
+    address: Optional[str] = None
+    lat: float
+    lng: float
+    distance_km: Optional[float] = None
+    types: List[str] = Field(default_factory=list)
+    rating: Optional[float] = None
+    user_ratings_total: Optional[int] = None
+    open_now: Optional[bool] = None
+    has_memories: bool = False
+    memory_count: int = 0
+    similar_users_count: int = 0
+    preview_memory: Optional[PublicMemoryCard] = None
+    why_this: Optional[str] = None
+
+
+class DiscoverFeedResponse(BaseModel):
+    places: List[DiscoverPlaceCard]
+
+
 class TravelPreferencesRequest(BaseModel):
     preferred_types: List[str] = Field(default_factory=list, max_length=10)
     home_city: Optional[str] = Field(default=None, max_length=120)

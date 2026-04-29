@@ -8,38 +8,74 @@ import DiscoverFeed from '../../components/travel/DiscoverFeed';
 import PlaceDetail from '../../components/travel/PlaceDetail';
 
 export default function FeedPage() {
-  const { location, preferences, setPreferences, feedState, loadFeed, loadMoreFeed } = useTravel();
+  const { location, preferences, setPreferences } = useTravel();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedType, setSelectedType] = useState(null);
+  const [places, setPlaces] = useState([]);
   const [selectedPlaceDetail, setSelectedPlaceDetail] = useState(null);
   const [placeDetailOpen, setPlaceDetailOpen] = useState(false);
   const [savingPrefs, setSavingPrefs] = useState(false);
 
-  useEffect(() => {
+  const loadDiscover = async (typeFilter = null) => {
     if (!location) return;
     setLoading(true);
-    loadFeed({ reset: true, typeFilter: selectedType })
-      .catch(() => setError('No se pudo cargar el feed.'))
-      .finally(() => setLoading(false));
+    setError(null);
+    try {
+      const data = await travelAPI.getDiscover({
+        lat: location.lat,
+        lng: location.lng,
+        radius_km: 3,
+        ...(typeFilter ? { type_filter: typeFilter } : {}),
+      });
+      setPlaces(data?.places || []);
+    } catch {
+      setError('No se pudo cargar el feed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDiscover(selectedType);
   }, [location, selectedType]);
 
   const handleSavePreferences = async (preferredTypes) => {
     try {
       setSavingPrefs(true);
       await setPreferences({ preferred_types: preferredTypes });
-      await loadFeed({ reset: true, typeFilter: selectedType });
     } finally {
       setSavingPrefs(false);
     }
   };
 
-  const openPlaceDetail = async (placeId, publicMemoryId = null) => {
-    const detail = await travelAPI.getPlaceDetail(placeId);
-    setSelectedPlaceDetail(detail);
-    setPlaceDetailOpen(true);
-    if (publicMemoryId) {
-      await travelAPI.createEvent({ event_type: 'click', place_id: placeId, public_memory_id: publicMemoryId });
+  const openPlaceDetail = async (googlePlaceId, publicMemoryId = null) => {
+    try {
+      const detail = await travelAPI.getPlaceDetail(googlePlaceId);
+      setSelectedPlaceDetail(detail);
+      setPlaceDetailOpen(true);
+      if (publicMemoryId) {
+        await travelAPI.createEvent({ event_type: 'click', place_id: googlePlaceId, public_memory_id: publicMemoryId });
+      }
+    } catch {
+      // Place not in our catalog yet — show minimal detail
+      const found = places.find(p => p.google_place_id === googlePlaceId);
+      if (found) {
+        setSelectedPlaceDetail({
+          place: {
+            place_id: found.google_place_id,
+            name: found.name,
+            city: null,
+            country: null,
+            memory_count: found.memory_count,
+          },
+          memories: [],
+          user_has_been_here: false,
+          user_visit_count: 0,
+          visit_context: null,
+        });
+        setPlaceDetailOpen(true);
+      }
     }
   };
 
@@ -60,20 +96,14 @@ export default function FeedPage() {
       {loading && (
         <div className="flex items-center justify-center gap-2 py-16 text-text-secondary-light dark:text-text-secondary-dark">
           <Loader2 size={18} className="animate-spin" />
-          <span className="text-sm">Cargando feed...</span>
+          <span className="text-sm">Buscando lugares...</span>
         </div>
       )}
 
       {error && <p className="px-4 text-sm text-red-500">{error}</p>}
 
       {!loading && !error && (
-        <DiscoverFeed
-          items={feedState.items}
-          loading={feedState.loading}
-          hasMore={feedState.hasMore}
-          onLoadMore={() => loadMoreFeed(selectedType)}
-          onOpenPlace={openPlaceDetail}
-        />
+        <DiscoverFeed places={places} onOpenPlace={openPlaceDetail} />
       )}
 
       <PlaceDetail
@@ -84,3 +114,4 @@ export default function FeedPage() {
     </div>
   );
 }
+

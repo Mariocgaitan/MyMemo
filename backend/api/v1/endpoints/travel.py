@@ -2,21 +2,25 @@
 TravelMemo endpoints (Stage A foundation).
 """
 
+import math
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from geoalchemy2.shape import from_shape, to_shape
 from shapely.geometry import Point
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings
 from core.database import get_db
 from core.deps import get_current_user
 from core.limiter import limiter
 from models.database import Memory, User
-from models.travel_models import PlaceCatalog, PublicMemory, RecommendationEvent, SavedPlace
+from models.travel_models import PlaceCatalog, PublicMemory, RecommendationEvent, SavedPlace, UserTravelPreference
 from models.travel_schemas import (
+    DiscoverFeedResponse,
+    DiscoverPlaceCard,
     FeedResponse,
     MapClustersResponse,
     MessageResponse,
@@ -36,6 +40,7 @@ from models.travel_schemas import (
     TravelPreferencesResponse,
     UnshareMemoryResponse,
 )
+from services.google_places_service import GooglePlacesService, GOOGLE_TO_CHIP
 from services.travel_service import travel_service
 from services.storage_service import storage_service
 from tasks.travel_moderation import moderate_travel_post
@@ -81,6 +86,72 @@ def _build_public_card(item: PublicMemory) -> PublicMemoryCard:
 def _normalize_place_name(place_id: str) -> str:
     cleaned = place_id.replace("legacy:", "").split(":")[0].replace("-", " ").strip()
     return cleaned.title() if cleaned else "Lugar"
+
+
+# ---------------------------------------------------------------------------
+# NLP field normalization helpers
+# ---------------------------------------------------------------------------
+_NLP_TYPE_MAP: dict[str, str] = {
+    # comida
+    "food": "comida", "comida": "comida", "restaurante": "comida", "restaurant": "comida",
+    "dinner": "comida", "lunch": "comida", "breakfast": "comida", "desayuno": "comida",
+    "almuerzo": "comida", "cena": "comida", "mariscos": "comida", "seafood": "comida",
+    "tacos": "comida", "pizza": "comida", "sushi": "comida", "brunch": "comida",
+    # cafe
+    "coffee": "cafe", "cafe": "cafe", "café": "cafe", "brewed": "cafe",
+    "espresso": "cafe", "tea": "cafe",
+    # salidas
+    "nightlife": "salidas", "bar": "salidas", "drinks": "salidas",
+    "cocktail": "salidas", "mojito": "salidas", "night": "salidas",
+    "club": "salidas", "discoteca": "salidas", "cantina": "salidas",
+    # deporte
+    "sports": "deporte", "exercise": "deporte", "gym": "deporte", "fitness": "deporte",
+    "deporte": "deporte", "fútbol": "deporte", "futbol": "deporte", "running": "deporte",
+    "hiking": "deporte", "outdoor": "deporte",
+    # arte
+    "architecture": "arte", "historic": "arte", "museum": "arte",
+    "art": "arte", "arquitectura": "arte", "museo": "arte",
+    "iglesia": "arte", "church": "arte", "monument": "arte", "arte": "arte",
+    # pareja
+    "romance": "pareja", "romantic": "pareja", "pareja": "pareja",
+    "aniversario": "pareja", "anniversary": "pareja", "spa": "pareja",
+    # familia
+    "family": "familia", "familia": "familia", "niños": "familia",
+    "park": "familia", "parque": "familia", "naturaleza": "familia",
+    "nature": "familia", "beach": "familia", "playa": "familia",
+    # fiesta
+    "fiesta": "fiesta", "party": "fiesta", "cumpleaños": "fiesta",
+    "celebration": "fiesta", "birthday": "fiesta", "evento": "fiesta",
+}
+
+_SENTIMENT_TO_LABEL: dict[str, str] = {
+    "positive": "Me encantó",
+    "neutral": "Recuerdo",
+    "negative": "Mejorable",
+}
+
+
+def _extract_place_types(nlp: dict) -> list[str]:
+    """Derive normalized chip-compatible types from NLP output (themes + activity + tags)."""
+    raw_tokens: list[str] = []
+    raw_tokens += [t.lower() for t in (nlp.get("themes") or [])]
+    activity = nlp.get("activity")
+    if activity:
+        raw_tokens.append(activity.lower())
+    raw_tokens += [t.lower() for t in (nlp.get("tags") or [])]
+
+    types: list[str] = []
+    for token in raw_tokens:
+        mapped = _NLP_TYPE_MAP.get(token)
+        if mapped and mapped not in types:
+            types.append(mapped)
+    return types
+
+
+def _extract_emotion_label(nlp: dict) -> str | None:
+    """Map NLP sentiment string to a human-readable emotion label."""
+    sentiment = (nlp.get("sentiment") or nlp.get("emotion") or "").lower()
+    return _SENTIMENT_TO_LABEL.get(sentiment)
 
 
 @router.post(
@@ -129,6 +200,11 @@ async def share_memory(
 
     nlp = (memory.ai_metadata or {}).get("nlp", {})
     visit_date = memory.memory_date or memory.created_at
+    place_types = _extract_place_types(nlp)
+    emotion_label = _extract_emotion_label(nlp)
+    # Best-effort numeric sentiment score (positive=1.0, neutral=0.5, negative=0.0)
+    _s = (nlp.get("sentiment") or "").lower()
+    sentiment_score = 1.0 if _s == "positive" else (0.0 if _s == "negative" else 0.5)
 
     item = PublicMemory(
         id=uuid.uuid4(),
@@ -138,11 +214,11 @@ async def share_memory(
         place_name=memory.location_name,
         place_city=(memory.ai_metadata or {}).get("city"),
         place_country=(memory.ai_metadata or {}).get("country"),
-        place_types=(nlp.get("topics") or []),
+        place_types=place_types,
         public_photo_url=(memory.thumbnail_url or memory.image_url),
         public_description=memory.description_raw,
-        emotion_label=nlp.get("emotion"),
-        sentiment_score=nlp.get("sentiment_score"),
+        emotion_label=emotion_label,
+        sentiment_score=sentiment_score,
         visit_month=visit_date.month if visit_date else None,
         visit_year=visit_date.year if visit_date else None,
         visibility_status="pending",
@@ -160,13 +236,17 @@ async def share_memory(
             name=memory.location_name,
             lat=lat,
             lng=lng,
-            types=(nlp.get("topics") or []),
+            types=place_types,
             city=(memory.ai_metadata or {}).get("city"),
             country=(memory.ai_metadata or {}).get("country"),
             location=from_shape(Point(lng, lat), srid=4326),
             last_enriched_at=datetime.now(timezone.utc),
         )
         db.add(place)
+    else:
+        # Update types if previously empty
+        if not place.types and place_types:
+            place.types = place_types
 
     memory.travel_shared = True
 
@@ -320,6 +400,209 @@ async def get_travel_feed(
         limit=min(max(limit, 1), 30),
     )
     return FeedResponse(items=items, next_cursor=next_cursor)
+
+
+@router.get(
+    "/discover",
+    response_model=DiscoverFeedResponse,
+    summary="Personalized discovery feed — Google Places enriched with MyMemo memories",
+)
+async def get_discover_feed(
+    lat: float,
+    lng: float,
+    radius_km: float = Query(default=2.0, ge=0.1, le=50.0),
+    type_filter: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Fetches nearby places from Google Places and overlays public MyMemo memory data.
+    Results are ranked by a personalized score:
+      score = 0.35 * affinity + 0.30 * geo + 0.20 * community + 0.15 * quality
+    """
+    api_key = settings.GOOGLE_MAPS_API_KEY.strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Google Places not configured")
+
+    # Legacy English → Spanish compatibility map for profile_vector keys
+    _LEGACY_TO_SPANISH: dict[str, str] = {
+        "food": "comida", "coffee": "cafe", "nightlife": "salidas",
+        "park": "familia", "architecture": "arte", "sports": "deporte",
+    }
+
+    def _affinity(spanish_chips: list[str], prefs: UserTravelPreference | None) -> float:
+        if not spanish_chips:
+            return 0.3
+        pv: dict = (prefs.profile_vector or {}) if prefs else {}
+        pt: list = (prefs.preferred_types or []) if prefs else []
+        if pv:
+            scores = []
+            for chip in spanish_chips:
+                v = float(pv.get(chip, 0.0))
+                legacy_en = [k for k, es in _LEGACY_TO_SPANISH.items() if es == chip]
+                for leg in legacy_en:
+                    v = max(v, float(pv.get(leg, 0.0)))
+                scores.append(v)
+            raw = sum(scores) / len(scores)
+            return max(raw, 0.1)
+        elif pt:
+            # Normalize legacy English preferred_types to Spanish for comparison
+            pt_spanish = {_LEGACY_TO_SPANISH.get(t, t) for t in pt}
+            return 1.0 if any(c in pt_spanish for c in spanish_chips) else 0.2
+        return 0.3
+
+    def _why_this(spanish_chips: list[str], prefs: UserTravelPreference | None, similar_count: int, has_memories: bool) -> str:
+        if not prefs:
+            return "Popular cerca de ti"
+        pt_spanish = {_LEGACY_TO_SPANISH.get(t, t) for t in (prefs.preferred_types or [])}
+        _LABELS: dict[str, str] = {
+            "comida": "comida", "cafe": "café", "salidas": "salidas",
+            "deporte": "deporte", "arte": "arte", "pareja": "planes en pareja",
+            "familia": "familia", "fiesta": "fiestas",
+        }
+        match = next((c for c in spanish_chips if c in pt_spanish), None)
+        if match:
+            return f"Coincide con tu gusto por {_LABELS.get(match, match)}"
+        if similar_count > 0:
+            return f"{similar_count} personas con gustos como los tuyos estuvieron aquí"
+        if has_memories:
+            return "De la comunidad TravelMemo"
+        return "Popular cerca de ti"
+
+    def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+        R = 6371.0
+        dlat = math.radians(lat2 - lat1)
+        dlng = math.radians(lng2 - lng1)
+        a = (math.sin(dlat / 2) ** 2
+             + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2)
+        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    def _score(dist_km: float, affinity: float, memory_count: int, rating: float | None) -> float:
+        geo = 1.0 / (1.0 + dist_km / 2.0)
+        community = min(memory_count / 5.0, 1.0)
+        quality = ((rating - 1.0) / 4.0) if rating else 0.5
+        return 0.35 * affinity + 0.30 * geo + 0.20 * community + 0.15 * quality
+
+    gps = GooglePlacesService(api_key)
+    radius_m = int(radius_km * 1000)
+    google_places = await gps.nearby(lat, lng, radius_m=radius_m, type_filter=type_filter)
+
+    if not google_places:
+        return DiscoverFeedResponse(places=[])
+
+    gids = [p["google_place_id"] for p in google_places if p.get("google_place_id")]
+    memory_counts: dict[str, int] = {}
+    previews: dict[str, PublicMemory] = {}
+    similar_counts: dict[str, int] = {}
+
+    # Fetch user preferences for personalization
+    prefs = await travel_service.get_or_create_preferences(db, current_user.id)
+
+    if gids:
+        counts_result = await db.execute(
+            select(PublicMemory.place_id, func.count(PublicMemory.id))
+            .where(
+                and_(
+                    PublicMemory.place_id.in_(gids),
+                    PublicMemory.visibility_status == "active",
+                    PublicMemory.moderation_status == "approved",
+                )
+            )
+            .group_by(PublicMemory.place_id)
+        )
+        for row in counts_result:
+            memory_counts[row[0]] = row[1]
+
+        # Batch-fetch similar user counts (users whose preferred_types overlap with current user)
+        user_types_set = {_LEGACY_TO_SPANISH.get(t, t) for t in (prefs.preferred_types or [])}
+        if user_types_set:
+            sim_rows = await db.execute(
+                select(
+                    PublicMemory.place_id,
+                    PublicMemory.user_id,
+                    UserTravelPreference.preferred_types,
+                )
+                .join(
+                    UserTravelPreference,
+                    UserTravelPreference.user_id == PublicMemory.user_id,
+                )
+                .where(
+                    and_(
+                        PublicMemory.place_id.in_(gids),
+                        PublicMemory.visibility_status == "active",
+                        PublicMemory.moderation_status == "approved",
+                        PublicMemory.user_id != current_user.id,
+                    )
+                )
+            )
+            # Python-side overlap filter
+            tmp: dict[str, set] = {}
+            for row in sim_rows:
+                pt_es = {_LEGACY_TO_SPANISH.get(t, t) for t in (row[2] or [])}
+                if pt_es & user_types_set:  # overlap
+                    tmp.setdefault(row[0], set()).add(str(row[1]))
+            similar_counts = {pid: len(uids) for pid, uids in tmp.items()}
+
+        for gid in gids:
+            if memory_counts.get(gid, 0) > 0:
+                prev_result = await db.execute(
+                    select(PublicMemory)
+                    .where(
+                        and_(
+                            PublicMemory.place_id == gid,
+                            PublicMemory.visibility_status == "active",
+                            PublicMemory.moderation_status == "approved",
+                        )
+                    )
+                    .order_by(desc(PublicMemory.created_at))
+                    .limit(1)
+                )
+                prev = prev_result.scalar_one_or_none()
+                if prev:
+                    previews[gid] = prev
+
+    cards: list[DiscoverPlaceCard] = []
+    for p in google_places:
+        gid = p.get("google_place_id")
+        if not gid:
+            continue
+        plat, plng = p.get("lat") or lat, p.get("lng") or lng
+        dist = round(_haversine(lat, lng, plat, plng), 1)
+        count = memory_counts.get(gid, 0)
+        sim_count = similar_counts.get(gid, 0)
+        preview_item = previews.get(gid)
+        preview_card = travel_service._build_public_card(preview_item) if preview_item else None
+
+        # Convert Google types → Spanish chips for affinity scoring
+        google_types = p.get("types") or []
+        spanish_chips = gps.google_types_to_chips(google_types)
+
+        aff = _affinity(spanish_chips, prefs)
+        score = _score(dist, aff, count, p.get("rating"))
+        why = _why_this(spanish_chips, prefs, sim_count, count > 0)
+
+        cards.append(
+            DiscoverPlaceCard(
+                google_place_id=gid,
+                name=p["name"] or "",
+                address=p.get("address"),
+                lat=plat,
+                lng=plng,
+                distance_km=dist,
+                types=spanish_chips or google_types,
+                rating=p.get("rating"),
+                user_ratings_total=p.get("user_ratings_total"),
+                open_now=p.get("open_now"),
+                has_memories=count > 0,
+                memory_count=count,
+                similar_users_count=sim_count,
+                preview_memory=preview_card,
+                why_this=why,
+            )
+        )
+
+    cards.sort(key=lambda c: -_score(c.distance_km or 999, _affinity(c.types, prefs), c.memory_count, c.rating))
+    return DiscoverFeedResponse(places=cards)
 
 
 @router.get(
