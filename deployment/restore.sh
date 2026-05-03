@@ -13,6 +13,17 @@ BUCKET="mymemo-backups-prod"
 S3_PREFIX="daily"
 TMP_FILE="/tmp/mymemo_restore.sql.gz"
 
+# Cleanup temp file on any exit; restart containers if they were stopped
+_SERVICES_STOPPED=0
+cleanup() {
+    rm -f "${TMP_FILE}"
+    if [[ "${_SERVICES_STOPPED}" -eq 1 ]]; then
+        echo "[$(date +%FT%T)] Restarting services after failure..."
+        docker start mymemo_backend mymemo_celery || true
+    fi
+}
+trap cleanup EXIT
+
 # ── Resolve which backup ──────────────────────────────────────
 if [ -z "${1:-}" ] || [ "$1" = "latest" ]; then
     BACKUP_FILE=$(aws s3 ls "s3://${BUCKET}/${S3_PREFIX}/" \
@@ -52,6 +63,7 @@ aws s3 cp "s3://${BUCKET}/${S3_PREFIX}/${BACKUP_FILE}" "${TMP_FILE}" \
 # ── Stop services ─────────────────────────────────────────────
 echo "[$(date +%FT%T)] Stopping backend services..."
 docker stop mymemo_backend mymemo_celery
+_SERVICES_STOPPED=1
 
 # ── Drop & recreate DB ────────────────────────────────────────
 echo "[$(date +%FT%T)] Dropping database..."
@@ -66,15 +78,16 @@ gunzip -c "${TMP_FILE}" | docker exec -i mymemo_db psql -U "${DB_USER}" "${DB_NA
 # ── Restart ───────────────────────────────────────────────────
 echo "[$(date +%FT%T)] Restarting services..."
 docker start mymemo_backend mymemo_celery
+_SERVICES_STOPPED=0
 
 # ── Health check ──────────────────────────────────────────────
 echo "[$(date +%FT%T)] Verifying..."
 sleep 5
+_HEALTH_OK=1
 docker exec mymemo_db pg_isready -U "${DB_USER}" \
-    && echo "  DB : OK" || echo "  DB : FAIL"
+    && echo "  DB : OK" || { echo "  DB : FAIL"; _HEALTH_OK=0; }
 curl -sf http://localhost:8000/health > /dev/null \
-    && echo "  API: OK" || echo "  API: FAIL"
+    && echo "  API: OK" || { echo "  API: FAIL"; _HEALTH_OK=0; }
+[[ "${_HEALTH_OK}" -eq 1 ]] || { echo "WARNING: Health checks failed after restore"; exit 1; }
 
-# ── Cleanup ───────────────────────────────────────────────────
-rm -f "${TMP_FILE}"
 echo "[$(date +%FT%T)] Restore complete from ${BACKUP_FILE}."
