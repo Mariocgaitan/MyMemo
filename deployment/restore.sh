@@ -12,6 +12,7 @@ set +a
 BUCKET="mymemo-backups-prod"
 S3_PREFIX="daily"
 TMP_FILE="/tmp/mymemo_restore.sql.gz"
+AWS_REGION="${AWS_REGION:-us-east-2}"
 
 # Cleanup temp file on any exit; restart containers if they were stopped
 _SERVICES_STOPPED=0
@@ -58,7 +59,7 @@ fi
 # ── Download ──────────────────────────────────────────────────
 echo "[$(date +%FT%T)] Downloading s3://${BUCKET}/${S3_PREFIX}/${BACKUP_FILE}..."
 aws s3 cp "s3://${BUCKET}/${S3_PREFIX}/${BACKUP_FILE}" "${TMP_FILE}" \
-    --region "${AWS_REGION:-us-east-2}"
+    --region "${AWS_REGION}"
 
 # ── Stop services ─────────────────────────────────────────────
 echo "[$(date +%FT%T)] Stopping backend services..."
@@ -66,6 +67,8 @@ docker stop mymemo_backend mymemo_celery
 _SERVICES_STOPPED=1
 
 # ── Drop & recreate DB ────────────────────────────────────────
+echo "[$(date +%FT%T)] Verifying backup integrity..."
+gunzip -t "${TMP_FILE}" || { echo "ERROR: Backup file is corrupt"; exit 1; }
 echo "[$(date +%FT%T)] Dropping database..."
 docker exec mymemo_db dropdb -U "${DB_USER}" "${DB_NAME}"
 echo "[$(date +%FT%T)] Creating database..."

@@ -45,7 +45,7 @@ trap 'send_failure_email "Script failed at line $LINENO. Check /var/log/mymemo-b
 echo "[$(date +%FT%T)] Starting backup: ${FILENAME}"
 docker exec mymemo_db pg_dump -U "${DB_USER}" "${DB_NAME}" | gzip > "${TMP_FILE}"
 echo "[$(date +%FT%T)] Dump complete: $(du -sh "${TMP_FILE}" | cut -f1)"
-[[ $(stat -c%s "${TMP_FILE}") -gt 100 ]] || { echo "ERROR: Dump file suspiciously small ($(stat -c%s "${TMP_FILE}") bytes)"; exit 1; }
+[[ $(stat -c%s "${TMP_FILE}") -gt 1024 ]] || { echo "ERROR: Dump file suspiciously small ($(stat -c%s "${TMP_FILE}") bytes)"; exit 1; }
 
 # ── 2. Upload to S3 ───────────────────────────────────────────
 aws s3 cp "${TMP_FILE}" "s3://${BUCKET}/${S3_PREFIX}/${FILENAME}" \
